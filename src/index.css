@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0a12;
+  --panel: #111118;
+  --border: #25252f;
+}
+
+body {
+  font-family: 'Inter', system_ui, sans-serif;
+}
+
+/* Full-screen immersive canvas container */
+.viz-container {
+  position: relative;
+  width: 100vw;
+  height: calc(100vh - 56px); /* header height */
+  background: #0a0a12;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Beautiful DOM bubble labels - no ugly white boxes */
+.bubble-label {
+  position: absolute;
+  pointer-events: none;
+  z-index: 20;
+  transform: translate(-50%, 0);
+  background: rgba(15, 15, 22, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 4px 10px 5px;
+  box-shadow: 0 8px 20px -6px rgb(0 0 0 / 0.65),
+              0 0 0 1px rgba(255,255,255,0.025) inset;
+  backdrop-filter: blur(10px);
+  min-width: 58px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bubble-label .symbol {
+  color: #fde047;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9), 0 0 8px rgb(234 179 8 / 0.32);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.bubble-label .price {
+  color: #f1f5f9;
+  font-weight: 600;
+  text-shadow: 0 1px 2.5px rgb(0 0 0 / 0.85);
+  font-size: 10.5px;
+}
+
+.bubble-label .change {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.bubble-label .change-up {
+  color: #4ade80;
+  text-shadow: 0 0 6px rgb(74 222 128 / 0.4);
+}
+
+.bubble-label .change-down {
+  color: #f87171;
+  text-shadow: 0 0 6px rgb(248 113 113 / 0.4);
+}
+
+/* HUD elements */
+.hud {
+  background: rgba(17, 17, 24, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1);
+}

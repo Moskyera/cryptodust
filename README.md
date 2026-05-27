@@ -15,21 +15,57 @@ Immersive full-screen cryptocurrency bubble visualizer powered by CoinGecko.
 
 ## Local Development (Required)
 
-**You cannot open this project by double-clicking `index.html`.**
+**You cannot open this project by double-clicking `index.html`.**  
+Doing so will always show the CORS error you are seeing (`file:///C:/src/main.tsx` blocked).
 
-### Correct way to run locally:
+### Step-by-step to run locally on Windows:
 
-1. Fix your Node.js installation if `npm` is broken (common on Windows after updates).
-2. Open a terminal in this folder and run:
+1. **Fix npm first (very common issue on Windows)**
 
-```bash
-npm install
-npm run dev
-```
+   Your Node installation has a corrupted npm. This is why commands fail.
 
-3. Open the URL shown in the terminal (usually `http://localhost:5173` or `http://localhost:3000`).
+   - Go to https://nodejs.org
+   - Download the **LTS** version (not Current)
+   - Run the installer
+   - Choose **"Repair"** (or uninstall + reinstall)
+   - **Important**: After reinstall, close and reopen PowerShell completely
 
-This starts Vite's development server, which is required for React, TypeScript, and module imports to work.
+2. **Run the project**
+
+   Open PowerShell and run these commands **one by one**:
+
+   ```powershell
+   cd "C:\Users\KQHEX\AetherBubbles"
+   ```
+
+   ```powershell
+   npm install
+   ```
+
+   ```powershell
+   npm run dev
+   ```
+
+3. **Open the correct link**
+
+   When the terminal says something like:
+   `➜  Local:   http://localhost:5173/`
+
+   **Copy and open that link** in Chrome/Edge.
+
+   Do **not** open `index.html` from the folder.
+
+### Easy Alternative (Recommended for beginners)
+
+1. Install [Visual Studio Code](https://code.visualstudio.com/)
+2. Open the `C:\Users\KQHEX\AetherBubbles` folder in VS Code
+3. Press `Ctrl + `` ` to open the terminal inside VS Code
+4. Run the three commands above in that terminal
+5. Click the `http://localhost:...` link that appears
+
+There's also a helper script included: `start-local.ps1`. You can right-click it → "Run with PowerShell" (after fixing npm).
+
+This starts Vite's development server, which is required for the React version to work.
 
 ## Environment Variables
 

@@ -10,26 +10,20 @@
   <body class="bg-[#0a0a12] text-white overflow-hidden">
     <div id="root"></div>
 
-    <!-- 
-      IMPORTANT WARNING FOR DEVELOPERS:
-      DO NOT open this file directly by double-clicking index.html!
-      
-      This is a Vite + React project. You MUST run it with:
-        npm run dev
-      
-      Opening via file:// causes CORS errors on /src/main.tsx
-      and will not work.
-    -->
-    <noscript>
-      <div style="padding: 2rem; font-family: system-ui; max-width: 600px; margin: 2rem auto; background: #111118; border: 1px solid #f43f5e; border-radius: 12px;">
-        <h2 style="color:#f43f5e; margin-top:0;">JavaScript Required</h2>
-        <p>CryptoDUST requires JavaScript to run.</p>
-        <p style="font-size: 0.9rem; color:#aaa;">
-          <strong>Do not</strong> try to open <code>index.html</code> directly from your file system.<br>
-          This project must be run with a development server.
-        </p>
-      </div>
-    </noscript>
+    <!-- Visible warning if someone opens this file directly -->
+    <div id="direct-file-warning" style="position:fixed; top:0; left:0; right:0; background:#3b0d0d; color:#ffcccc; padding:16px; font-family:system-ui; z-index:9999; text-align:center; border-bottom:2px solid #f43f5e;">
+      <strong>⚠️ Do NOT open this file by double-clicking!</strong><br>
+      This is a React project. You must run it with <code>npm run dev</code> in a terminal.<br>
+      <small>Open PowerShell, go to this folder, and type: <strong>npm run dev</strong></small>
+    </div>
+
+    <script>
+      // Hide the warning once React successfully loads
+      setTimeout(() => {
+        const warning = document.getElementById('direct-file-warning');
+        if (warning) warning.style.display = 'none';
+      }, 800);
+    </script>
 
     <script type="module" src="/src/main.tsx"></script>
   </body>

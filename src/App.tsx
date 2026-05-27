@@ -1,9 +1,9 @@
 import { Visualization } from './components/Visualization'
-import { useHybridPrices } from './lib/prices'
+import { usePrices } from './lib/prices'
 import { TrendingUp, Zap } from 'lucide-react'
 
 export default function App() {
-  const { tokens, isLoading, error, missingMoralisKey } = useHybridPrices()
+  const { tokens, isLoading, error } = usePrices()
 
   return (
     <div className="h-screen w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">
@@ -28,11 +28,11 @@ export default function App() {
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2 text-emerald-400">
             <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-            <span className="text-xs font-medium">HYBRID PRICING</span>
+            <span className="text-xs font-medium">COINGECKO PRICING</span>
           </div>
 
           <div className="text-xs text-[#6b7280]">
-            {tokens.length} tokens • Top 300 via Moralis (70s) • Rest via CoinGecko (5m)
+            {tokens.length} tokens • Refreshes every 5 minutes
           </div>
 
           {isLoading && (
@@ -58,13 +58,7 @@ export default function App() {
         <Visualization tokens={tokens} />
       </div>
 
-      {/* Helpful banners */}
-      {missingMoralisKey && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-4 py-2 rounded-2xl max-w-md text-center">
-          Add your <strong>VITE_MORALIS_API_KEY</strong> in Vercel environment variables for real-time top 300 prices.
-        </div>
-      )}
-
+      {/* Error banner */}
       {error && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-4 py-1.5 rounded-2xl">
           Price feed degraded — using cached data

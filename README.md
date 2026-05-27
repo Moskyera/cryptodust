@@ -5,7 +5,7 @@
 > This is a modern Vite + React project. Double-clicking `index.html` will **not** work and will show CORS errors.
 > You **must** run `npm run dev` (see instructions below).
 
-Immersive full-screen cryptocurrency bubble visualizer with **hybrid pricing** (Moralis + CoinGecko).
+Immersive full-screen cryptocurrency bubble visualizer powered by CoinGecko.
 
 ## Tech Stack
 - React + TypeScript + Vite + Tailwind
@@ -37,8 +37,7 @@ This starts Vite's development server, which is required for React, TypeScript, 
 2. Add your keys:
 
 ```env
-VITE_MORALIS_API_KEY=your_moralis_key
-VITE_COINGECKO_API_KEY=your_coingecko_key
+VITE_COINGECKO_API_KEY=your_coingecko_key_optional
 ```
 
 ## Deployment to Vercel (Recommended - Fixes All Local Issues)
@@ -59,9 +58,8 @@ Once deployed to Vercel, the site works perfectly with no CORS or file:// proble
    - Go to https://vercel.com → "Add New Project"
    - Import your GitHub repository
    - Vercel automatically detects it's a Vite project
-   - **Add these Environment Variables** (important!):
-     - Name: `VITE_MORALIS_API_KEY` → Value: your Moralis key
-     - Name: `VITE_COINGECKO_API_KEY` → Value: your CoinGecko key (optional)
+   - **Add this Environment Variable** (optional but recommended for higher rate limits):
+     - Name: `VITE_COINGECKO_API_KEY` → Value: your CoinGecko key
 
 3. Click **Deploy**
 
@@ -70,7 +68,7 @@ Your live site will be at something like `https://cryptodust-xxx.vercel.app`. Ev
 **This is the best way to run and share CryptoDUST right now.**
 
 ## Notes
-- The current Moralis integration needs real token contract addresses for the top 300 (see `src/lib/prices.ts`).
+- All prices are fetched from CoinGecko (up to 1000 coins).
 - All price fetching happens client-side.
 - The visualization uses a safe export method to avoid any canvas tainting issues.
 

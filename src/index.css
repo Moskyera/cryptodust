@@ -8,6 +8,14 @@
   --border: #25252f;
 }
 
+html, body, #root {
+  background-color: #0a0a12;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
 body {
   font-family: 'Inter', system_ui, sans-serif;
 }

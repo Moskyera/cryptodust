@@ -13,7 +13,6 @@ import useSWR from 'swr'
 const MORALIS_API_KEY = import.meta.env.VITE_MORALIS_API_KEY || ''
 const COINGECKO_API_KEY = import.meta.env.VITE_COINGECKO_API_KEY || ''
 
-const TOP_COUNT = 300
 const TOTAL_TOKENS = 1000
 
 const MORALIS_REFRESH = 70 * 1000          // 70 seconds

@@ -33,7 +33,7 @@ export function Visualization({ tokens }: VisualizationProps) {
     const w = canvas.width || window.innerWidth * 1.5
     const h = canvas.height || window.innerHeight * 1.5
 
-    const newBubbles: Bubble[] = tokens.slice(0, 1000).map((coin, i) => {
+    const newBubbles: Bubble[] = tokens.slice(0, 1000).map((coin) => {
       const baseR = Math.max(18, Math.min(92, 26 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11))
       return {
         id: coin.id,
@@ -159,12 +159,12 @@ export function Visualization({ tokens }: VisualizationProps) {
     })
 
     // Update DOM labels
-    updateLabels(bubbles, labelsContainer, selectedId)
+    updateLabels(bubbles, labelsContainer)
 
     animationRef.current = requestAnimationFrame(tick)
   }, [selectedId])
 
-  const updateLabels = (bubbles: Bubble[], container: HTMLDivElement, selected: string | null) => {
+  const updateLabels = (bubbles: Bubble[], container: HTMLDivElement) => {
     const existing = new Map<string, HTMLDivElement>()
     container.childNodes.forEach((node) => {
       const el = node as HTMLDivElement
@@ -255,13 +255,15 @@ export function Visualization({ tokens }: VisualizationProps) {
     let closest: Bubble | null = null
     let minDist = Infinity
 
-    bubblesRef.current.forEach(b => {
+    const currentBubbles = bubblesRef.current
+    for (let i = 0; i < currentBubbles.length; i++) {
+      const b = currentBubbles[i]
       const dist = Math.hypot(b.x - clickX, b.y - clickY)
       if (dist < b.r * 1.6 && dist < minDist) {
         minDist = dist
         closest = b
       }
-    })
+    }
 
     setSelectedId(closest ? closest.id : null)
   }

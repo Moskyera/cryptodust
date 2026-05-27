@@ -1,4 +1,3 @@
-import React from 'react'
 import { Visualization } from './components/Visualization'
 import { useHybridPrices } from './lib/prices'
 import { TrendingUp, Zap } from 'lucide-react'

@@ -4,7 +4,7 @@ import { useHybridPrices } from './lib/prices'
 import { TrendingUp, Zap } from 'lucide-react'
 
 export default function App() {
-  const { tokens, isLoading, error } = useHybridPrices()
+  const { tokens, isLoading, error, missingMoralisKey } = useHybridPrices()
 
   return (
     <div className="h-screen w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">
@@ -59,7 +59,13 @@ export default function App() {
         <Visualization tokens={tokens} />
       </div>
 
-      {/* Minimal floating status */}
+      {/* Helpful banners */}
+      {missingMoralisKey && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-4 py-2 rounded-2xl max-w-md text-center">
+          Add your <strong>VITE_MORALIS_API_KEY</strong> in Vercel environment variables for real-time top 300 prices.
+        </div>
+      )}
+
       {error && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-4 py-1.5 rounded-2xl">
           Price feed degraded — using cached data

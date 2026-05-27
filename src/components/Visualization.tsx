@@ -54,10 +54,17 @@ export function Visualization({ tokens }: VisualizationProps) {
   const tick = useCallback(() => {
     const canvas = canvasRef.current
     const labelsContainer = labelsContainerRef.current
-    if (!canvas || !labelsContainer) return
+    if (!canvas || !labelsContainer) {
+      // Re-schedule in case refs aren't ready yet
+      animationRef.current = requestAnimationFrame(tick)
+      return
+    }
 
     const ctx = canvas.getContext('2d', { alpha: true })
-    if (!ctx) return
+    if (!ctx) {
+      animationRef.current = requestAnimationFrame(tick)
+      return
+    }
 
     const w = canvas.width
     const h = canvas.height
@@ -285,6 +292,12 @@ export function Visualization({ tokens }: VisualizationProps) {
         <div className="w-px h-3 bg-white/20" />
         <div className="text-emerald-400">Drag to fling • Physics on</div>
       </div>
+
+      {tokens.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center text-[#6b7280] text-sm z-10">
+          Loading coins from CoinGecko...
+        </div>
+      )}
 
       {selectedId && (
         <div className="absolute bottom-4 right-4 bg-[#111118] border border-[#25252f] rounded-2xl p-4 text-sm z-30 w-72">

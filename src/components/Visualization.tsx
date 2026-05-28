@@ -39,6 +39,11 @@ export function Visualization({
   const animationRef = useRef<number>()
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
 
+  // Drag-to-fling state (for smooth grab & throw interaction)
+  const draggingIdRef = useRef<string | null>(null)
+  const mouseRef = useRef({ x: 0, y: 0 })
+  const lastDragPosRef = useRef({ x: 0, y: 0, time: 0 }) // for calculating fling velocity on release
+
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
   const selectedId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedId
@@ -84,8 +89,8 @@ export function Visualization({
         id: coin.id,
         x: 80 + Math.random() * (w - 160),
         y: 80 + Math.random() * (h - 160),
-        vx: (Math.random() - 0.5) * 1.6,
-        vy: (Math.random() - 0.5) * 1.6,
+        vx: (Math.random() - 0.5) * 2.45,
+        vy: (Math.random() - 0.5) * 2.45,
         r: baseR * 0.75,
         targetR: baseR,
         coin,
@@ -123,66 +128,55 @@ export function Visualization({
 
     // =====================================================
     // PHYSICS SECTION — ONLY RUNS WHEN NOT PAUSED
+    // Lively, smooth, persistent motion with perfect screen bounds
     // =====================================================
     if (!paused) {
-      const SUBSTEPS = 3
+      const SUBSTEPS = 4   // higher = silkier integration with soft forces
+
+      // Handle active drag-to-fling (direct position control feels instant & smooth)
+      const draggingId = draggingIdRef.current
+      if (draggingId) {
+        const db = bubbles.find(b => b.id === draggingId)
+        if (db) {
+          const mx = mouseRef.current.x
+          const my = mouseRef.current.y
+
+          // Direct position following (best responsiveness)
+          const dx = mx - db.x
+          const dy = my - db.y
+
+          // Nice springy follow velocity so the fling on release feels natural
+          db.vx = dx * 0.42
+          db.vy = dy * 0.42
+
+          db.x = mx
+          db.y = my
+
+          // Keep it inside while dragging too
+          const m = db.r + 8
+          db.x = Math.max(m, Math.min(w - m, db.x))
+          db.y = Math.max(m, Math.min(h - m, db.y))
+        }
+      }
 
       for (let step = 0; step < SUBSTEPS; step++) {
-        // 1) Integrate velocity + friction + edge repulsion + hard clamp
+        // 1) Integrate + ultra-low friction (they drift beautifully for a long time)
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
 
           b.x += b.vx
           b.y += b.vy
 
-          // friction (very gentle so they keep moving)
-          b.vx *= 0.992
-          b.vy *= 0.992
+          // Very low friction — this is the key for "alive" non-static feeling
+          b.vx *= 0.9982
+          b.vy *= 0.9982
 
-          // Soft edge repulsion (pushes inward before hitting wall)
-          const hardMargin = 14
-          const softMargin = 92
-          const edgeForce = 0.13
-
-          if (b.x < b.r + softMargin) {
-            b.vx += edgeForce * ((softMargin - (b.x - b.r)) / softMargin) * 2.1
-          }
-          if (b.x > w - b.r - softMargin) {
-            b.vx -= edgeForce * ((softMargin - (w - b.r - b.x)) / softMargin) * 2.1
-          }
-          if (b.y < b.r + softMargin) {
-            b.vy += edgeForce * ((softMargin - (b.y - b.r)) / softMargin) * 2.1
-          }
-          if (b.y > h - b.r - softMargin) {
-            b.vy -= edgeForce * ((softMargin - (h - b.r - b.y)) / softMargin) * 2.1
-          }
-
-          // HARD CLAMP — planets can NEVER leave the visible area
-          b.x = Math.max(b.r + hardMargin, Math.min(w - b.r - hardMargin, b.x))
-          b.y = Math.max(b.r + hardMargin, Math.min(h - b.r - hardMargin, b.y))
-
-          // Extra damping when near the wall
-          if (b.x < b.r + softMargin || b.x > w - b.r - softMargin ||
-              b.y < b.r + softMargin || b.y > h - b.r - softMargin) {
-            b.vx *= 0.88
-            b.vy *= 0.88
-          }
-
-          // Velocity cap (prevents crazy fast planets)
-          const maxV = 2.8
-          const speed = Math.hypot(b.vx, b.vy)
-          if (speed > maxV) {
-            const s = maxV / speed
-            b.vx *= s
-            b.vy *= s
-          }
-
-          // Smooth radius animation when Size By changes
+          // Smooth radius change (Size By)
           b.r += (b.targetR - b.r) * 0.085
         }
 
-        // 2) Strong pairwise separation (the key anti-sticking force)
-        const COMFORT = 84   // minimum center-to-center distance
+        // 2) Soft, springy pairwise separation (gentle, never jerky)
+        const COMFORT = 78
         for (let i = 0; i < bubbles.length; i++) {
           for (let j = i + 1; j < bubbles.length; j++) {
             const a = bubbles[i]
@@ -190,52 +184,100 @@ export function Visualization({
             const dx = bb.x - a.x
             const dy = bb.y - a.y
             const d = Math.hypot(dx, dy) || 1.0
-            const wantDist = a.r + bb.r + COMFORT
+            const want = a.r + bb.r + COMFORT
 
-            if (d < wantDist) {
-              const penetration = (wantDist - d) / wantDist
-              let force = penetration * 6.2
+            if (d < want) {
+              // Soft spring force (no crazy multipliers = no stutter)
+              const overlap = (want - d)
+              const f = Math.min(overlap * 0.031, 1.9)
 
-              // When they are really overlapping, go nuclear + add jitter
-              if (d < (a.r + bb.r + 26)) {
-                force *= 9.5
-                const jitter = 0.022
-                a.vx += (Math.random() - 0.5) * jitter
-                a.vy += (Math.random() - 0.5) * jitter
-                bb.vx += (Math.random() - 0.5) * jitter
-                bb.vy += (Math.random() - 0.5) * jitter
+              const fx = (dx / d) * f
+              const fy = (dy / d) * f
+
+              a.vx -= fx * 0.85
+              a.vy -= fy * 0.85
+              bb.vx += fx * 0.85
+              bb.vy += fy * 0.85
+
+              // Tiny jitter only when really penetrating (prevents perfect grid lock)
+              if (overlap > 18) {
+                const j = 0.009
+                a.vx += (Math.random() - 0.5) * j
+                a.vy += (Math.random() - 0.5) * j
+                bb.vx += (Math.random() - 0.5) * j
+                bb.vy += (Math.random() - 0.5) * j
               }
-
-              const fx = (dx / d) * force
-              const fy = (dy / d) * force
-
-              a.vx -= fx * 0.92
-              a.vy -= fy * 0.92
-              bb.vx += fx * 0.92
-              bb.vy += fy * 0.92
             }
           }
         }
 
-        // 3) Light global repulsion (helps when you have 80-100 planets on screen)
-        if (bubbles.length > 25) {
-          for (let i = 0; i < bubbles.length; i++) {
-            const a = bubbles[i]
-            let rx = 0, ry = 0
-            for (let j = 0; j < bubbles.length; j++) {
-              if (i === j) continue
-              const b = bubbles[j]
-              const dx = a.x - b.x
-              const dy = a.y - b.y
-              const dist = Math.hypot(dx, dy) || 1
-              if (dist < 260) {
-                const f = (260 - dist) / 260 * 0.018
-                rx += (dx / dist) * f
-                ry += (dy / dist) * f
-              }
-            }
-            a.vx += rx
-            a.vy += ry
+        // 3) Gentle continuous "life" force — planets never completely freeze
+        // This makes the motion feel organic and smooth forever
+        for (let i = 0; i < bubbles.length; i++) {
+          const b = bubbles[i]
+          // Very small random acceleration ~8% of the time
+          if (Math.random() < 0.085) {
+            b.vx += (Math.random() - 0.5) * 0.014
+            b.vy += (Math.random() - 0.5) * 0.014
+          }
+        }
+
+        // 4) Soft edge forces + strict bounds + gentle reflection (NEVER escape)
+        const hard = 11
+        const soft = 78
+        const edgeStrength = 0.095
+
+        for (let i = 0; i < bubbles.length; i++) {
+          const b = bubbles[i]
+
+          // Soft continuous push away from edges (very smooth)
+          if (b.x < b.r + soft) {
+            const p = (soft - (b.x - b.r)) / soft
+            b.vx += edgeStrength * p * 1.7
+          }
+          if (b.x > w - b.r - soft) {
+            const p = (soft - (w - b.r - b.x)) / soft
+            b.vx -= edgeStrength * p * 1.7
+          }
+          if (b.y < b.r + soft) {
+            const p = (soft - (b.y - b.r)) / soft
+            b.vy += edgeStrength * p * 1.7
+          }
+          if (b.y > h - b.r - soft) {
+            const p = (soft - (h - b.r - b.y)) / soft
+            b.vy -= edgeStrength * p * 1.7
+          }
+
+          // Final hard safety clamp (impossible to leave)
+          const left = b.r + hard
+          const right = w - b.r - hard
+          const top = b.r + hard
+          const bottom = h - b.r - hard
+
+          if (b.x < left) {
+            b.x = left
+            b.vx = Math.abs(b.vx) * 0.72   // gentle reflection, keeps energy
+          }
+          if (b.x > right) {
+            b.x = right
+            b.vx = -Math.abs(b.vx) * 0.72
+          }
+          if (b.y < top) {
+            b.y = top
+            b.vy = Math.abs(b.vy) * 0.72
+          }
+          if (b.y > bottom) {
+            b.y = bottom
+            b.vy = -Math.abs(b.vy) * 0.72
+          }
+
+          // Velocity safety cap (slightly higher so flings feel good)
+          const maxV = 3.6
+          const sp = Math.hypot(b.vx, b.vy)
+          if (sp > maxV) {
+            const s = maxV / sp
+            b.vx *= s
+            b.vy *= s
           }
         }
       }
@@ -499,38 +541,129 @@ export function Visualization({
     }
   }, [tick, resizeCanvas, paused])
 
-  const handleCanvasClick = (e: React.MouseEvent) => {
+  // Convert screen/client coords to canvas world coords
+  const screenToWorld = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: ((clientX - rect.left) / rect.width) * canvas.width,
+      y: ((clientY - rect.top) / rect.height) * canvas.height,
+    }
+  }
+
+  // Hit test + start dragging for fling
+  const handlePointerDown = (e: React.PointerEvent) => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const rect = canvas.getBoundingClientRect()
-    const clickX = ((e.clientX - rect.left) / rect.width) * canvas.width
-    const clickY = ((e.clientY - rect.top) / rect.height) * canvas.height
+    const { x: wx, y: wy } = screenToWorld(e.clientX, e.clientY)
 
+    const currentBubbles = bubblesRef.current
     let closest: Bubble | null = null
     let minDist = Infinity
 
-    const currentBubbles = bubblesRef.current
     for (let i = 0; i < currentBubbles.length; i++) {
       const b = currentBubbles[i]
-      const dist = Math.hypot(b.x - clickX, b.y - clickY)
-      if (dist < b.r * 1.6 && dist < minDist) {
+      const dist = Math.hypot(b.x - wx, b.y - wy)
+      if (dist < b.r * 1.75 && dist < minDist) {
         minDist = dist
         closest = b
       }
     }
 
     if (closest) {
+      // Start dragging this planet
+      draggingIdRef.current = closest.id
+      mouseRef.current = { x: wx, y: wy }
+      lastDragPosRef.current = { x: wx, y: wy, time: Date.now() }
+
+      // Capture pointer so we get move/up events even if mouse leaves the canvas
+      canvas.setPointerCapture(e.pointerId)
+
+      // Select it immediately (nice feedback)
       setSelectedId(closest.id)
+
+      // Give it a little kick so it feels responsive right away
+      closest.vx *= 0.3
+      closest.vy *= 0.3
     }
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const { x: wx, y: wy } = screenToWorld(e.clientX, e.clientY)
+    mouseRef.current = { x: wx, y: wy }
+
+    if (draggingIdRef.current) {
+      // Update last pos for fling calculation (throttled a bit)
+      const now = Date.now()
+      if (now - lastDragPosRef.current.time > 16) {
+        lastDragPosRef.current = { x: wx, y: wy, time: now }
+      }
+    }
+  }
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    const canvas = canvasRef.current
+    const draggedId = draggingIdRef.current
+
+    if (draggedId && canvas) {
+      // Try to release capture (safe if not captured)
+      try { canvas.releasePointerCapture(e.pointerId) } catch {}
+
+      const { x: wx, y: wy } = screenToWorld(e.clientX, e.clientY)
+
+      // Calculate fling velocity from drag movement
+      const prev = lastDragPosRef.current
+      const dt = Math.max(16, Date.now() - prev.time)
+      let flingX = ((wx - prev.x) / dt) * 18   // tuned multiplier for nice throw strength
+      let flingY = ((wy - prev.y) / dt) * 18
+
+      // Clamp fling so it doesn't get ridiculous
+      const maxFling = 3.8
+      const flingSpeed = Math.hypot(flingX, flingY)
+      if (flingSpeed > maxFling) {
+        const s = maxFling / flingSpeed
+        flingX *= s
+        flingY *= s
+      }
+
+      // Apply the fling to the planet
+      const b = bubblesRef.current.find(bb => bb.id === draggedId)
+      if (b) {
+        b.vx = flingX
+        b.vy = flingY
+      }
+    }
+
+    draggingIdRef.current = null
+  }
+
+  const handlePointerLeave = () => {
+    // If user drags off the canvas, still end the drag cleanly (fling with last known delta)
+    if (draggingIdRef.current) {
+      const draggedId = draggingIdRef.current
+      const prev = lastDragPosRef.current
+      const b = bubblesRef.current.find(bb => bb.id === draggedId)
+      if (b) {
+        // Gentle release fling using last recorded direction
+        b.vx = (b.vx + (mouseRef.current.x - prev.x) * 0.6) * 0.7
+        b.vy = (b.vy + (mouseRef.current.y - prev.y) * 0.6) * 0.7
+      }
+    }
+    draggingIdRef.current = null
   }
 
   return (
     <div className="viz-container">
       <canvas
         ref={canvasRef}
-        onClick={handleCanvasClick}
-        className="cursor-grab active:cursor-grabbing"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
+        onPointerCancel={handlePointerLeave}
+        className="cursor-grab active:cursor-grabbing touch-none"
       />
       <div 
         ref={labelsContainerRef} 
@@ -543,10 +676,12 @@ export function Visualization({
         <div 
           onClick={onTogglePaused}
           className={`cursor-pointer transition-colors ${paused ? 'text-red-400 hover:text-red-300' : 'text-emerald-400 hover:text-emerald-300'}`}
-          title="Click to pause or resume the floating planets"
+          title="Click to pause or resume physics"
         >
           {paused ? '▶ Resume' : '⏸ Pause'}
         </div>
+        <div className="text-[#6b7280]">•</div>
+        <div className="text-white/70">Drag planets to fling them</div>
       </div>
 
       {tokens.length === 0 && (

@@ -13,7 +13,7 @@ import useSWR from 'swr'
 
 // ==================== CONFIG ====================
 const COINGECKO_API_KEY = import.meta.env.VITE_COINGECKO_API_KEY || ''
-const MORALIS_API_KEY =  import.meta.env.VITE_COINGECKO_API_KEY || ''
+const MORALIS_API_KEY = import.meta.env.VITE_MORALIS_API_KEY || ''
 const REFRESH_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
 // PulseChain chain id in Moralis format

@@ -42,12 +42,16 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
     const currentIds = new Set(bubblesRef.current.map(b => b.id))
     const newIds = new Set(tokens.map(t => t.id))
 
-    // Only re-initialize if the actual coins changed (not just order or selection)
+    // Re-initialize bubbles when the visible set of coins changes (from filters, search, pages, etc.)
+    // This ensures buttons like Quick Filters and Highlight work immediately without selecting a planet first
     const idsChanged = 
       currentIds.size !== newIds.size || 
       [...newIds].some(id => !currentIds.has(id))
 
-    if (!idsChanged) return
+    // Also force re-init if the number of visible planets changed a lot (better responsiveness)
+    const countChangedSignificantly = Math.abs(bubblesRef.current.length - tokens.length) > 5
+
+    if (!idsChanged && !countChangedSignificantly) return
 
     const w = canvas.width || window.innerWidth * 1.5
     const h = canvas.height || window.innerHeight * 1.5
@@ -107,25 +111,42 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
         b.vx *= 0.993
         b.vy *= 0.993
 
-        // Very soft wall force near edges (prevents going off-screen without centering everything)
-        const edgeMargin = 60
-        const edgeForce = 0.022
+        // Strong boundary forces + hard clamping so planets cannot leave the visible area
+        const hardMargin = 15
+        const softMargin = 90
+        const strongEdgeForce = 0.09
 
-        if (b.x < b.r + edgeMargin) {
-          b.vx += edgeForce
+        // Soft repulsion that gets stronger the closer you get to the edge
+        if (b.x < b.r + softMargin) {
+          const strength = (softMargin - (b.x - b.r)) / softMargin
+          b.vx += strongEdgeForce * strength * 1.5
         }
-        if (b.x > w - b.r - edgeMargin) {
-          b.vx -= edgeForce
+        if (b.x > w - b.r - softMargin) {
+          const strength = (softMargin - (w - b.r - b.x)) / softMargin
+          b.vx -= strongEdgeForce * strength * 1.5
         }
-        if (b.y < b.r + edgeMargin) {
-          b.vy += edgeForce
+        if (b.y < b.r + softMargin) {
+          const strength = (softMargin - (b.y - b.r)) / softMargin
+          b.vy += strongEdgeForce * strength * 1.5
         }
-        if (b.y > h - b.r - edgeMargin) {
-          b.vy -= edgeForce
+        if (b.y > h - b.r - softMargin) {
+          const strength = (softMargin - (h - b.r - b.y)) / softMargin
+          b.vy -= strongEdgeForce * strength * 1.5
         }
 
-        // Light velocity limiting so nothing flies insanely fast
-        const maxVel = 3.2
+        // Hard clamping - planets literally cannot leave the box
+        b.x = Math.max(b.r + hardMargin, Math.min(w - b.r - hardMargin, b.x))
+        b.y = Math.max(b.r + hardMargin, Math.min(h - b.r - hardMargin, b.y))
+
+        // Velocity damping near edges
+        if (b.x < b.r + softMargin || b.x > w - b.r - softMargin ||
+            b.y < b.r + softMargin || b.y > h - b.r - softMargin) {
+          b.vx *= 0.92
+          b.vy *= 0.92
+        }
+
+        // Velocity limiting (prevents planets from escaping even with strong kicks)
+        const maxVel = 2.4
         const speed = Math.hypot(b.vx, b.vy)
         if (speed > maxVel) {
           const scale = maxVel / speed
@@ -146,16 +167,16 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
           const dy = b.y - a.y
           const dist = Math.hypot(dx, dy) || 1
 
-          // "Magnet" / strong separation force so planets keep good distance and don't stick
-          const desiredDist = a.r + b.r + 48   // larger personal space
+          // Very strong "magnet"/repulsion so planets actively keep distance and almost never stick
+          const desiredDist = a.r + b.r + 55
 
           if (dist < desiredDist) {
             const push = (desiredDist - dist) / desiredDist
+            let force = push * 4.5
 
-            // Strong base repulsion + very strong when close
-            let force = push * 3.2
-            if (dist < (a.r + b.r + 10)) {
-              force *= 5.5   // very strong anti-stick force
+            // Extremely strong force when planets are close or overlapping
+            if (dist < (a.r + b.r + 14)) {
+              force *= 7.0
             }
 
             const fx = (dx / dist) * force

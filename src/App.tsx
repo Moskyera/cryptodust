@@ -12,6 +12,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
   const [highlightUntil, setHighlightUntil] = useState(0)
+  const [physicsPaused, setPhysicsPaused] = useState(false)
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('cryptodust_favorites') || '[]')
@@ -317,6 +318,9 @@ export default function App() {
             onSelect={handleSelect}
             favorites={favorites}
             highlightUntil={highlightUntil}
+            sizeMetric={sizeMetric}
+            paused={physicsPaused}
+            onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
           />
         </div>
 

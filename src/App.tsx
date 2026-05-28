@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices } from './lib/prices'
 import { TrendingUp, Zap, ExternalLink } from 'lucide-react'
-import type { TokenPrice } from './lib/prices'
 
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
@@ -31,8 +30,12 @@ export default function App() {
     return result.slice(0, 1000)
   }, [tokens, activePreset])
 
-  const handleSelect = (id: string) => {
-    setSelectedId(id === selectedId ? null : id)
+  const handleSelect = (id: string | null) => {
+    if (id === null) {
+      setSelectedId(null)
+    } else {
+      setSelectedId(id === selectedId ? null : id)
+    }
   }
 
   return (

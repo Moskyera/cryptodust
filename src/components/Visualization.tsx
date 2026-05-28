@@ -227,18 +227,25 @@ export function Visualization({
         }
 
         // 3) Idle motion with Personality (Proposal 2)
-        // Each planet has its own "temperament". Restless ones move a bit more on their own.
-        // Still extremely subtle so it doesn't create trembling.
+        // Planets with higher restlessness now have visible slow autonomous movement.
+        // Calm planets mostly stay put, restless ones gently drift on their own over time.
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
           const speed = Math.hypot(b.vx, b.vy)
 
-          if (speed < 0.25 && Math.random() < (0.005 * b.restlessness)) {
-            const kick = 0.0016 * b.restlessness
+          // Random personality kick (stronger for restless planets)
+          if (speed < 0.35 && Math.random() < (0.018 * b.restlessness)) {
+            const kick = 0.0045 * b.restlessness
+            b.vx += b.driftBiasX * 1.2 + (Math.random() - 0.5) * kick
+            b.vy += b.driftBiasY * 1.2 + (Math.random() - 0.5) * kick
+          }
 
-            // Add personal directional bias + small random
-            b.vx += b.driftBiasX * 0.6 + (Math.random() - 0.5) * kick
-            b.vy += b.driftBiasY * 0.6 + (Math.random() - 0.5) * kick
+          // Continuous very subtle personal drift (the "own movement")
+          // Only when almost stopped — lively planets slowly start drifting on their own
+          if (speed < 0.4) {
+            const driftStrength = 0.0011 * b.restlessness
+            b.vx += b.driftBiasX * driftStrength
+            b.vy += b.driftBiasY * driftStrength
           }
         }
 
@@ -319,9 +326,11 @@ export function Visualization({
             b.vy *= s
           }
 
-          // Global velocity deadzone — planets stop cleanly instead of micro-trembling
+          // Global velocity deadzone — relaxed a bit to allow personality drift to work
+          // Lively planets (high restlessness) can keep very slow movement
           const finalSpeed = Math.hypot(b.vx, b.vy)
-          if (finalSpeed < 0.22) {
+          const deadzoneThreshold = 0.14 + (b.restlessness - 1) * 0.03   // lively planets harder to fully stop
+          if (finalSpeed < deadzoneThreshold) {
             b.vx = 0
             b.vy = 0
           }

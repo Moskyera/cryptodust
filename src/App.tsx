@@ -13,6 +13,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [highlightUntil, setHighlightUntil] = useState(0)
   const [physicsPaused, setPhysicsPaused] = useState(false)
+  const [isMarketOpen, setIsMarketOpen] = useState(false)
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('cryptodust_favorites') || '[]')
@@ -296,152 +297,161 @@ export default function App() {
             ))}
           </div>
 
-          {/* Page Tabs - Elegant and interesting */}
-          <div className="flex items-center gap-x-1.5 flex-wrap mt-1">
-            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2">PAGES</div>
-            {Array.from({ length: totalPages }).map((_, index) => {
-              const start = index * 100
-              const end = Math.min(start + 100, filteredTokens.length)
-              return (
-                <button
-                  key={index}
-                  onClick={() => setCurrentPage(index)}
-                  className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
-                    currentPage === index
-                      ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
-                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
-                  }`}
-                >
-                  {start}–{end}
-                </button>
-              )
-            })}
-          </div>
         </div>
       </div>
 
-      {/* Main Area: Visualization + Sidebar */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Visualization Area */}
-        <div className="flex-1 relative overflow-hidden bg-black">
-          <Visualization 
-            tokens={currentPageTokens} 
-            selectedId={selectedId} 
-            onSelect={handleSelect}
-            favorites={favorites}
-            highlightUntil={highlightUntil}
-            sizeMetric={sizeMetric}
-            paused={physicsPaused}
-            onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
-          />
-        </div>
+      {/* Main Area: Full immersive Visualization (no sidebar anymore) */}
+      <div className="flex-1 relative overflow-hidden bg-black">
+        <Visualization 
+          tokens={currentPageTokens} 
+          selectedId={selectedId} 
+          onSelect={handleSelect}
+          favorites={favorites}
+          highlightUntil={highlightUntil}
+          sizeMetric={sizeMetric}
+          paused={physicsPaused}
+          onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
+        />
+      </div>
 
-        {/* Right Sidebar - Premium details panel */}
-        <div className="w-80 border-l border-[#25252f] bg-[#111118] flex flex-col overflow-hidden flex-shrink-0 detail-panel">
-          <div className="px-5 pt-5 pb-4 border-b border-[#25252f] flex items-center justify-between">
-            <div className="font-semibold tracking-tight">DETAILS</div>
-            {selectedCoin && (
-              <button 
-                onClick={() => setSelectedId(null)} 
-                className="text-xs px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-[#6b7280] hover:text-white transition-colors"
-              >
-                Clear
-              </button>
-            )}
+      {/* Bottom Market Tab — Tap to open the beautiful slide-up drawer */}
+      <div className="border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40">
+        <button
+          onClick={() => setIsMarketOpen(!isMarketOpen)}
+          className={`w-full flex items-center justify-between px-5 py-3 text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}
+        >
+          <div className="flex items-center gap-x-3">
+            <span className="text-[#67f6ff] text-base">📋</span>
+            <span className="font-semibold tracking-[-0.3px]">Market</span>
+            <span className="text-[#6b7280] text-[10px] px-2.5 py-px rounded-full bg-white/5 border border-white/10 tabular-nums">
+              {filteredTokens.length}
+            </span>
           </div>
 
-          <div className="flex-1 overflow-auto p-5 text-sm">
-            {selectedCoin ? (
-              <div>
-                <div className="flex items-center gap-3 mb-5">
-                  {selectedCoin.image && (
-                    <img src={selectedCoin.image} alt="" className="w-11 h-11 rounded-full ring-1 ring-white/10" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-xl tracking-tight">{selectedCoin.symbol}</div>
-                    <div className="text-sm text-[#9ca3af] truncate">{selectedCoin.name}</div>
-                  </div>
+          <div className="flex items-center gap-x-2 text-[#6b7280] text-xs">
+            <span className="hidden sm:inline">Page {currentPage + 1}</span>
+            <span className={`transition-transform duration-200 ${isMarketOpen ? 'rotate-180' : ''} text-[10px]`}>▼</span>
+          </div>
+        </button>
+      </div>
+
+      {/* Slide-up Market Drawer (replaces both old fixed table + right details panel) */}
+      {isMarketOpen && (
+        <div 
+          className="market-drawer fixed bottom-0 left-0 right-0 z-[60] bg-[#0a0a12] border-t border-[#25252f] flex flex-col"
+          style={{ height: 'min(68vh, 620px)' }}
+        >
+          {/* Drawer Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#25252f] bg-[#111118]/80 backdrop-blur-xl flex-shrink-0">
+            <div>
+              <div className="font-semibold tracking-tight">Market Table</div>
+              <div className="text-[10px] text-[#6b7280]">
+                {filteredTokens.length} coins • Page {currentPage + 1} of {totalPages}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-x-2">
+              {selectedCoin && (
+                <div className="hidden sm:flex items-center gap-x-2 text-sm mr-3 px-3 py-1 rounded-2xl bg-white/5 border border-white/10">
+                  <span className="text-[#67f6ff] font-medium">{selectedCoin.symbol}</span>
+                  <span className={(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                    {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(1)}%
+                  </span>
                   <button 
                     onClick={() => toggleFavorite(selectedCoin.id)}
-                    className="text-2xl leading-none transition-transform active:scale-90"
-                    title={favorites.includes(selectedCoin.id) ? "Remove from favorites" : "Add to favorites"}
+                    className="ml-1 text-lg leading-none active:scale-90"
                   >
-                    {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/40">☆</span>}
+                    {favorites.includes(selectedCoin.id) ? '★' : '☆'}
                   </button>
                 </div>
+              )}
 
-                <div className="space-y-4 text-sm">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-[#6b7280]">Price</span>
-                    <span className="font-semibold tabular-nums text-xl tracking-tighter">
-                      ${selectedCoin.current_price?.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-[#6b7280]">24h Change</span>
-                    <span className={`font-medium ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
-                    </span>
-                  </div>
-                  {selectedCoin.market_cap && (
-                    <div className="flex justify-between items-baseline pt-1 border-t border-white/10">
-                      <span className="text-[#6b7280]">Market Cap</span>
-                      <span className="font-medium">${(selectedCoin.market_cap / 1e9).toFixed(2)}B</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center text-[#6b7280]">
-                <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center mb-4">
-                  <span className="text-2xl opacity-50">◎</span>
-                </div>
-                <div className="font-medium text-white/80">Select a planet</div>
-                <div className="text-xs mt-1 max-w-[180px]">Click any bubble in the visualization to inspect details</div>
-              </div>
+              <button
+                onClick={() => setIsMarketOpen(false)}
+                className="px-4 py-1.5 text-xs font-medium rounded-2xl border border-white/10 hover:bg-white/10 text-white/80 hover:text-white transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+
+          {/* Market Table Content (inside drawer) */}
+          <div className="flex-1 overflow-auto px-5 pt-3 pb-6 text-sm custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>
+            {/* Page tabs inside drawer */}
+            <div className="flex items-center gap-x-1.5 flex-wrap mb-3">
+              {Array.from({ length: totalPages }).map((_, index) => {
+                const start = index * 100
+                const end = Math.min(start + 100, filteredTokens.length)
+                return (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentPage(index)}
+                    className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
+                      currentPage === index
+                        ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
+                    }`}
+                  >
+                    {start}–{end}
+                  </button>
+                )
+              })}
+            </div>
+
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[#6b7280] border-b border-[#25252f] sticky top-0 bg-[#0a0a12]">
+                  <th className="text-left pb-2 font-normal">Coin</th>
+                  <th className="text-right pb-2 font-normal">Price</th>
+                  <th className="text-right pb-2 font-normal">24h %</th>
+                  <th className="text-right pb-2 font-normal hidden md:table-cell">Volume</th>
+                  <th className="text-center pb-2 font-normal w-10">★</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentPageTokens.map(coin => (
+                  <tr 
+                    key={coin.id} 
+                    onClick={() => handleSelect(coin.id)}
+                    className={`market-row cursor-pointer border-b border-white/5 last:border-none ${selectedId === coin.id ? 'selected bg-white/5' : ''}`}
+                  >
+                    <td className="py-2.5 font-medium text-white/90">{coin.symbol}</td>
+                    <td className="py-2.5 text-right font-medium tabular-nums text-white/90">
+                      ${coin.current_price?.toLocaleString()}
+                    </td>
+                    <td className={`py-2.5 text-right font-medium ${(coin.price_change_percentage_24h||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
+                    </td>
+                    <td className="py-2.5 text-right hidden md:table-cell text-[#9ca3af] tabular-nums">
+                      {coin.total_volume ? '$' + (coin.total_volume / 1e6).toFixed(0) + 'M' : '—'}
+                    </td>
+                    <td className="py-2.5 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleFavorite(coin.id)
+                        }}
+                        className="text-xl leading-none active:scale-90"
+                      >
+                        {favorites.includes(coin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/40">☆</span>}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {currentPageTokens.length === 0 && (
+              <div className="text-center py-8 text-[#6b7280]">No coins match the current filters.</div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Bottom Market Table - Beautiful & interesting */}
-      <div className="border-t border-[#25252f] h-52 bg-[#111118] flex-shrink-0 overflow-auto text-sm">
-        <div className="px-5 pt-3">
-          <div className="flex justify-between items-baseline mb-2 px-1">
-            <div className="font-semibold tracking-tight">Market Table — Page {currentPage + 1} ({currentPageTokens.length} coins)</div>
-            <div className="text-[10px] text-[#6b7280]">Click any row or planet to select</div>
+          {/* Drawer footer hint */}
+          <div className="px-5 py-2 text-[10px] text-[#6b7280] border-t border-[#25252f] bg-[#111118]/60 text-center flex-shrink-0">
+            Click any row to select the planet • Drag planets in the visualization to fling them
           </div>
-
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-[#6b7280] border-b border-[#25252f]">
-                <th className="text-left pb-2 font-normal">Coin</th>
-                <th className="text-right pb-2 font-normal">Price</th>
-                <th className="text-right pb-2 font-normal">24h %</th>
-                <th className="text-right pb-2 font-normal hidden md:table-cell">Volume</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentPageTokens.slice(0, 14).map(coin => (
-                <tr 
-                  key={coin.id} 
-                  onClick={() => handleSelect(coin.id)}
-                  className={`market-row cursor-pointer ${selectedId === coin.id ? 'selected' : ''}`}
-                >
-                  <td className="py-2 font-medium text-white/90">{coin.symbol}</td>
-                  <td className="py-2 text-right font-medium tabular-nums text-white/90">${coin.current_price?.toLocaleString()}</td>
-                  <td className={`py-2 text-right font-medium ${(coin.price_change_percentage_24h||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
-                  </td>
-                  <td className="py-2 text-right hidden md:table-cell text-[#9ca3af] tabular-nums">
-                    {coin.total_volume ? '$' + (coin.total_volume / 1e6).toFixed(0) + 'M' : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
-      </div>
+      )}
 
       {/* Error / Loading */}
       {error && (

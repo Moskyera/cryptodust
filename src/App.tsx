@@ -6,7 +6,6 @@ import { TrendingUp, Zap, ExternalLink } from 'lucide-react'
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [timeframe, setTimeframe] = useState<'1h' | '24h' | '7d' | '30d'>('24h')
   const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price'>('market_cap')
   const [activePreset, setActivePreset] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
@@ -221,19 +220,6 @@ export default function App() {
         <div className="w-full px-5 py-3.5">
           {/* Timeframe & Metrics */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
-            <div className="control-group flex items-center rounded-3xl p-1">
-              <div className="px-3 text-xs font-medium text-[#6b7280] tracking-widest">TIMEFRAME</div>
-              {(['1h','24h','7d','30d'] as const).map(tf => (
-                <button
-                  key={tf}
-                  onClick={() => setTimeframe(tf)}
-                  className={`px-5 py-1.5 rounded-2xl text-sm font-medium ${timeframe === tf ? 'bg-white text-black' : 'hover:bg-white/5 text-white/90'}`}
-                >
-                  {tf.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
             <div className="control-group flex items-center rounded-3xl p-1">
               <div className="px-3 text-xs font-medium text-[#6b7280] tracking-widest">SIZE BY</div>
               {(['market_cap','volume','price'] as const).map(m => (

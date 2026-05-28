@@ -90,11 +90,13 @@ export default function App() {
       <nav className="border-b border-[#25252f] bg-[#0a0a12]/95 backdrop-blur-xl z-50 flex-shrink-0">
         <div className="w-full px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-x-4">
-            {/* Logo - more premium */}
+            {/* Logo - using the new custom CryptoDUST logo */}
             <div className="flex items-center gap-x-3 group">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 via-amber-400 to-yellow-500 flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:shadow-orange-500/40 transition-shadow">
-                <span className="text-black font-bold text-base tracking-tighter">CD</span>
-              </div>
+              <img 
+                src="/cryptodust-logo.png" 
+                alt="CryptoDUST" 
+                className="w-9 h-9 object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] group-hover:scale-105 transition-transform" 
+              />
               <div className="leading-none">
                 <div>
                   <span className="font-semibold tracking-[-1.5px] text-2xl">Crypto</span>
@@ -300,7 +302,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Area: Full immersive Visualization (no sidebar anymore) */}
+      {/* Main Area: Full immersive Visualization */}
       <div className="flex-1 relative overflow-hidden bg-black">
         <Visualization 
           tokens={currentPageTokens} 
@@ -312,6 +314,74 @@ export default function App() {
           paused={physicsPaused}
           onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
         />
+
+        {/* Details Panel - Opens automatically when you select a planet (slide-in from right) */}
+        {selectedCoin && (
+          <div className="absolute top-4 right-4 z-50 w-80 rounded-3xl border border-[#25252f] bg-[#111118]/95 backdrop-blur-2xl shadow-2xl overflow-hidden transition-all duration-200">
+            <div className="px-5 pt-4 pb-3 border-b border-[#25252f] flex items-center justify-between bg-black/30">
+              <div className="font-semibold tracking-tight text-sm">DETAILS</div>
+              <button 
+                onClick={() => setSelectedId(null)} 
+                className="text-xs px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-[#6b7280] hover:text-white transition-colors"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                {selectedCoin.image && (
+                  <img src={selectedCoin.image} alt="" className="w-12 h-12 rounded-full ring-1 ring-white/10 flex-shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-2xl tracking-tight">{selectedCoin.symbol}</div>
+                  <div className="text-sm text-[#9ca3af] truncate">{selectedCoin.name}</div>
+                </div>
+                <button 
+                  onClick={() => toggleFavorite(selectedCoin.id)}
+                  className="text-3xl leading-none transition-transform active:scale-90 ml-2"
+                  title={favorites.includes(selectedCoin.id) ? "Remove from favorites" : "Add to favorites"}
+                >
+                  {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/40">☆</span>}
+                </button>
+              </div>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-[#6b7280]">Price</span>
+                  <span className="font-semibold tabular-nums text-2xl tracking-tighter">
+                    ${selectedCoin.current_price?.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-baseline">
+                  <span className="text-[#6b7280]">24h Change</span>
+                  <span className={`font-semibold ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
+                  </span>
+                </div>
+
+                {selectedCoin.market_cap && (
+                  <div className="flex justify-between items-baseline pt-2 border-t border-white/10">
+                    <span className="text-[#6b7280]">Market Cap</span>
+                    <span className="font-medium">${(selectedCoin.market_cap / 1e9).toFixed(2)}B</span>
+                  </div>
+                )}
+
+                {selectedCoin.total_volume && (
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-[#6b7280]">24h Volume</span>
+                    <span className="font-medium">${(selectedCoin.total_volume / 1e9).toFixed(2)}B</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-5 py-3 bg-black/40 border-t border-[#25252f] text-[10px] text-[#6b7280]">
+              Click the star to favorite • Drag the planet to fling it
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Market Tab — Tap to open the beautiful slide-up drawer */}
@@ -322,7 +392,7 @@ export default function App() {
         >
           <div className="flex items-center gap-x-3">
             <span className="text-[#67f6ff] text-base">📋</span>
-            <span className="font-semibold tracking-[-0.3px]">Market</span>
+            <span className="font-semibold tracking-[-0.3px]">Market Table</span>
             <span className="text-[#6b7280] text-[10px] px-2.5 py-px rounded-full bg-white/5 border border-white/10 tabular-nums">
               {filteredTokens.length}
             </span>

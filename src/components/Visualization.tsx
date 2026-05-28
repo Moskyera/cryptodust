@@ -110,7 +110,25 @@ export function Visualization({
     })
 
     bubblesRef.current = newBubbles
-  }, [tokens, sizeMetric])
+  }, [tokens])   // Note: sizeMetric no longer triggers full recreate (we update targetR live below)
+
+  // Live update targetR when Size By changes → smooth planet resizing without resetting positions
+  useEffect(() => {
+    if (!bubblesRef.current.length) return
+
+    const getBaseRadius = (coin: TokenPrice) => {
+      if (sizeMetric === 'volume') {
+        return Math.max(18, Math.min(92, 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10))
+      } else if (sizeMetric === 'price') {
+        return Math.max(18, Math.min(92, 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8))
+      }
+      return Math.max(18, Math.min(92, 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11))
+    }
+
+    bubblesRef.current.forEach(b => {
+      b.targetR = getBaseRadius(b.coin)
+    })
+  }, [sizeMetric])
 
   // Physics + Render loop (fully self-contained, balanced braces)
   const tick = useCallback(() => {
@@ -174,10 +192,10 @@ export function Visualization({
           b.x += b.vx
           b.y += b.vy
 
-          // Friction with slight personality variation (restless planets coast a tiny bit more)
+          // Friction with personality variation (restless planets are noticeably more "floaty" and keep moving longer)
           const baseFriction = 0.9945
-          const friction = baseFriction - (b.restlessness - 1) * 0.00065
-          const finalFriction = Math.max(0.990, Math.min(0.997, friction))
+          const friction = baseFriction - (b.restlessness - 1) * 0.0018
+          const finalFriction = Math.max(0.988, Math.min(0.997, friction))
           b.vx *= finalFriction
           b.vy *= finalFriction
 
@@ -226,24 +244,23 @@ export function Visualization({
           }
         }
 
-        // 3) Idle motion with Personality (Proposal 2)
-        // Planets with higher restlessness now have visible slow autonomous movement.
-        // Calm planets mostly stay put, restless ones gently drift on their own over time.
+        // 3) Idle motion with Personality (Proposal 2) - made stronger so planets actually move
+        // High-restlessness planets now wake up and drift on their own with visible (but smooth) movement.
+        // Calm planets stay mostly still. No high-frequency jitter.
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
           const speed = Math.hypot(b.vx, b.vy)
 
-          // Random personality kick (stronger for restless planets)
-          if (speed < 0.35 && Math.random() < (0.018 * b.restlessness)) {
-            const kick = 0.0045 * b.restlessness
-            b.vx += b.driftBiasX * 1.2 + (Math.random() - 0.5) * kick
-            b.vy += b.driftBiasY * 1.2 + (Math.random() - 0.5) * kick
+          // Occasional "wake up" kick for lively planets when they are very still
+          if (b.restlessness > 1.0 && speed < 0.3 && Math.random() < (0.025 * b.restlessness)) {
+            const cruiseSpeed = 0.35 + (b.restlessness - 1) * 0.25   // visible but gentle speed
+            b.vx = b.driftBiasX * cruiseSpeed * 2.2 + (Math.random() - 0.5) * 0.2
+            b.vy = b.driftBiasY * cruiseSpeed * 2.2 + (Math.random() - 0.5) * 0.2
           }
 
-          // Continuous very subtle personal drift (the "own movement")
-          // Only when almost stopped — lively planets slowly start drifting on their own
-          if (speed < 0.4) {
-            const driftStrength = 0.0011 * b.restlessness
+          // Continuous personality drift (lively planets slowly keep moving)
+          if (speed < 0.5) {
+            const driftStrength = 0.0022 * b.restlessness
             b.vx += b.driftBiasX * driftStrength
             b.vy += b.driftBiasY * driftStrength
           }
@@ -326,10 +343,9 @@ export function Visualization({
             b.vy *= s
           }
 
-          // Global velocity deadzone — relaxed a bit to allow personality drift to work
-          // Lively planets (high restlessness) can keep very slow movement
+          // Global velocity deadzone — lively planets (high restlessness) have higher threshold so they can keep their own slow movement
           const finalSpeed = Math.hypot(b.vx, b.vy)
-          const deadzoneThreshold = 0.14 + (b.restlessness - 1) * 0.03   // lively planets harder to fully stop
+          const deadzoneThreshold = 0.12 + (b.restlessness - 1) * 0.04
           if (finalSpeed < deadzoneThreshold) {
             b.vx = 0
             b.vy = 0

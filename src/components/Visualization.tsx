@@ -16,13 +16,16 @@ interface VisualizationProps {
   tokens: TokenPrice[]
   selectedId?: string | null
   onSelect?: (id: string | null) => void
+  favorites?: string[]
+  highlightUntil?: number
 }
 
-export function Visualization({ tokens, selectedId: externalSelectedId, onSelect }: VisualizationProps) {
+export function Visualization({ tokens, selectedId: externalSelectedId, onSelect, favorites = [], highlightUntil = 0 }: VisualizationProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const labelsContainerRef = useRef<HTMLDivElement>(null)
   const bubblesRef = useRef<Bubble[]>([])
   const animationRef = useRef<number>()
+  const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
 
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
@@ -80,47 +83,73 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
     ctx.fillRect(0, 0, w, h)
 
     const bubbles = bubblesRef.current
+    const isHighlighting = Date.now() < highlightUntil
 
-    // Simple physics (ported & simplified from original)
-    for (let i = 0; i < bubbles.length; i++) {
-      const b = bubbles[i]
-      b.x += b.vx
-      b.y += b.vy
+    // Improved smooth physics (closer to the old beloved free-floating feel)
+    for (let step = 0; step < 3; step++) { // 3 substeps for smoother movement
+      for (let i = 0; i < bubbles.length; i++) {
+        const b = bubbles[i]
+        b.x += b.vx
+        b.y += b.vy
 
-      // Soft friction
-      b.vx *= 0.982
-      b.vy *= 0.982
+        // Softer friction for smooth long movement
+        b.vx *= 0.975
+        b.vy *= 0.975
 
-      // Bounce on edges
-      if (b.x < b.r + 20) { b.x = b.r + 20; b.vx = Math.abs(b.vx) * 0.6 }
-      if (b.x > w - b.r - 20) { b.x = w - b.r - 20; b.vx = -Math.abs(b.vx) * 0.6 }
-      if (b.y < b.r + 20) { b.y = b.r + 20; b.vy = Math.abs(b.vy) * 0.6 }
-      if (b.y > h - b.r - 20) { b.y = h - b.r - 20; b.vy = -Math.abs(b.vy) * 0.6 }
+        // Very gentle center pull (keeps things from flying away forever)
+        const cx = w / 2
+        const cy = h / 2
+        const dx = cx - b.x
+        const dy = cy - b.y
+        const distToCenter = Math.hypot(dx, dy) || 1
+        if (distToCenter > 400) {
+          b.vx += (dx / distToCenter) * 0.008
+          b.vy += (dy / distToCenter) * 0.008
+        }
 
-      // Radius smoothing
-      b.r += (b.targetR - b.r) * 0.08
-    }
+        // Bounce on edges with soft bounce
+        if (b.x < b.r + 25) { b.x = b.r + 25; b.vx = Math.abs(b.vx) * 0.65 }
+        if (b.x > w - b.r - 25) { b.x = w - b.r - 25; b.vx = -Math.abs(b.vx) * 0.65 }
+        if (b.y < b.r + 25) { b.y = b.r + 25; b.vy = Math.abs(b.vy) * 0.65 }
+        if (b.y > h - b.r - 25) { b.y = h - b.r - 25; b.vy = -Math.abs(b.vy) * 0.65 }
 
-    // Very light repulsion
-    for (let i = 0; i < bubbles.length; i++) {
-      for (let j = i + 1; j < bubbles.length; j++) {
-        const a = bubbles[i]
-        const b = bubbles[j]
-        const dx = b.x - a.x
-        const dy = b.y - a.y
-        const dist = Math.hypot(dx, dy) || 1
-        const minDist = a.r + b.r + 6
+        // Radius smoothing
+        b.r += (b.targetR - b.r) * 0.09
+      }
 
-        if (dist < minDist) {
-          const force = (minDist - dist) / minDist * 0.6
-          const fx = (dx / dist) * force
-          const fy = (dy / dist) * force
-          a.vx -= fx
-          a.vy -= fy
-          b.vx += fx
-          b.vy += fy
+      // Stronger but soft repulsion between planets
+      for (let i = 0; i < bubbles.length; i++) {
+        for (let j = i + 1; j < bubbles.length; j++) {
+          const a = bubbles[i]
+          const b = bubbles[j]
+          const dx = b.x - a.x
+          const dy = b.y - a.y
+          const dist = Math.hypot(dx, dy) || 1
+          const minDist = a.r + b.r + 8
+
+          if (dist < minDist) {
+            const force = (minDist - dist) / minDist * 0.85
+            const fx = (dx / dist) * force
+            const fy = (dy / dist) * force
+            a.vx -= fx
+            a.vy -= fy
+            b.vx += fx
+            b.vy += fy
+          }
         }
       }
+    }
+
+    // Give big movers a kick when Highlight is active
+    if (isHighlighting) {
+      bubbles.forEach(b => {
+        const ch = Math.abs(b.coin.price_change_percentage_24h || 0)
+        if (ch > 6) {
+          const kick = (ch - 6) * 0.08
+          b.vx += (Math.random() - 0.5) * kick
+          b.vy += (Math.random() - 0.5) * kick
+        }
+      })
     }
 
     // Draw planets
@@ -133,8 +162,43 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
       const change = coin.price_change_percentage_24h || 0
       const isGainer = change > 0
       const baseColor = isGainer ? '#22c55e' : '#f43f5e'
+      const isFavorite = favorites.includes(coin.id)
+      const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
+      const isCurrentlyHighlighted = isBigMover && isHighlighting
 
-      // Glow
+      // Favorite golden glow (old beautiful effect)
+      if (isFavorite) {
+        const favPulse = Math.sin(Date.now() / 380) * 0.14 + 1.03
+        const favSize = r * 2.35 * favPulse
+        const favGlow = ctx.createRadialGradient(x - r * 0.2, y - r * 0.3, r * 0.4, x, y, favSize)
+        favGlow.addColorStop(0, '#fde047')
+        favGlow.addColorStop(0.35, '#facc15')
+        favGlow.addColorStop(0.7, '#ca8a04')
+        favGlow.addColorStop(1, 'transparent')
+        ctx.globalAlpha = 0.7
+        ctx.fillStyle = favGlow
+        ctx.beginPath()
+        ctx.arc(x, y, favSize, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      // Extra intense glow when Highlight Big Movers is active
+      if (isCurrentlyHighlighted) {
+        const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
+        const moverSize = r * 3.2 * moverPulse
+        const moverColor = change > 0 ? '#4ade80' : '#f87171'
+        const moverGlow = ctx.createRadialGradient(x, y, r * 0.6, x, y, moverSize)
+        moverGlow.addColorStop(0, moverColor)
+        moverGlow.addColorStop(0.5, moverColor)
+        moverGlow.addColorStop(1, 'transparent')
+        ctx.globalAlpha = 0.55
+        ctx.fillStyle = moverGlow
+        ctx.beginPath()
+        ctx.arc(x, y, moverSize, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      // Atmospheric glow
       ctx.globalAlpha = 0.35
       const glow = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.4, x, y, r * 2.1)
       glow.addColorStop(0, baseColor)
@@ -151,14 +215,48 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.fill()
 
-      // Specular
+      // Draw real logo if available (the beautiful planet look user loved)
+      const img = imageCache.current.get(coin.id)
+      if (img && img.complete && img.naturalWidth > 0) {
+        const logoSize = r * 1.55
+        const logoX = x - logoSize / 2
+        const logoY = y - logoSize / 2
+
+        ctx.save()
+        ctx.globalAlpha = 0.92
+
+        // Subtle shadow for logo
+        ctx.shadowColor = 'rgba(0,0,0,0.5)'
+        ctx.shadowBlur = 6
+        ctx.shadowOffsetX = 1
+        ctx.shadowOffsetY = 1
+
+        // Clip to circle
+        ctx.beginPath()
+        ctx.arc(x, y, r * 0.92, 0, Math.PI * 2)
+        ctx.clip()
+
+        ctx.drawImage(img, logoX, logoY, logoSize, logoSize)
+        ctx.restore()
+      } else if (coin.image && !imageCache.current.has(coin.id)) {
+        // Lazy load logo
+        const newImg = new Image()
+        newImg.crossOrigin = 'anonymous'
+        newImg.src = coin.image
+        newImg.onload = () => {
+          imageCache.current.set(coin.id, newImg)
+        }
+        imageCache.current.set(coin.id, newImg) // prevent multiple loads
+      }
+
+      // Specular highlight
       ctx.globalAlpha = 0.6
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
       ctx.arc(x - r * 0.3, y - r * 0.32, r * 0.26, 0, Math.PI * 2)
       ctx.fill()
 
-      // Simple ring for larger planets
+      // Rings
       if (r > 26) {
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
@@ -169,6 +267,30 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
       }
 
       ctx.globalAlpha = 1
+
+      // Sparkling particles on big movers when highlighted (old beautiful effect)
+      if (isCurrentlyHighlighted) {
+        const t = Date.now()
+        ctx.globalAlpha = 0.9
+        const sparkCount = 5
+        for (let s = 0; s < sparkCount; s++) {
+          const angle = (t / 420) + (s * (Math.PI * 2 / sparkCount))
+          const dist = r * (1.35 + Math.sin(t / 180 + s) * 0.15)
+          const sx = x + Math.cos(angle) * dist
+          const sy = y + Math.sin(angle) * dist * 0.9
+          const sparkSize = 1.6 + Math.sin(t / 110 + s * 2) * 0.8
+
+          ctx.fillStyle = change > 0 ? '#86efac' : '#fca5a5'
+          ctx.beginPath()
+          ctx.arc(sx, sy, sparkSize, 0, Math.PI * 2)
+          ctx.fill()
+
+          ctx.fillStyle = '#ffffff'
+          ctx.beginPath()
+          ctx.arc(sx, sy, sparkSize * 0.35, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
     })
 
     // Update DOM labels

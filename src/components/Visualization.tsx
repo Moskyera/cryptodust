@@ -75,12 +75,12 @@ export function Visualization({
 
     const getBaseRadius = (coin: TokenPrice) => {
       if (sizeMetric === 'volume') {
-        return Math.max(20, Math.min(105, 32 + Math.log10((coin.total_volume || 1e8) / 1e8) * 11))
+        return Math.max(18, Math.min(92, 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10))
       } else if (sizeMetric === 'price') {
-        return Math.max(20, Math.min(105, 26 + Math.log10(Math.max(1, coin.current_price || 1)) * 9))
+        return Math.max(18, Math.min(92, 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8))
       }
-      // default: market_cap - slightly smaller + more breathing room
-      return Math.max(20, Math.min(105, 32 + Math.log10((coin.market_cap || 1e8) / 1e8) * 12))
+      // default: market_cap - made smaller again for less crowding + less visual tremble
+      return Math.max(18, Math.min(92, 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11))
     }
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {
@@ -89,8 +89,8 @@ export function Visualization({
         id: coin.id,
         x: 80 + Math.random() * (w - 160),
         y: 80 + Math.random() * (h - 160),
-        vx: (Math.random() - 0.5) * 2.45,
-        vy: (Math.random() - 0.5) * 2.45,
+        vx: (Math.random() - 0.5) * 1.85,
+        vy: (Math.random() - 0.5) * 1.85,
         r: baseR * 0.75,
         targetR: baseR,
         coin,
@@ -176,7 +176,7 @@ export function Visualization({
         }
 
         // 2) Soft, springy pairwise separation (gentle, never jerky)
-        const COMFORT = 92   // increased for more breathing room / less cramped look
+        const COMFORT = 108   // increased further so planets feel less cramped and don't crowd each other
         for (let i = 0; i < bubbles.length; i++) {
           for (let j = i + 1; j < bubbles.length; j++) {
             const a = bubbles[i]
@@ -200,8 +200,9 @@ export function Visualization({
               bb.vy += fy * 0.85
 
               // Tiny jitter only when really penetrating (prevents perfect grid lock)
+              // Reduced to avoid visible trembling
               if (overlap > 18) {
-                const j = 0.009
+                const j = 0.0045
                 a.vx += (Math.random() - 0.5) * j
                 a.vy += (Math.random() - 0.5) * j
                 bb.vx += (Math.random() - 0.5) * j
@@ -212,24 +213,31 @@ export function Visualization({
         }
 
         // 3) Gentle continuous "life" force — planets never completely freeze
+        // Reduced strength + frequency to stop the constant micro-tremble / shaking
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
-          if (Math.random() < 0.085) {
-            b.vx += (Math.random() - 0.5) * 0.014
-            b.vy += (Math.random() - 0.5) * 0.014
+          if (Math.random() < 0.035) {
+            b.vx += (Math.random() - 0.5) * 0.007
+            b.vy += (Math.random() - 0.5) * 0.007
           }
         }
 
         // 4) Extra stability for the selected planet (reduces visual trembling of the rotating rings)
+        // Much stronger damping when selected so the orbiting ring effect looks steady
         if (selectedId) {
           const sel = bubbles.find(b => b.id === selectedId)
           if (sel) {
-            sel.vx *= 0.982
-            sel.vy *= 0.982
+            sel.vx *= 0.955
+            sel.vy *= 0.955
+            // Extra damp if almost stopped (prevents micro jitter from other forces)
+            if (Math.hypot(sel.vx, sel.vy) < 0.6) {
+              sel.vx *= 0.6
+              sel.vy *= 0.6
+            }
           }
         }
 
-        // 4) Soft edge forces + strict bounds + gentle reflection (NEVER escape)
+        // 5) Soft edge forces + strict bounds + gentle reflection (NEVER escape)
         const hard = 11
         const soft = 78
         const edgeStrength = 0.095
@@ -439,7 +447,7 @@ export function Visualization({
         ctx.lineWidth = 1.6
         ctx.strokeStyle = '#a5f3fc'
         ctx.setLineDash([4, 7])
-        ctx.lineDashOffset = -(t / 95) % 22   // continuous smooth rotation
+        ctx.lineDashOffset = -(t / 140) % 22   // slightly slower, calmer rotation
         ctx.beginPath()
         ctx.arc(x, y, r + 13, 0, Math.PI * 2)
         ctx.stroke()
@@ -449,31 +457,31 @@ export function Visualization({
         ctx.globalAlpha = 1.0
         const orbitCount = 6
         for (let i = 0; i < orbitCount; i++) {
-          // Two different orbit speeds and radii for rich layered rotation
-          const speed1 = t / 380 + (i * (Math.PI * 2 / orbitCount))
-          const speed2 = t / 620 + (i * 1.7)
+          // Slightly slower speeds than before for calmer, less nervous movement
+          const speed1 = t / 520 + (i * (Math.PI * 2 / orbitCount))
+          const speed2 = t / 780 + (i * 1.7)
 
           const dist = r + 17.5 + Math.sin(speed2) * 2.2
           const ox = x + Math.cos(speed1) * dist
           const oy = y + Math.sin(speed1) * dist * 0.93
 
-          // Bright outer dot
+          // Bright outer dot (slightly smaller for calmer look)
           ctx.fillStyle = '#67f6ff'
           ctx.beginPath()
-          ctx.arc(ox, oy, 2.4, 0, Math.PI * 2)
+          ctx.arc(ox, oy, 2.1, 0, Math.PI * 2)
           ctx.fill()
 
           // Hot white core
           ctx.fillStyle = '#ffffff'
           ctx.beginPath()
-          ctx.arc(ox, oy, 1.05, 0, Math.PI * 2)
+          ctx.arc(ox, oy, 0.9, 0, Math.PI * 2)
           ctx.fill()
         }
 
         // Second, slower, farther orbit ring (more depth)
         for (let i = 0; i < 4; i++) {
-          const angle = (t / 920) + (i * 1.8) + (i * (Math.PI * 2 / 4))
-          const dist2 = r + 25 + Math.cos(t / 410 + i) * 1.5
+          const angle = (t / 1250) + (i * 1.8) + (i * (Math.PI * 2 / 4))
+          const dist2 = r + 25 + Math.cos(t / 580 + i) * 1.5
           const ox2 = x + Math.cos(angle) * dist2
           const oy2 = y + Math.sin(angle) * dist2 * 0.9
 

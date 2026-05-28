@@ -95,39 +95,39 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
     const bubbles = bubblesRef.current
     const isHighlighting = Date.now() < highlightUntil
 
-    // Improved smooth physics (closer to the old beloved free-floating feel)
-    for (let step = 0; step < 3; step++) { // 3 substeps for smoother movement
+    // Free-floating physics with good separation (no gathering in center, planets keep distance)
+    for (let step = 0; step < 3; step++) {
       for (let i = 0; i < bubbles.length; i++) {
         const b = bubbles[i]
         b.x += b.vx
         b.y += b.vy
 
-        // Softer friction for smooth long movement
-        b.vx *= 0.975
-        b.vy *= 0.975
+        // Very soft friction (allows smooth, long-lasting movement)
+        b.vx *= 0.985
+        b.vy *= 0.985
 
-        // Very gentle center pull (keeps things from flying away forever)
-        const cx = w / 2
-        const cy = h / 2
-        const dx = cx - b.x
-        const dy = cy - b.y
-        const distToCenter = Math.hypot(dx, dy) || 1
-        if (distToCenter > 400) {
-          b.vx += (dx / distToCenter) * 0.008
-          b.vy += (dy / distToCenter) * 0.008
+        // Soft wall repulsion near edges (keeps planets inside without strong center pull)
+        const edgeMargin = 80
+        const edgeForce = 0.035
+
+        if (b.x < b.r + edgeMargin) {
+          b.vx += edgeForce
+        }
+        if (b.x > w - b.r - edgeMargin) {
+          b.vx -= edgeForce
+        }
+        if (b.y < b.r + edgeMargin) {
+          b.vy += edgeForce
+        }
+        if (b.y > h - b.r - edgeMargin) {
+          b.vy -= edgeForce
         }
 
-        // Bounce on edges with soft bounce
-        if (b.x < b.r + 25) { b.x = b.r + 25; b.vx = Math.abs(b.vx) * 0.65 }
-        if (b.x > w - b.r - 25) { b.x = w - b.r - 25; b.vx = -Math.abs(b.vx) * 0.65 }
-        if (b.y < b.r + 25) { b.y = b.r + 25; b.vy = Math.abs(b.vy) * 0.65 }
-        if (b.y > h - b.r - 25) { b.y = h - b.r - 25; b.vy = -Math.abs(b.vy) * 0.65 }
-
         // Radius smoothing
-        b.r += (b.targetR - b.r) * 0.09
+        b.r += (b.targetR - b.r) * 0.08
       }
 
-      // Strong repulsion to prevent sticking (especially important with many planets)
+      // Separation force — planets actively keep distance from each other
       for (let i = 0; i < bubbles.length; i++) {
         for (let j = i + 1; j < bubbles.length; j++) {
           const a = bubbles[i]
@@ -135,18 +135,21 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
           const dx = b.x - a.x
           const dy = b.y - a.y
           const dist = Math.hypot(dx, dy) || 1
-          const minDist = a.r + b.r + 10
 
-          if (dist < minDist) {
-            let force = (minDist - dist) / minDist * 1.1
+          // Comfort distance = sum of radii + extra padding
+          const comfortDist = a.r + b.r + 18
 
-            // Extra strong push when very close (prevents clumping)
-            if (dist < minDist * 0.6) {
-              force *= 2.2
-            }
+          if (dist < comfortDist) {
+            const overlap = comfortDist - dist
+            const force = (overlap / comfortDist) * 1.8   // base separation strength
 
-            const fx = (dx / dist) * force
-            const fy = (dy / dist) * force
+            // Much stronger when they are actually overlapping or very close
+            const closeMultiplier = dist < (a.r + b.r + 4) ? 4.0 : 1.0
+            const finalForce = force * closeMultiplier
+
+            const fx = (dx / dist) * finalForce
+            const fy = (dy / dist) * finalForce
+
             a.vx -= fx
             a.vy -= fy
             b.vx += fx

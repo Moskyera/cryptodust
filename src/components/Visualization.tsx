@@ -10,6 +10,10 @@ interface Bubble {
   r: number
   targetR: number
   coin: TokenPrice
+  // Personality / Temperament system (Proposal 2 - chosen by user)
+  restlessness: number      // How "lively" this planet is (higher = more idle movement)
+  driftBiasX: number        // Personal subtle directional preference
+  driftBiasY: number
 }
 
 interface VisualizationProps {
@@ -85,6 +89,11 @@ export function Visualization({
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {
       const baseR = getBaseRadius(coin)
+      // Assign personality (Proposal 2 - Planet Temperaments)
+      const restlessness = 0.45 + Math.random() * 1.75   // range ~0.45 - 2.2
+      const driftBiasX = (Math.random() - 0.5) * 0.009
+      const driftBiasY = (Math.random() - 0.5) * 0.009
+
       return {
         id: coin.id,
         x: 80 + Math.random() * (w - 160),
@@ -94,6 +103,9 @@ export function Visualization({
         r: baseR * 0.75,
         targetR: baseR,
         coin,
+        restlessness,
+        driftBiasX,
+        driftBiasY,
       }
     })
 
@@ -162,9 +174,12 @@ export function Visualization({
           b.x += b.vx
           b.y += b.vy
 
-          // Higher friction for smooth, natural coasting and quick settling (less constant micro-movement)
-          b.vx *= 0.9945
-          b.vy *= 0.9945
+          // Friction with slight personality variation (restless planets coast a tiny bit more)
+          const baseFriction = 0.9945
+          const friction = baseFriction - (b.restlessness - 1) * 0.00065
+          const finalFriction = Math.max(0.990, Math.min(0.997, friction))
+          b.vx *= finalFriction
+          b.vy *= finalFriction
 
           // Smooth radius change (Size By)
           b.r += (b.targetR - b.r) * 0.085
@@ -190,10 +205,14 @@ export function Visualization({
               const fx = (dx / d) * f
               const fy = (dy / d) * f
 
-              a.vx -= fx * 0.9
-              a.vy -= fy * 0.9
-              bb.vx += fx * 0.9
-              bb.vy += fy * 0.9
+              // Slight personality influence on how much they get pushed (restless = more reactive)
+              const pushInfluenceA = 0.9 + (a.restlessness - 1) * 0.08
+              const pushInfluenceB = 0.9 + (bb.restlessness - 1) * 0.08
+
+              a.vx -= fx * pushInfluenceA
+              a.vy -= fy * pushInfluenceA
+              bb.vx += fx * pushInfluenceB
+              bb.vy += fy * pushInfluenceB
 
               // Minimal jitter only on hard collision
               if (overlap > 12) {
@@ -207,14 +226,19 @@ export function Visualization({
           }
         }
 
-        // 3) Idle motion — kept extremely minimal
-        // Almost no random kicks so planets have clean, smooth movement.
+        // 3) Idle motion with Personality (Proposal 2)
+        // Each planet has its own "temperament". Restless ones move a bit more on their own.
+        // Still extremely subtle so it doesn't create trembling.
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
           const speed = Math.hypot(b.vx, b.vy)
-          if (speed < 0.25 && Math.random() < 0.006) {
-            b.vx += (Math.random() - 0.5) * 0.0018
-            b.vy += (Math.random() - 0.5) * 0.0018
+
+          if (speed < 0.25 && Math.random() < (0.005 * b.restlessness)) {
+            const kick = 0.0016 * b.restlessness
+
+            // Add personal directional bias + small random
+            b.vx += b.driftBiasX * 0.6 + (Math.random() - 0.5) * kick
+            b.vy += b.driftBiasY * 0.6 + (Math.random() - 0.5) * kick
           }
         }
 

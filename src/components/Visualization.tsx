@@ -131,9 +131,9 @@ export function Visualization({
     // Lively, smooth, persistent motion with perfect screen bounds
     // =====================================================
     if (!paused) {
-      const SUBSTEPS = 3   // reduced to 3 — less over-sampling of small forces that cause visible jitter
+      const SUBSTEPS = 2   // lower substeps for smoother overall feeling and less force noise
 
-      // Handle active drag-to-fling (direct position control feels instant & smooth)
+      // Handle active drag-to-fling — IMPORTANT: zero velocity while dragging to prevent shake
       const draggingId = draggingIdRef.current
       if (draggingId) {
         const db = bubbles.find(b => b.id === draggingId)
@@ -141,18 +141,13 @@ export function Visualization({
           const mx = mouseRef.current.x
           const my = mouseRef.current.y
 
-          // Direct position following (best responsiveness)
-          const dx = mx - db.x
-          const dy = my - db.y
-
-          // Nice springy follow velocity so the fling on release feels natural
-          db.vx = dx * 0.42
-          db.vy = dy * 0.42
-
+          // Direct position control (smooth, no velocity fighting)
           db.x = mx
           db.y = my
+          db.vx = 0
+          db.vy = 0
 
-          // Keep it inside while dragging too
+          // Keep it inside while dragging
           const m = db.r + 8
           db.x = Math.max(m, Math.min(w - m, db.x))
           db.y = Math.max(m, Math.min(h - m, db.y))
@@ -167,16 +162,17 @@ export function Visualization({
           b.x += b.vx
           b.y += b.vy
 
-          // Higher friction for calmer, less shaky motion (planets settle instead of constantly micro-trembling)
-          b.vx *= 0.996
-          b.vy *= 0.996
+          // Higher friction for smooth, natural coasting and quick settling (less constant micro-movement)
+          b.vx *= 0.9945
+          b.vy *= 0.9945
 
           // Smooth radius change (Size By)
           b.r += (b.targetR - b.r) * 0.085
         }
 
-        // 2) Soft, springy pairwise separation (gentle, never jerky)
-        const COMFORT = 108   // increased further so planets feel less cramped and don't crowd each other
+        // 2) Gentle push ONLY when planets are about to touch (user request)
+        // Planets should float freely with smooth movement and only bump each other when nearly colliding.
+        const TOUCH_COMFORT = 14   // very small — push starts only when almost touching
         for (let i = 0; i < bubbles.length; i++) {
           for (let j = i + 1; j < bubbles.length; j++) {
             const a = bubbles[i]
@@ -184,25 +180,24 @@ export function Visualization({
             const dx = bb.x - a.x
             const dy = bb.y - a.y
             const d = Math.hypot(dx, dy) || 1.0
-            const want = a.r + bb.r + COMFORT
+            const want = a.r + bb.r + TOUCH_COMFORT
 
             if (d < want) {
-              // Soft spring force (no crazy multipliers = no stutter)
+              // Very soft, short-range push (feels natural)
               const overlap = (want - d)
-              const f = Math.min(overlap * 0.031, 1.9)
+              const f = Math.min(overlap * 0.022, 1.2)   // gentle force
 
               const fx = (dx / d) * f
               const fy = (dy / d) * f
 
-              a.vx -= fx * 0.85
-              a.vy -= fy * 0.85
-              bb.vx += fx * 0.85
-              bb.vy += fy * 0.85
+              a.vx -= fx * 0.9
+              a.vy -= fy * 0.9
+              bb.vx += fx * 0.9
+              bb.vy += fy * 0.9
 
-              // Tiny jitter only when really penetrating (prevents perfect grid lock)
-              // Reduced to avoid visible trembling
-              if (overlap > 18) {
-                const j = 0.0045
+              // Minimal jitter only on hard collision
+              if (overlap > 12) {
+                const j = 0.003
                 a.vx += (Math.random() - 0.5) * j
                 a.vy += (Math.random() - 0.5) * j
                 bb.vx += (Math.random() - 0.5) * j
@@ -212,15 +207,14 @@ export function Visualization({
           }
         }
 
-        // 3) "Life" force DISABLED / heavily nerfed
-        // The random kicks were the main source of constant visible trembling.
-        // We keep an extremely subtle version only for very slow planets (optional idle motion).
+        // 3) Idle motion — kept extremely minimal
+        // Almost no random kicks so planets have clean, smooth movement.
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
           const speed = Math.hypot(b.vx, b.vy)
-          if (speed < 0.3 && Math.random() < 0.012) {
-            b.vx += (Math.random() - 0.5) * 0.0025
-            b.vy += (Math.random() - 0.5) * 0.0025
+          if (speed < 0.25 && Math.random() < 0.006) {
+            b.vx += (Math.random() - 0.5) * 0.0018
+            b.vy += (Math.random() - 0.5) * 0.0018
           }
         }
 
@@ -243,10 +237,10 @@ export function Visualization({
           }
         }
 
-        // 5) Soft edge forces + strict bounds + gentle reflection (NEVER escape)
-        const hard = 11
-        const soft = 78
-        const edgeStrength = 0.095
+        // 5) Soft edge forces + strict bounds (gentler to avoid constant small pushes)
+        const hard = 12
+        const soft = 55
+        const edgeStrength = 0.065
 
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
@@ -301,9 +295,9 @@ export function Visualization({
             b.vy *= s
           }
 
-          // Global velocity deadzone — stops tiny accumulated jitter from looking like trembling
+          // Global velocity deadzone — planets stop cleanly instead of micro-trembling
           const finalSpeed = Math.hypot(b.vx, b.vy)
-          if (finalSpeed < 0.18) {
+          if (finalSpeed < 0.22) {
             b.vx = 0
             b.vy = 0
           }
@@ -720,11 +714,11 @@ export function Visualization({
 
       const { x: wx, y: wy } = screenToWorld(e.clientX, e.clientY)
 
-      // Calculate fling velocity from drag movement
+      // Calculate fling velocity from drag movement (slightly gentler for smoother release)
       const prev = lastDragPosRef.current
       const dt = Math.max(16, Date.now() - prev.time)
-      let flingX = ((wx - prev.x) / dt) * 18   // tuned multiplier for nice throw strength
-      let flingY = ((wy - prev.y) / dt) * 18
+      let flingX = ((wx - prev.x) / dt) * 14
+      let flingY = ((wy - prev.y) / dt) * 14
 
       // Clamp fling so it doesn't get ridiculous
       const maxFling = 3.8

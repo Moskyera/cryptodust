@@ -58,18 +58,16 @@ async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPri
   }
 }
 
-// Fetch top 1000 coins (4 pages of 250)
+// Fetch top 500 coins (2 pages of 250)
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const pages = await Promise.all([
       fetchCoinGeckoPage(1),
       fetchCoinGeckoPage(2),
-      fetchCoinGeckoPage(3),
-      fetchCoinGeckoPage(4),
     ])
 
-    // Combine and limit to 1000
-    return pages.flat().slice(0, 1000)
+    // Combine and limit to 500
+    return pages.flat().slice(0, 500)
   } catch (error) {
     console.error('Failed to fetch coins from CoinGecko', error)
     return []

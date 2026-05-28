@@ -95,12 +95,12 @@ export function Visualization({
     bubblesRef.current = newBubbles
   }, [tokens, sizeMetric])
 
-  // Physics + Render loop
+  // Physics + Render loop (fully self-contained, balanced braces)
   const tick = useCallback(() => {
     const canvas = canvasRef.current
     const labelsContainer = labelsContainerRef.current
+
     if (!canvas || !labelsContainer) {
-      // Re-schedule in case refs aren't ready yet
       animationRef.current = requestAnimationFrame(tick)
       return
     }
@@ -114,125 +114,147 @@ export function Visualization({
     const w = canvas.width
     const h = canvas.height
 
-    // Clear
+    // Clear background
     ctx.fillStyle = '#0a0a12'
     ctx.fillRect(0, 0, w, h)
 
     const bubbles = bubblesRef.current
     const isHighlighting = Date.now() < highlightUntil
 
-    // Free-floating physics with strong separation (planets keep good distance, no clumping in center)
+    // =====================================================
+    // PHYSICS SECTION — ONLY RUNS WHEN NOT PAUSED
+    // =====================================================
     if (!paused) {
-      for (let step = 0; step < 3; step++) {
+      const SUBSTEPS = 3
+
+      for (let step = 0; step < SUBSTEPS; step++) {
+        // 1) Integrate velocity + friction + edge repulsion + hard clamp
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
+
           b.x += b.vx
           b.y += b.vy
 
-          // Much softer friction → planets keep moving smoothly for longer
-          b.vx *= 0.993
-          b.vy *= 0.993
+          // friction (very gentle so they keep moving)
+          b.vx *= 0.992
+          b.vy *= 0.992
 
-          // Strong boundary forces + hard clamping so planets cannot leave the visible area
-          const hardMargin = 12
-          const softMargin = 80
-          const strongEdgeForce = 0.11
+          // Soft edge repulsion (pushes inward before hitting wall)
+          const hardMargin = 14
+          const softMargin = 92
+          const edgeForce = 0.13
 
-          // Soft repulsion that gets stronger the closer you get to the edge
           if (b.x < b.r + softMargin) {
-            const strength = (softMargin - (b.x - b.r)) / softMargin
-            b.vx += strongEdgeForce * strength * 1.8
+            b.vx += edgeForce * ((softMargin - (b.x - b.r)) / softMargin) * 2.1
           }
           if (b.x > w - b.r - softMargin) {
-            const strength = (softMargin - (w - b.r - b.x)) / softMargin
-            b.vx -= strongEdgeForce * strength * 1.8
+            b.vx -= edgeForce * ((softMargin - (w - b.r - b.x)) / softMargin) * 2.1
           }
           if (b.y < b.r + softMargin) {
-            const strength = (softMargin - (b.y - b.r)) / softMargin
-            b.vy += strongEdgeForce * strength * 1.8
+            b.vy += edgeForce * ((softMargin - (b.y - b.r)) / softMargin) * 2.1
           }
           if (b.y > h - b.r - softMargin) {
-            const strength = (softMargin - (h - b.r - b.y)) / softMargin
-            b.vy -= strongEdgeForce * strength * 1.8
+            b.vy -= edgeForce * ((softMargin - (h - b.r - b.y)) / softMargin) * 2.1
           }
 
-          // Hard clamping - planets literally cannot leave the box (main fix for escaping)
+          // HARD CLAMP — planets can NEVER leave the visible area
           b.x = Math.max(b.r + hardMargin, Math.min(w - b.r - hardMargin, b.x))
           b.y = Math.max(b.r + hardMargin, Math.min(h - b.r - hardMargin, b.y))
 
-          // Extra velocity damping near edges
+          // Extra damping when near the wall
           if (b.x < b.r + softMargin || b.x > w - b.r - softMargin ||
               b.y < b.r + softMargin || b.y > h - b.r - softMargin) {
-            b.vx *= 0.90
-            b.vy *= 0.90
+            b.vx *= 0.88
+            b.vy *= 0.88
           }
 
-          // Velocity limiting
-          const maxVel = 2.5
+          // Velocity cap (prevents crazy fast planets)
+          const maxV = 2.8
           const speed = Math.hypot(b.vx, b.vy)
-          if (speed > maxVel) {
-            const scale = maxVel / speed
-            b.vx *= scale
-            b.vy *= scale
+          if (speed > maxV) {
+            const s = maxV / speed
+            b.vx *= s
+            b.vy *= s
           }
 
-          // Radius smoothing
-          b.r += (b.targetR - b.r) * 0.08
+          // Smooth radius animation when Size By changes
+          b.r += (b.targetR - b.r) * 0.085
         }
 
-      // Proactive separation — planets start pushing apart well before touching
-      for (let i = 0; i < bubbles.length; i++) {
-        for (let j = i + 1; j < bubbles.length; j++) {
-          const a = bubbles[i]
-          const b = bubbles[j]
-          const dx = b.x - a.x
-          const dy = b.y - a.y
-          const dist = Math.hypot(dx, dy) || 1
+        // 2) Strong pairwise separation (the key anti-sticking force)
+        const COMFORT = 84   // minimum center-to-center distance
+        for (let i = 0; i < bubbles.length; i++) {
+          for (let j = i + 1; j < bubbles.length; j++) {
+            const a = bubbles[i]
+            const bb = bubbles[j]
+            const dx = bb.x - a.x
+            const dy = bb.y - a.y
+            const d = Math.hypot(dx, dy) || 1.0
+            const wantDist = a.r + bb.r + COMFORT
 
-          // Very strong proactive separation (planets start pushing apart from quite far away)
-          const desiredDist = a.r + b.r + 70   // significantly larger personal space
+            if (d < wantDist) {
+              const penetration = (wantDist - d) / wantDist
+              let force = penetration * 6.2
 
-          if (dist < desiredDist) {
-            const push = (desiredDist - dist) / desiredDist
-            let force = push * 5.0
+              // When they are really overlapping, go nuclear + add jitter
+              if (d < (a.r + bb.r + 26)) {
+                force *= 9.5
+                const jitter = 0.022
+                a.vx += (Math.random() - 0.5) * jitter
+                a.vy += (Math.random() - 0.5) * jitter
+                bb.vx += (Math.random() - 0.5) * jitter
+                bb.vy += (Math.random() - 0.5) * jitter
+              }
 
-            // Extremely strong force when getting close
-            if (dist < (a.r + b.r + 20)) {
-              force *= 8.0
+              const fx = (dx / d) * force
+              const fy = (dy / d) * force
 
-              // Tiny random jitter to break perfect alignment and prevent stacking
-              const jitter = 0.018
-              a.vx += (Math.random() - 0.5) * jitter
-              a.vy += (Math.random() - 0.5) * jitter
-              b.vx += (Math.random() - 0.5) * jitter
-              b.vy += (Math.random() - 0.5) * jitter
+              a.vx -= fx * 0.92
+              a.vy -= fy * 0.92
+              bb.vx += fx * 0.92
+              bb.vy += fy * 0.92
             }
+          }
+        }
 
-            const fx = (dx / dist) * force
-            const fy = (dy / dist) * force
-
-            a.vx -= fx * 0.9
-            a.vy -= fy * 0.9
-            b.vx += fx * 0.9
-            b.vy += fy * 0.9
+        // 3) Light global repulsion (helps when you have 80-100 planets on screen)
+        if (bubbles.length > 25) {
+          for (let i = 0; i < bubbles.length; i++) {
+            const a = bubbles[i]
+            let rx = 0, ry = 0
+            for (let j = 0; j < bubbles.length; j++) {
+              if (i === j) continue
+              const b = bubbles[j]
+              const dx = a.x - b.x
+              const dy = a.y - b.y
+              const dist = Math.hypot(dx, dy) || 1
+              if (dist < 260) {
+                const f = (260 - dist) / 260 * 0.018
+                rx += (dx / dist) * f
+                ry += (dy / dist) * f
+              }
+            }
+            a.vx += rx
+            a.vy += ry
           }
         }
       }
     }
+    // ==================== END PHYSICS ====================
 
-    // Give big movers a kick when Highlight is active
+    // Visual velocity kick on big movers while highlight is active (works even when paused)
     if (isHighlighting) {
       bubbles.forEach(b => {
         const ch = Math.abs(b.coin.price_change_percentage_24h || 0)
         if (ch > 6) {
-          const kick = (ch - 6) * 0.08
-          b.vx += (Math.random() - 0.5) * kick
-          b.vy += (Math.random() - 0.5) * kick
+          const k = (ch - 6) * 0.075
+          b.vx += (Math.random() - 0.5) * k
+          b.vy += (Math.random() - 0.5) * k
         }
       })
     }
 
-    // Draw planets
+    // ==================== DRAW EVERYTHING (always runs) ====================
     bubbles.forEach((b) => {
       const coin = b.coin
       const r = b.r
@@ -246,7 +268,7 @@ export function Visualization({
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
       const isCurrentlyHighlighted = isBigMover && isHighlighting
 
-      // Favorite golden glow (old beautiful effect)
+      // Favorite golden pulsing glow
       if (isFavorite) {
         const favPulse = Math.sin(Date.now() / 380) * 0.14 + 1.03
         const favSize = r * 2.35 * favPulse
@@ -262,7 +284,7 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Extra intense glow when Highlight Big Movers is active
+      // Big Mover intense layered glow (Highlight Big Movers button)
       if (isCurrentlyHighlighted) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
         const moverSize = r * 3.2 * moverPulse
@@ -278,7 +300,7 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Atmospheric glow
+      // Atmospheric outer glow
       ctx.globalAlpha = 0.35
       const glow = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.4, x, y, r * 2.1)
       glow.addColorStop(0, baseColor)
@@ -288,14 +310,14 @@ export function Visualization({
       ctx.arc(x, y, r * 2.1, 0, Math.PI * 2)
       ctx.fill()
 
-      // Planet disk
+      // Solid planet disk
       ctx.globalAlpha = 0.95
       ctx.fillStyle = baseColor
       ctx.beginPath()
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.fill()
 
-      // Draw real logo if available (bigger logos since planets are bigger now)
+      // Real coin logo (inset, clipped, with subtle shadow)
       const img = imageCache.current.get(coin.id)
       if (img && img.complete && img.naturalWidth > 0) {
         const logoSize = r * 1.72
@@ -304,39 +326,34 @@ export function Visualization({
 
         ctx.save()
         ctx.globalAlpha = 0.92
-
-        // Subtle shadow for logo
         ctx.shadowColor = 'rgba(0,0,0,0.5)'
         ctx.shadowBlur = 6
         ctx.shadowOffsetX = 1
         ctx.shadowOffsetY = 1
 
-        // Clip to circle
         ctx.beginPath()
         ctx.arc(x, y, r * 0.92, 0, Math.PI * 2)
         ctx.clip()
-
         ctx.drawImage(img, logoX, logoY, logoSize, logoSize)
         ctx.restore()
       } else if (coin.image && !imageCache.current.has(coin.id)) {
-        // Lazy load logo
         const newImg = new Image()
         newImg.crossOrigin = 'anonymous'
         newImg.src = coin.image
         newImg.onload = () => {
           imageCache.current.set(coin.id, newImg)
         }
-        imageCache.current.set(coin.id, newImg) // prevent multiple loads
+        imageCache.current.set(coin.id, newImg)
       }
 
-      // Specular highlight
+      // Specular highlight (shiny top-left)
       ctx.globalAlpha = 0.6
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
       ctx.arc(x - r * 0.3, y - r * 0.32, r * 0.26, 0, Math.PI * 2)
       ctx.fill()
 
-      // Rings
+      // Attractive rings (especially visible on larger planets)
       if (r > 26) {
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
@@ -346,9 +363,9 @@ export function Visualization({
         ctx.stroke()
       }
 
-      ctx.globalAlpha = 1
+      ctx.globalAlpha = 1.0
 
-      // Selection visual effect (rings + glow when clicked)
+      // Selection rings (cyan)
       if (selectedId === coin.id) {
         ctx.globalAlpha = 0.85
         ctx.strokeStyle = '#67f6ff'
@@ -357,7 +374,6 @@ export function Visualization({
         ctx.arc(x, y, r + 6, 0, Math.PI * 2)
         ctx.stroke()
 
-        // Outer pulsing ring
         const pulse = Math.sin(Date.now() / 280) * 0.6 + 1.6
         ctx.globalAlpha = 0.55
         ctx.lineWidth = 1.5
@@ -366,7 +382,7 @@ export function Visualization({
         ctx.stroke()
       }
 
-      // Sparkling particles on big movers when highlighted (old beautiful effect)
+      // Orbiting sparkles when a big mover is highlighted
       if (isCurrentlyHighlighted) {
         const t = Date.now()
         ctx.globalAlpha = 0.9
@@ -391,10 +407,10 @@ export function Visualization({
       }
     })
 
-    // Update DOM labels (we still want labels to be correct even when paused)
+    // DOM labels (always updated so they stay correct even when paused)
     updateLabels(bubbles, labelsContainer)
 
-    // Only schedule next frame if physics is not paused
+    // Schedule next frame ONLY when physics is running
     if (!paused) {
       animationRef.current = requestAnimationFrame(tick)
     }
@@ -527,8 +543,9 @@ export function Visualization({
         <div 
           onClick={onTogglePaused}
           className={`cursor-pointer transition-colors ${paused ? 'text-red-400 hover:text-red-300' : 'text-emerald-400 hover:text-emerald-300'}`}
+          title="Click to pause or resume the floating planets"
         >
-          Drag to fling • Physics {paused ? 'Paused' : 'Active'}
+          {paused ? '▶ Resume' : '⏸ Pause'}
         </div>
       </div>
 

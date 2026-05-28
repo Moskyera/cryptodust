@@ -48,7 +48,7 @@ export default function App() {
     }
 
     return result.slice(0, 500) // keep max 500 coins
-  }, [tokens, activePreset, searchTerm])
+  }, [tokens, activePreset, searchTerm, favorites])
 
   const handleSelect = (id: string | null) => {
     if (id === null) {
@@ -254,6 +254,18 @@ export default function App() {
             >
               <Zap className="w-4 h-4" /> 
               {highlightUntil > Date.now() ? 'HIGHLIGHTING MOVERS' : 'HIGHLIGHT BIG MOVERS'}
+            </button>
+
+            {/* Prominent Physics pause/resume button (big and obvious like user requested) */}
+            <button
+              onClick={() => setPhysicsPaused(!physicsPaused)}
+              className={`px-5 py-2 text-sm font-medium rounded-3xl flex items-center gap-x-2 transition-all border active:scale-[0.985] ${
+                physicsPaused
+                  ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/15'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15'
+              }`}
+            >
+              {physicsPaused ? '▶ Resume Physics' : '⏸ Pause Physics'}
             </button>
           </div>
 

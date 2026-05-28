@@ -9,22 +9,6 @@
   </head>
   <body class="bg-[#0a0a12] text-white overflow-hidden">
     <div id="root"></div>
-
-    <!-- Visible warning if someone opens this file directly -->
-    <div id="direct-file-warning" style="position:fixed; top:0; left:0; right:0; background:#3b0d0d; color:#ffcccc; padding:16px; font-family:system-ui; z-index:9999; text-align:center; border-bottom:2px solid #f43f5e;">
-      <strong>⚠️ Do NOT open this file by double-clicking!</strong><br>
-      This is a React project. You must run it with <code>npm run dev</code> in a terminal.<br>
-      <small>Open PowerShell, go to this folder, and type: <strong>npm run dev</strong></small>
-    </div>
-
-    <script>
-      // Hide the warning once React successfully loads
-      setTimeout(() => {
-        const warning = document.getElementById('direct-file-warning');
-        if (warning) warning.style.display = 'none';
-      }, 800);
-    </script>
-
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

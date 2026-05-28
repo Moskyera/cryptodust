@@ -18,9 +18,21 @@ interface VisualizationProps {
   onSelect?: (id: string | null) => void
   favorites?: string[]
   highlightUntil?: number
+  sizeMetric?: 'market_cap' | 'volume' | 'price'
+  paused?: boolean
+  onTogglePaused?: () => void
 }
 
-export function Visualization({ tokens, selectedId: externalSelectedId, onSelect, favorites = [], highlightUntil = 0 }: VisualizationProps) {
+export function Visualization({ 
+  tokens, 
+  selectedId: externalSelectedId, 
+  onSelect, 
+  favorites = [], 
+  highlightUntil = 0,
+  sizeMetric = 'market_cap',
+  paused = false,
+  onTogglePaused
+}: VisualizationProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const labelsContainerRef = useRef<HTMLDivElement>(null)
   const bubblesRef = useRef<Bubble[]>([])
@@ -56,9 +68,18 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
     const w = canvas.width || window.innerWidth * 1.5
     const h = canvas.height || window.innerHeight * 1.5
 
+    const getBaseRadius = (coin: TokenPrice) => {
+      if (sizeMetric === 'volume') {
+        return Math.max(26, Math.min(130, 38 + Math.log10((coin.total_volume || 1e8) / 1e8) * 13))
+      } else if (sizeMetric === 'price') {
+        return Math.max(26, Math.min(130, 30 + Math.log10(Math.max(1, coin.current_price || 1)) * 10))
+      }
+      // default: market_cap
+      return Math.max(26, Math.min(130, 38 + Math.log10((coin.market_cap || 1e8) / 1e8) * 14))
+    }
+
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {
-      // Make planets significantly bigger (user request)
-      const baseR = Math.max(26, Math.min(130, 38 + Math.log10((coin.market_cap || 1e8) / 1e8) * 14))
+      const baseR = getBaseRadius(coin)
       return {
         id: coin.id,
         x: 80 + Math.random() * (w - 160),
@@ -72,7 +93,7 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
     })
 
     bubblesRef.current = newBubbles
-  }, [tokens])
+  }, [tokens, sizeMetric])
 
   // Physics + Render loop
   const tick = useCallback(() => {
@@ -101,62 +122,63 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
     const isHighlighting = Date.now() < highlightUntil
 
     // Free-floating physics with strong separation (planets keep good distance, no clumping in center)
-    for (let step = 0; step < 3; step++) {
-      for (let i = 0; i < bubbles.length; i++) {
-        const b = bubbles[i]
-        b.x += b.vx
-        b.y += b.vy
+    if (!paused) {
+      for (let step = 0; step < 3; step++) {
+        for (let i = 0; i < bubbles.length; i++) {
+          const b = bubbles[i]
+          b.x += b.vx
+          b.y += b.vy
 
-        // Much softer friction → planets keep moving smoothly for longer
-        b.vx *= 0.993
-        b.vy *= 0.993
+          // Much softer friction → planets keep moving smoothly for longer
+          b.vx *= 0.993
+          b.vy *= 0.993
 
-        // Strong boundary forces + hard clamping so planets cannot leave the visible area
-        const hardMargin = 15
-        const softMargin = 90
-        const strongEdgeForce = 0.09
+          // Strong boundary forces + hard clamping so planets cannot leave the visible area
+          const hardMargin = 12
+          const softMargin = 80
+          const strongEdgeForce = 0.11
 
-        // Soft repulsion that gets stronger the closer you get to the edge
-        if (b.x < b.r + softMargin) {
-          const strength = (softMargin - (b.x - b.r)) / softMargin
-          b.vx += strongEdgeForce * strength * 1.5
+          // Soft repulsion that gets stronger the closer you get to the edge
+          if (b.x < b.r + softMargin) {
+            const strength = (softMargin - (b.x - b.r)) / softMargin
+            b.vx += strongEdgeForce * strength * 1.8
+          }
+          if (b.x > w - b.r - softMargin) {
+            const strength = (softMargin - (w - b.r - b.x)) / softMargin
+            b.vx -= strongEdgeForce * strength * 1.8
+          }
+          if (b.y < b.r + softMargin) {
+            const strength = (softMargin - (b.y - b.r)) / softMargin
+            b.vy += strongEdgeForce * strength * 1.8
+          }
+          if (b.y > h - b.r - softMargin) {
+            const strength = (softMargin - (h - b.r - b.y)) / softMargin
+            b.vy -= strongEdgeForce * strength * 1.8
+          }
+
+          // Hard clamping - planets literally cannot leave the box (main fix for escaping)
+          b.x = Math.max(b.r + hardMargin, Math.min(w - b.r - hardMargin, b.x))
+          b.y = Math.max(b.r + hardMargin, Math.min(h - b.r - hardMargin, b.y))
+
+          // Extra velocity damping near edges
+          if (b.x < b.r + softMargin || b.x > w - b.r - softMargin ||
+              b.y < b.r + softMargin || b.y > h - b.r - softMargin) {
+            b.vx *= 0.90
+            b.vy *= 0.90
+          }
+
+          // Velocity limiting
+          const maxVel = 2.5
+          const speed = Math.hypot(b.vx, b.vy)
+          if (speed > maxVel) {
+            const scale = maxVel / speed
+            b.vx *= scale
+            b.vy *= scale
+          }
+
+          // Radius smoothing
+          b.r += (b.targetR - b.r) * 0.08
         }
-        if (b.x > w - b.r - softMargin) {
-          const strength = (softMargin - (w - b.r - b.x)) / softMargin
-          b.vx -= strongEdgeForce * strength * 1.5
-        }
-        if (b.y < b.r + softMargin) {
-          const strength = (softMargin - (b.y - b.r)) / softMargin
-          b.vy += strongEdgeForce * strength * 1.5
-        }
-        if (b.y > h - b.r - softMargin) {
-          const strength = (softMargin - (h - b.r - b.y)) / softMargin
-          b.vy -= strongEdgeForce * strength * 1.5
-        }
-
-        // Hard clamping - planets literally cannot leave the box
-        b.x = Math.max(b.r + hardMargin, Math.min(w - b.r - hardMargin, b.x))
-        b.y = Math.max(b.r + hardMargin, Math.min(h - b.r - hardMargin, b.y))
-
-        // Velocity damping near edges
-        if (b.x < b.r + softMargin || b.x > w - b.r - softMargin ||
-            b.y < b.r + softMargin || b.y > h - b.r - softMargin) {
-          b.vx *= 0.92
-          b.vy *= 0.92
-        }
-
-        // Velocity limiting (prevents planets from escaping even with strong kicks)
-        const maxVel = 2.4
-        const speed = Math.hypot(b.vx, b.vy)
-        if (speed > maxVel) {
-          const scale = maxVel / speed
-          b.vx *= scale
-          b.vy *= scale
-        }
-
-        // Radius smoothing
-        b.r += (b.targetR - b.r) * 0.08
-      }
 
       // Proactive separation — planets start pushing apart well before touching
       for (let i = 0; i < bubbles.length; i++) {
@@ -489,7 +511,12 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
       <div className="absolute top-4 left-4 hud px-4 py-2 rounded-2xl text-xs flex items-center gap-x-4 z-30">
         <div>Visible: <span className="font-semibold tabular-nums">{Math.min(tokens.length, 1000)}</span></div>
         <div className="w-px h-3 bg-white/20" />
-        <div className="text-emerald-400">Drag to fling • Physics on</div>
+        <div 
+          onClick={onTogglePaused}
+          className={`cursor-pointer transition-colors ${paused ? 'text-red-400 hover:text-red-300' : 'text-emerald-400 hover:text-emerald-300'}`}
+        >
+          Drag to fling • Physics {paused ? 'Paused' : 'Active'}
+        </div>
       </div>
 
       {tokens.length === 0 && (

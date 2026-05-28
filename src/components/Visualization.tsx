@@ -75,12 +75,12 @@ export function Visualization({
 
     const getBaseRadius = (coin: TokenPrice) => {
       if (sizeMetric === 'volume') {
-        return Math.max(26, Math.min(130, 38 + Math.log10((coin.total_volume || 1e8) / 1e8) * 13))
+        return Math.max(20, Math.min(105, 32 + Math.log10((coin.total_volume || 1e8) / 1e8) * 11))
       } else if (sizeMetric === 'price') {
-        return Math.max(26, Math.min(130, 30 + Math.log10(Math.max(1, coin.current_price || 1)) * 10))
+        return Math.max(20, Math.min(105, 26 + Math.log10(Math.max(1, coin.current_price || 1)) * 9))
       }
-      // default: market_cap
-      return Math.max(26, Math.min(130, 38 + Math.log10((coin.market_cap || 1e8) / 1e8) * 14))
+      // default: market_cap - slightly smaller + more breathing room
+      return Math.max(20, Math.min(105, 32 + Math.log10((coin.market_cap || 1e8) / 1e8) * 12))
     }
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {
@@ -176,7 +176,7 @@ export function Visualization({
         }
 
         // 2) Soft, springy pairwise separation (gentle, never jerky)
-        const COMFORT = 78
+        const COMFORT = 92   // increased for more breathing room / less cramped look
         for (let i = 0; i < bubbles.length; i++) {
           for (let j = i + 1; j < bubbles.length; j++) {
             const a = bubbles[i]

@@ -128,7 +128,6 @@ async function fetchPulseChainTokenFromMoralis(
   if (!MORALIS_API_KEY) return null
 
   try {
-    // Moralis v2.2 token price endpoint for PulseChain
     const url = `https://deep-index.moralis.io/api/v2.2/erc20/${address}/price?chain=${PULSE_CHAIN}`
 
     const res = await fetch(url, {
@@ -138,25 +137,26 @@ async function fetchPulseChainTokenFromMoralis(
     })
 
     if (!res.ok) {
-      console.warn(`Moralis price failed for ${symbol}:`, res.status)
+      console.warn(`[Moralis] ❌ Failed to fetch ${symbol}: Status ${res.status}`)
       return null
     }
 
     const data = await res.json()
 
-    // Normalize to our TokenPrice format
+    console.log(`[Moralis] ✅ Fetched ${symbol} → $${data.usdPrice} (24h: ${data.usdPrice24hrPercentChange}%)`)
+
     return {
       id: symbol.toLowerCase(),
       symbol: symbol.toUpperCase(),
       name: data.tokenName || symbol,
       current_price: data.usdPrice || 0,
       price_change_percentage_24h: data.usdPrice24hrPercentChange ?? 0,
-      market_cap: undefined,           // Moralis price endpoint doesn't always return FDV
+      market_cap: undefined,
       total_volume: undefined,
-      image: undefined,                // We can enhance later with token metadata
+      image: undefined,
     }
   } catch (error) {
-    console.warn(`Moralis fetch failed for ${symbol}:`, error)
+    console.error(`[Moralis] ❌ Error fetching ${symbol}:`, error)
     return null
   }
 }
@@ -166,6 +166,7 @@ async function fetchPulseChainTokensMoralis(): Promise<TokenPrice[]> {
     return []
   }
 
+  console.log('[Moralis] Starting to fetch PulseChain tokens...')
   const results: TokenPrice[] = []
 
   for (const [id, address] of Object.entries(PULSECHAIN_TOKENS)) {
@@ -173,10 +174,10 @@ async function fetchPulseChainTokensMoralis(): Promise<TokenPrice[]> {
     if (token) {
       results.push(token)
     }
-    // Small delay to be nice to rate limits
-    await new Promise((r) => setTimeout(r, 150))
+    await new Promise((r) => setTimeout(r, 120))
   }
 
+  console.log(`[Moralis] Finished fetching. Got ${results.length} tokens successfully.`)
   return results
 }
 
@@ -209,6 +210,8 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       try {
         const moralisPulse = await fetchPulseChainTokensMoralis()
 
+        console.log(`[CryptoDUST] Moralis returned ${moralisPulse.length} PulseChain tokens`)
+
         for (const token of moralisPulse) {
           // Replace CoinGecko data with better Moralis data for PulseChain tokens
           const index = all.findIndex(t => t.id === token.id)
@@ -219,8 +222,10 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
           }
         }
       } catch (e) {
-        console.warn('Moralis PulseChain fetch failed, using CoinGecko fallback')
+        console.warn('Moralis PulseChain fetch failed, using CoinGecko fallback', e)
       }
+    } else {
+      console.log('[CryptoDUST] No Moralis key found - using only CoinGecko')
     }
 
     return all

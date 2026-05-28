@@ -189,25 +189,32 @@ export function Visualization({
           const dy = b.y - a.y
           const dist = Math.hypot(dx, dy) || 1
 
-          // Very strong "magnet"/repulsion so planets actively keep distance and almost never stick
-          const desiredDist = a.r + b.r + 55
+          // Very strong proactive separation (planets start pushing apart from quite far away)
+          const desiredDist = a.r + b.r + 70   // significantly larger personal space
 
           if (dist < desiredDist) {
             const push = (desiredDist - dist) / desiredDist
-            let force = push * 4.5
+            let force = push * 5.0
 
-            // Extremely strong force when planets are close or overlapping
-            if (dist < (a.r + b.r + 14)) {
-              force *= 7.0
+            // Extremely strong force when getting close
+            if (dist < (a.r + b.r + 20)) {
+              force *= 8.0
+
+              // Tiny random jitter to break perfect alignment and prevent stacking
+              const jitter = 0.018
+              a.vx += (Math.random() - 0.5) * jitter
+              a.vy += (Math.random() - 0.5) * jitter
+              b.vx += (Math.random() - 0.5) * jitter
+              b.vy += (Math.random() - 0.5) * jitter
             }
 
             const fx = (dx / dist) * force
             const fy = (dy / dist) * force
 
-            a.vx -= fx
-            a.vy -= fy
-            b.vx += fx
-            b.vy += fy
+            a.vx -= fx * 0.9
+            a.vy -= fy * 0.9
+            b.vx += fx * 0.9
+            b.vy += fy * 0.9
           }
         }
       }
@@ -384,11 +391,14 @@ export function Visualization({
       }
     })
 
-    // Update DOM labels
+    // Update DOM labels (we still want labels to be correct even when paused)
     updateLabels(bubbles, labelsContainer)
 
-    animationRef.current = requestAnimationFrame(tick)
-  }, [selectedId])
+    // Only schedule next frame if physics is not paused
+    if (!paused) {
+      animationRef.current = requestAnimationFrame(tick)
+    }
+  }, [selectedId, paused, highlightUntil, favorites, sizeMetric, onTogglePaused])
 
   const updateLabels = (bubbles: Bubble[], container: HTMLDivElement) => {
     const existing = new Map<string, HTMLDivElement>()
@@ -462,13 +472,16 @@ export function Visualization({
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
 
-    animationRef.current = requestAnimationFrame(tick)
+    // Only start the animation loop if not paused
+    if (!paused) {
+      animationRef.current = requestAnimationFrame(tick)
+    }
 
     return () => {
       window.removeEventListener('resize', resizeCanvas)
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
     }
-  }, [tick, resizeCanvas])
+  }, [tick, resizeCanvas, paused])
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     const canvas = canvasRef.current
@@ -509,7 +522,7 @@ export function Visualization({
       />
 
       <div className="absolute top-4 left-4 hud px-4 py-2 rounded-2xl text-xs flex items-center gap-x-4 z-30">
-        <div>Visible: <span className="font-semibold tabular-nums">{Math.min(tokens.length, 1000)}</span></div>
+        <div>Visible: <span className="font-semibold tabular-nums">{tokens.length}</span></div>
         <div className="w-px h-3 bg-white/20" />
         <div 
           onClick={onTogglePaused}

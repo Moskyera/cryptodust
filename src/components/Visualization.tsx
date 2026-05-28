@@ -131,7 +131,7 @@ export function Visualization({
     // Lively, smooth, persistent motion with perfect screen bounds
     // =====================================================
     if (!paused) {
-      const SUBSTEPS = 4   // higher = silkier integration with soft forces
+      const SUBSTEPS = 3   // reduced to 3 — less over-sampling of small forces that cause visible jitter
 
       // Handle active drag-to-fling (direct position control feels instant & smooth)
       const draggingId = draggingIdRef.current
@@ -167,9 +167,9 @@ export function Visualization({
           b.x += b.vx
           b.y += b.vy
 
-          // Very low friction — this is the key for "alive" non-static feeling
-          b.vx *= 0.9982
-          b.vy *= 0.9982
+          // Higher friction for calmer, less shaky motion (planets settle instead of constantly micro-trembling)
+          b.vx *= 0.996
+          b.vy *= 0.996
 
           // Smooth radius change (Size By)
           b.r += (b.targetR - b.r) * 0.085
@@ -212,27 +212,33 @@ export function Visualization({
           }
         }
 
-        // 3) Gentle continuous "life" force — planets never completely freeze
-        // Reduced strength + frequency to stop the constant micro-tremble / shaking
+        // 3) "Life" force DISABLED / heavily nerfed
+        // The random kicks were the main source of constant visible trembling.
+        // We keep an extremely subtle version only for very slow planets (optional idle motion).
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
-          if (Math.random() < 0.035) {
-            b.vx += (Math.random() - 0.5) * 0.007
-            b.vy += (Math.random() - 0.5) * 0.007
+          const speed = Math.hypot(b.vx, b.vy)
+          if (speed < 0.3 && Math.random() < 0.012) {
+            b.vx += (Math.random() - 0.5) * 0.0025
+            b.vy += (Math.random() - 0.5) * 0.0025
           }
         }
 
-        // 4) Extra stability for the selected planet (reduces visual trembling of the rotating rings)
-        // Much stronger damping when selected so the orbiting ring effect looks steady
+        // 4) Extremely strong stability for the selected planet
+        // This is the main fix for the "tremble when I click" problem.
+        // While selected, we aggressively kill velocity so the rotating rings stay rock solid.
         if (selectedId) {
           const sel = bubbles.find(b => b.id === selectedId)
           if (sel) {
-            sel.vx *= 0.955
-            sel.vy *= 0.955
-            // Extra damp if almost stopped (prevents micro jitter from other forces)
-            if (Math.hypot(sel.vx, sel.vy) < 0.6) {
-              sel.vx *= 0.6
-              sel.vy *= 0.6
+            // Very aggressive damping
+            sel.vx *= 0.82
+            sel.vy *= 0.82
+
+            // Hard deadzone — if slow enough, stop completely
+            const s = Math.hypot(sel.vx, sel.vy)
+            if (s < 1.1) {
+              sel.vx = 0
+              sel.vy = 0
             }
           }
         }
@@ -293,6 +299,13 @@ export function Visualization({
             const s = maxV / sp
             b.vx *= s
             b.vy *= s
+          }
+
+          // Global velocity deadzone — stops tiny accumulated jitter from looking like trembling
+          const finalSpeed = Math.hypot(b.vx, b.vy)
+          if (finalSpeed < 0.18) {
+            b.vx = 0
+            b.vy = 0
           }
         }
       }
@@ -447,7 +460,7 @@ export function Visualization({
         ctx.lineWidth = 1.6
         ctx.strokeStyle = '#a5f3fc'
         ctx.setLineDash([4, 7])
-        ctx.lineDashOffset = -(t / 140) % 22   // slightly slower, calmer rotation
+        ctx.lineDashOffset = -(t / 220) % 22   // even calmer rotation
         ctx.beginPath()
         ctx.arc(x, y, r + 13, 0, Math.PI * 2)
         ctx.stroke()
@@ -455,11 +468,11 @@ export function Visualization({
 
         // Orbiting bright particles — this is the nice rotating ring effect
         ctx.globalAlpha = 1.0
-        const orbitCount = 6
+        const orbitCount = 5   // one less particle = calmer visual when selected
         for (let i = 0; i < orbitCount; i++) {
           // Slightly slower speeds than before for calmer, less nervous movement
-          const speed1 = t / 520 + (i * (Math.PI * 2 / orbitCount))
-          const speed2 = t / 780 + (i * 1.7)
+          const speed1 = t / 720 + (i * (Math.PI * 2 / orbitCount))
+          const speed2 = t / 1050 + (i * 1.7)
 
           const dist = r + 17.5 + Math.sin(speed2) * 2.2
           const ox = x + Math.cos(speed1) * dist
@@ -479,9 +492,9 @@ export function Visualization({
         }
 
         // Second, slower, farther orbit ring (more depth)
-        for (let i = 0; i < 4; i++) {
-          const angle = (t / 1250) + (i * 1.8) + (i * (Math.PI * 2 / 4))
-          const dist2 = r + 25 + Math.cos(t / 580 + i) * 1.5
+        for (let i = 0; i < 3; i++) {
+          const angle = (t / 1650) + (i * 1.8) + (i * (Math.PI * 2 / 4))
+          const dist2 = r + 25 + Math.cos(t / 820 + i) * 1.5
           const ox2 = x + Math.cos(angle) * dist2
           const oy2 = y + Math.sin(angle) * dist2 * 0.9
 

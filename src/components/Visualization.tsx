@@ -15,7 +15,7 @@ interface Bubble {
 interface VisualizationProps {
   tokens: TokenPrice[]
   selectedId?: string | null
-  onSelect?: (id: string) => void
+  onSelect?: (id: string | null) => void
 }
 
 export function Visualization({ tokens, selectedId: externalSelectedId, onSelect }: VisualizationProps) {
@@ -27,7 +27,7 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
   const selectedId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedId
-  const setSelectedId = onSelect || setInternalSelectedId
+  const setSelectedId: (id: string | null) => void = onSelect || setInternalSelectedId
 
   // Initialize bubbles when tokens change
   useEffect(() => {

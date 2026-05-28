@@ -9,26 +9,37 @@ export default function App() {
   const [timeframe, setTimeframe] = useState<'1h' | '24h' | '7d' | '30d'>('24h')
   const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price'>('market_cap')
   const [activePreset, setActivePreset] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const selectedCoin = selectedId ? tokens.find(t => t.id === selectedId) : null
 
-  // Simple filter logic (can be expanded later)
+  // Simple filter logic + search + pagination (500 coins total, 100 per page)
   const filteredTokens = React.useMemo(() => {
     let result = [...tokens]
 
+    // Search
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      result = result.filter(t =>
+        t.symbol.toLowerCase().includes(term) ||
+        t.name.toLowerCase().includes(term)
+      )
+    }
+
+    // Presets
     if (activePreset === 'gainers') {
       result = result.filter(t => (t.price_change_percentage_24h || 0) > 5)
     } else if (activePreset === 'losers') {
       result = result.filter(t => (t.price_change_percentage_24h || 0) < -5)
     } else if (activePreset === 'volume') {
-      result = result.sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0)).slice(0, 200)
+      result = result.sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0))
     } else if (activePreset === 'favorites') {
-      // Placeholder - can connect to localStorage later
-      result = result.slice(0, 50)
+      result = result.slice(0, 50) // placeholder
     }
 
-    return result.slice(0, 1000)
-  }, [tokens, activePreset])
+    return result.slice(0, 500) // keep max 500 coins
+  }, [tokens, activePreset, searchTerm])
 
   const handleSelect = (id: string | null) => {
     if (id === null) {
@@ -37,6 +48,14 @@ export default function App() {
       setSelectedId(id === selectedId ? null : id)
     }
   }
+
+  // Pagination: 100 coins per page, max 5 pages (500 coins)
+  const PAGE_SIZE = 100
+  const totalPages = Math.max(1, Math.ceil(filteredTokens.length / PAGE_SIZE))
+  const currentPageTokens = filteredTokens.slice(
+    currentPage * PAGE_SIZE,
+    (currentPage + 1) * PAGE_SIZE
+  )
 
   return (
     <div className="h-screen w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">
@@ -60,7 +79,19 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-x-2 text-sm">
+          <div className="flex items-center gap-x-3 text-sm">
+            {/* Search - old feature restored */}
+            <input
+              type="text"
+              placeholder="Search coins..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setCurrentPage(0) // reset page when searching
+              }}
+              className="bg-[#0b0b12] border border-[#25252f] rounded-2xl px-4 py-1.5 text-sm w-64 focus:outline-none focus:border-[#67f6ff]"
+            />
+
             <button onClick={() => window.location.reload()} className="flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-colors">
               <TrendingUp className="w-4 h-4" />
               <span className="font-medium">Refresh</span>
@@ -92,7 +123,7 @@ export default function App() {
             </div>
             <div>
               <div className="text-[#6b7280] text-xs mb-0.5">COINS SHOWN</div>
-              <div className="font-semibold tabular-nums text-lg">{filteredTokens.length} / 1000</div>
+              <div className="font-semibold tabular-nums text-lg">{filteredTokens.length} / 500</div>
             </div>
           </div>
         </div>
@@ -141,7 +172,7 @@ export default function App() {
           </div>
 
           {/* Quick Filters - like before */}
-          <div className="flex items-center gap-x-2 flex-wrap">
+          <div className="flex items-center gap-x-2 flex-wrap mb-3">
             <div className="text-xs font-medium text-[#6b7280] mr-2">QUICK FILTERS</div>
             {[
               { label: 'Big Gainers', key: 'gainers' },
@@ -152,7 +183,10 @@ export default function App() {
             ].map(f => (
               <button
                 key={f.key || 'clear'}
-                onClick={() => setActivePreset(f.key)}
+                onClick={() => {
+                  setActivePreset(f.key)
+                  setCurrentPage(0)
+                }}
                 className={`px-3 py-1 text-xs rounded-2xl border transition-colors ${
                   activePreset === f.key 
                     ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff]' 
@@ -163,6 +197,28 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* Page Tabs - 100 coins per page, 500 total */}
+          <div className="flex items-center gap-x-1.5 flex-wrap">
+            <div className="text-xs font-medium text-[#6b7280] mr-2">PAGES</div>
+            {Array.from({ length: totalPages }).map((_, index) => {
+              const start = index * 100
+              const end = Math.min(start + 100, filteredTokens.length)
+              return (
+                <button
+                  key={index}
+                  onClick={() => setCurrentPage(index)}
+                  className={`px-3 py-1 text-xs rounded-2xl border transition-colors ${
+                    currentPage === index
+                      ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff]'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10'
+                  }`}
+                >
+                  {start}-{end}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -171,7 +227,7 @@ export default function App() {
         {/* Visualization Area */}
         <div className="flex-1 relative overflow-hidden bg-black">
           <Visualization 
-            tokens={filteredTokens} 
+            tokens={currentPageTokens} 
             selectedId={selectedId} 
             onSelect={handleSelect}
           />
@@ -231,7 +287,7 @@ export default function App() {
       <div className="border-t border-[#25252f] h-52 bg-[#111118] flex-shrink-0 overflow-auto">
         <div className="px-4 pt-2">
           <div className="flex justify-between items-center mb-2 text-sm">
-            <div className="font-semibold">Market Table (Top {Math.min(filteredTokens.length, 50)})</div>
+            <div className="font-semibold">Market Table (Page {currentPage + 1} • {currentPageTokens.length} coins)</div>
             <div className="text-xs text-[#6b7280]">Click planets above to select</div>
           </div>
 
@@ -245,7 +301,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#25252f]">
-              {filteredTokens.slice(0, 12).map(coin => (
+              {currentPageTokens.slice(0, 12).map(coin => (
                 <tr 
                   key={coin.id} 
                   onClick={() => handleSelect(coin.id)}

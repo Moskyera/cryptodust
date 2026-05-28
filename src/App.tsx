@@ -11,6 +11,14 @@ export default function App() {
   const [activePreset, setActivePreset] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
+  const [highlightUntil, setHighlightUntil] = useState(0)
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('cryptodust_favorites') || '[]')
+    } catch {
+      return []
+    }
+  })
 
   const selectedCoin = selectedId ? tokens.find(t => t.id === selectedId) : null
 
@@ -35,7 +43,7 @@ export default function App() {
     } else if (activePreset === 'volume') {
       result = result.sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0))
     } else if (activePreset === 'favorites') {
-      result = result.slice(0, 50) // placeholder
+      result = result.filter(t => favorites.includes(t.id))
     }
 
     return result.slice(0, 500) // keep max 500 coins
@@ -47,6 +55,23 @@ export default function App() {
     } else {
       setSelectedId(id === selectedId ? null : id)
     }
+  }
+
+  const toggleFavorite = (id: string) => {
+    let newFavs: string[]
+    if (favorites.includes(id)) {
+      newFavs = favorites.filter(f => f !== id)
+    } else {
+      newFavs = [...favorites, id]
+    }
+    setFavorites(newFavs)
+    localStorage.setItem('cryptodust_favorites', JSON.stringify(newFavs))
+  }
+
+  const highlightBigMovers = () => {
+    setHighlightUntil(Date.now() + 45000) // 45 seconds like old version
+    // Give a little kick to big movers for visual effect
+    // (the kick is handled inside Visualization)
   }
 
   // Pagination: 100 coins per page, max 5 pages (500 coins)
@@ -101,6 +126,11 @@ export default function App() {
               <ExternalLink className="w-4 h-4" />
               <span className="hidden md:inline font-medium">ProveX</span>
             </a>
+
+            <a href="https://libertyswap.finance" target="_blank" className="flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400">
+              <ExternalLink className="w-4 h-4" />
+              <span className="hidden md:inline font-medium">LibertySwap</span>
+            </a>
           </div>
         </div>
       </nav>
@@ -111,11 +141,15 @@ export default function App() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <div className="text-[#6b7280] text-xs mb-0.5">TOTAL MARKET CAP</div>
-              <div className="font-semibold tabular-nums text-lg">Loading...</div>
+              <div className="font-semibold tabular-nums text-lg">
+                ${(filteredTokens.reduce((sum, t) => sum + (t.market_cap || 0), 0) / 1e12).toFixed(2)}T
+              </div>
             </div>
             <div>
               <div className="text-[#6b7280] text-xs mb-0.5">24H VOLUME</div>
-              <div className="font-semibold tabular-nums text-lg">Loading...</div>
+              <div className="font-semibold tabular-nums text-lg">
+                ${(filteredTokens.reduce((sum, t) => sum + (t.total_volume || 0), 0) / 1e9).toFixed(1)}B
+              </div>
             </div>
             <div>
               <div className="text-[#6b7280] text-xs mb-0.5">BTC DOMINANCE</div>
@@ -161,10 +195,7 @@ export default function App() {
             </div>
 
             <button
-              onClick={() => {
-                // Simple highlight movers logic
-                alert('Highlight Big Movers - feature coming back soon!')
-              }}
+              onClick={highlightBigMovers}
               className="px-4 py-2 text-sm rounded-2xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/20 flex items-center gap-x-2"
             >
               <Zap className="w-4 h-4" /> Highlight Big Movers
@@ -230,6 +261,8 @@ export default function App() {
             tokens={currentPageTokens} 
             selectedId={selectedId} 
             onSelect={handleSelect}
+            favorites={favorites}
+            highlightUntil={highlightUntil}
           />
         </div>
 
@@ -247,10 +280,16 @@ export default function App() {
               <div>
                 <div className="flex items-center gap-3 mb-4">
                   {selectedCoin.image && <img src={selectedCoin.image} alt="" className="w-10 h-10 rounded-full" />}
-                  <div>
+                  <div className="flex-1">
                     <div className="font-semibold text-lg">{selectedCoin.symbol}</div>
                     <div className="text-sm text-[#9ca3af]">{selectedCoin.name}</div>
                   </div>
+                  <button 
+                    onClick={() => toggleFavorite(selectedCoin.id)}
+                    className="text-xl"
+                  >
+                    {favorites.includes(selectedCoin.id) ? '★' : '☆'}
+                  </button>
                 </div>
 
                 <div className="space-y-3 text-sm">

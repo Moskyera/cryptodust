@@ -32,17 +32,27 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
   const selectedId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedId
   const setSelectedId: (id: string | null) => void = onSelect || setInternalSelectedId
 
-  // Initialize bubbles when tokens change
+  // Initialize bubbles when the *set* of tokens changes (prevents reset on selection/click)
   useEffect(() => {
     if (!tokens.length) return
 
     const canvas = canvasRef.current
     if (!canvas) return
 
+    const currentIds = new Set(bubblesRef.current.map(b => b.id))
+    const newIds = new Set(tokens.map(t => t.id))
+
+    // Only re-initialize if the actual coins changed (not just order or selection)
+    const idsChanged = 
+      currentIds.size !== newIds.size || 
+      [...newIds].some(id => !currentIds.has(id))
+
+    if (!idsChanged) return
+
     const w = canvas.width || window.innerWidth * 1.5
     const h = canvas.height || window.innerHeight * 1.5
 
-    const newBubbles: Bubble[] = tokens.slice(0, 1000).map((coin) => {
+    const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {
       const baseR = Math.max(18, Math.min(92, 26 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11))
       return {
         id: coin.id,
@@ -117,7 +127,7 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
         b.r += (b.targetR - b.r) * 0.09
       }
 
-      // Stronger but soft repulsion between planets
+      // Strong repulsion to prevent sticking (especially important with many planets)
       for (let i = 0; i < bubbles.length; i++) {
         for (let j = i + 1; j < bubbles.length; j++) {
           const a = bubbles[i]
@@ -125,10 +135,16 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
           const dx = b.x - a.x
           const dy = b.y - a.y
           const dist = Math.hypot(dx, dy) || 1
-          const minDist = a.r + b.r + 8
+          const minDist = a.r + b.r + 10
 
           if (dist < minDist) {
-            const force = (minDist - dist) / minDist * 0.85
+            let force = (minDist - dist) / minDist * 1.1
+
+            // Extra strong push when very close (prevents clumping)
+            if (dist < minDist * 0.6) {
+              force *= 2.2
+            }
+
             const fx = (dx / dist) * force
             const fy = (dy / dist) * force
             a.vx -= fx

@@ -14,14 +14,20 @@ interface Bubble {
 
 interface VisualizationProps {
   tokens: TokenPrice[]
+  selectedId?: string | null
+  onSelect?: (id: string) => void
 }
 
-export function Visualization({ tokens }: VisualizationProps) {
+export function Visualization({ tokens, selectedId: externalSelectedId, onSelect }: VisualizationProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const labelsContainerRef = useRef<HTMLDivElement>(null)
   const bubblesRef = useRef<Bubble[]>([])
   const animationRef = useRef<number>()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  // Use external selection if provided, otherwise fall back to internal (for standalone use)
+  const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
+  const selectedId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedId
+  const setSelectedId = onSelect || setInternalSelectedId
 
   // Initialize bubbles when tokens change
   useEffect(() => {
@@ -272,7 +278,9 @@ export function Visualization({ tokens }: VisualizationProps) {
       }
     }
 
-    setSelectedId(closest ? closest.id : null)
+    if (closest) {
+      setSelectedId(closest.id)
+    }
   }
 
   return (

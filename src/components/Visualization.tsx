@@ -53,14 +53,15 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
     const h = canvas.height || window.innerHeight * 1.5
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {
-      const baseR = Math.max(18, Math.min(92, 26 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11))
+      // Make planets significantly bigger (user request)
+      const baseR = Math.max(26, Math.min(130, 38 + Math.log10((coin.market_cap || 1e8) / 1e8) * 14))
       return {
         id: coin.id,
         x: 80 + Math.random() * (w - 160),
         y: 80 + Math.random() * (h - 160),
-        vx: (Math.random() - 0.5) * 1.8,
-        vy: (Math.random() - 0.5) * 1.8,
-        r: baseR * 0.7,
+        vx: (Math.random() - 0.5) * 1.6,
+        vy: (Math.random() - 0.5) * 1.6,
+        r: baseR * 0.75,
         targetR: baseR,
         coin,
       }
@@ -145,25 +146,25 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
           const dy = b.y - a.y
           const dist = Math.hypot(dx, dy) || 1
 
-          // Desired minimum comfortable distance
-          const desiredDist = a.r + b.r + 32   // quite generous padding
+          // "Magnet" / strong separation force so planets keep good distance and don't stick
+          const desiredDist = a.r + b.r + 48   // larger personal space
 
           if (dist < desiredDist) {
             const push = (desiredDist - dist) / desiredDist
 
-            // Base push + extra when very close
-            let force = push * 2.2
-            if (dist < (a.r + b.r + 6)) {
-              force *= 3.8   // very strong when overlapping or almost touching
+            // Strong base repulsion + very strong when close
+            let force = push * 3.2
+            if (dist < (a.r + b.r + 10)) {
+              force *= 5.5   // very strong anti-stick force
             }
 
             const fx = (dx / dist) * force
             const fy = (dy / dist) * force
 
-            a.vx -= fx * 0.6
-            a.vy -= fy * 0.6
-            b.vx += fx * 0.6
-            b.vy += fy * 0.6
+            a.vx -= fx
+            a.vy -= fy
+            b.vx += fx
+            b.vy += fy
           }
         }
       }
@@ -244,10 +245,10 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.fill()
 
-      // Draw real logo if available (the beautiful planet look user loved)
+      // Draw real logo if available (bigger logos since planets are bigger now)
       const img = imageCache.current.get(coin.id)
       if (img && img.complete && img.naturalWidth > 0) {
-        const logoSize = r * 1.55
+        const logoSize = r * 1.72
         const logoX = x - logoSize / 2
         const logoY = y - logoSize / 2
 
@@ -296,6 +297,24 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
       }
 
       ctx.globalAlpha = 1
+
+      // Selection visual effect (rings + glow when clicked)
+      if (selectedId === coin.id) {
+        ctx.globalAlpha = 0.85
+        ctx.strokeStyle = '#67f6ff'
+        ctx.lineWidth = 2.5
+        ctx.beginPath()
+        ctx.arc(x, y, r + 6, 0, Math.PI * 2)
+        ctx.stroke()
+
+        // Outer pulsing ring
+        const pulse = Math.sin(Date.now() / 280) * 0.6 + 1.6
+        ctx.globalAlpha = 0.55
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.arc(x, y, r + 14 + pulse, 0, Math.PI * 2)
+        ctx.stroke()
+      }
 
       // Sparkling particles on big movers when highlighted (old beautiful effect)
       if (isCurrentlyHighlighted) {

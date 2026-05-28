@@ -122,15 +122,63 @@ export default function App() {
               <span className="font-medium">Refresh</span>
             </button>
 
-            <a href="https://app.provex.com" target="_blank" className="flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10">
+            <a 
+              href="https://app.provex.com" 
+              target="_blank" 
+              className="flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-400 transition-all active:scale-95"
+            >
               <ExternalLink className="w-4 h-4" />
               <span className="hidden md:inline font-medium">ProveX</span>
             </a>
 
-            <a href="https://libertyswap.finance" target="_blank" className="flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400">
+            <a 
+              href="https://libertyswap.finance" 
+              target="_blank" 
+              className="flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 transition-all active:scale-95"
+            >
               <ExternalLink className="w-4 h-4" />
               <span className="hidden md:inline font-medium">LibertySwap</span>
             </a>
+
+            {/* Export options - like the old beautiful version */}
+            <div className="flex items-center gap-x-1 ml-2">
+              <button 
+                onClick={() => {
+                  const canvas = document.querySelector('canvas') as HTMLCanvasElement
+                  if (canvas) {
+                    const link = document.createElement('a')
+                    link.download = `cryptodust-${new Date().toISOString().slice(0,10)}.png`
+                    link.href = canvas.toDataURL('image/png')
+                    link.click()
+                  }
+                }}
+                className="px-3 py-1.5 text-xs rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"
+                title="Download beautiful PNG screenshot"
+              >
+                ⬇ Export
+              </button>
+              <button 
+                onClick={async () => {
+                  const canvas = document.querySelector('canvas') as HTMLCanvasElement
+                  if (canvas) {
+                    canvas.toBlob(async (blob) => {
+                      if (blob) {
+                        try {
+                          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+                          alert('Screenshot copied to clipboard!')
+                        } catch {
+                          alert('Copy failed. Use Export button instead.')
+                        }
+                      }
+                    })
+                  }
+                }}
+                className="px-3 py-1.5 text-xs rounded-xl bg-white/5 hover:bg-white/10 border border-white/10"
+                title="Copy screenshot to clipboard"
+              >
+                📋
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -196,9 +244,14 @@ export default function App() {
 
             <button
               onClick={highlightBigMovers}
-              className="px-4 py-2 text-sm rounded-2xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/20 flex items-center gap-x-2"
+              className={`px-4 py-2 text-sm rounded-2xl flex items-center gap-x-2 transition-all border ${
+                highlightUntil > Date.now() 
+                  ? 'bg-orange-500 text-white border-orange-400 shadow-lg' 
+                  : 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border-orange-500/20'
+              }`}
             >
-              <Zap className="w-4 h-4" /> Highlight Big Movers
+              <Zap className="w-4 h-4" /> 
+              {highlightUntil > Date.now() ? 'Highlighting...' : 'Highlight Big Movers'}
             </button>
           </div>
 

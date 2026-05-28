@@ -95,20 +95,20 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
     const bubbles = bubblesRef.current
     const isHighlighting = Date.now() < highlightUntil
 
-    // Free-floating physics with good separation (no gathering in center, planets keep distance)
+    // Free-floating physics with strong separation (planets keep good distance, no clumping in center)
     for (let step = 0; step < 3; step++) {
       for (let i = 0; i < bubbles.length; i++) {
         const b = bubbles[i]
         b.x += b.vx
         b.y += b.vy
 
-        // Very soft friction (allows smooth, long-lasting movement)
-        b.vx *= 0.985
-        b.vy *= 0.985
+        // Much softer friction → planets keep moving smoothly for longer
+        b.vx *= 0.993
+        b.vy *= 0.993
 
-        // Soft wall repulsion near edges (keeps planets inside without strong center pull)
-        const edgeMargin = 80
-        const edgeForce = 0.035
+        // Very soft wall force near edges (prevents going off-screen without centering everything)
+        const edgeMargin = 60
+        const edgeForce = 0.022
 
         if (b.x < b.r + edgeMargin) {
           b.vx += edgeForce
@@ -123,11 +123,20 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
           b.vy -= edgeForce
         }
 
+        // Light velocity limiting so nothing flies insanely fast
+        const maxVel = 3.2
+        const speed = Math.hypot(b.vx, b.vy)
+        if (speed > maxVel) {
+          const scale = maxVel / speed
+          b.vx *= scale
+          b.vy *= scale
+        }
+
         // Radius smoothing
         b.r += (b.targetR - b.r) * 0.08
       }
 
-      // Separation force — planets actively keep distance from each other
+      // Proactive separation — planets start pushing apart well before touching
       for (let i = 0; i < bubbles.length; i++) {
         for (let j = i + 1; j < bubbles.length; j++) {
           const a = bubbles[i]
@@ -136,24 +145,25 @@ export function Visualization({ tokens, selectedId: externalSelectedId, onSelect
           const dy = b.y - a.y
           const dist = Math.hypot(dx, dy) || 1
 
-          // Comfort distance = sum of radii + extra padding
-          const comfortDist = a.r + b.r + 18
+          // Desired minimum comfortable distance
+          const desiredDist = a.r + b.r + 32   // quite generous padding
 
-          if (dist < comfortDist) {
-            const overlap = comfortDist - dist
-            const force = (overlap / comfortDist) * 1.8   // base separation strength
+          if (dist < desiredDist) {
+            const push = (desiredDist - dist) / desiredDist
 
-            // Much stronger when they are actually overlapping or very close
-            const closeMultiplier = dist < (a.r + b.r + 4) ? 4.0 : 1.0
-            const finalForce = force * closeMultiplier
+            // Base push + extra when very close
+            let force = push * 2.2
+            if (dist < (a.r + b.r + 6)) {
+              force *= 3.8   // very strong when overlapping or almost touching
+            }
 
-            const fx = (dx / dist) * finalForce
-            const fy = (dy / dist) * finalForce
+            const fx = (dx / dist) * force
+            const fy = (dy / dist) * force
 
-            a.vx -= fx
-            a.vy -= fy
-            b.vx += fx
-            b.vy += fy
+            a.vx -= fx * 0.6
+            a.vy -= fy * 0.6
+            b.vx += fx * 0.6
+            b.vy += fy * 0.6
           }
         }
       }

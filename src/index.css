@@ -91,3 +91,67 @@ canvas {
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255,255,255,0.1);
 }
+
+/* Premium UI enhancements */
+.stat-card {
+  background: rgba(17, 17, 24, 0.6);
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.stat-card:hover {
+  background: rgba(17, 17, 24, 0.8);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+
+.filter-chip {
+  transition: all 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+  font-weight: 500;
+}
+
+.filter-chip.active {
+  box-shadow: 0 0 0 1px #67f6ff;
+  transform: scale(1.02);
+}
+
+.control-group {
+  background: #0b0b12;
+  border: 1px solid #25252f;
+  transition: border-color 0.2s ease;
+}
+
+.control-group:hover {
+  border-color: #3f3f4a;
+}
+
+.premium-button {
+  transition: all 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.premium-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3);
+}
+
+.premium-button:active {
+  transform: translateY(0);
+}
+
+/* Sidebar and table polish */
+.detail-panel {
+  background: linear-gradient(145deg, #111118 0%, #0a0a12 100%);
+}
+
+.market-row {
+  transition: background-color 0.1s ease;
+}
+
+.market-row:hover {
+  background-color: rgba(255,255,255,0.03);
+}
+
+.market-row.selected {
+  background-color: rgba(103, 246, 255, 0.08);
+  border-left: 2px solid #67f6ff;
+}

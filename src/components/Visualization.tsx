@@ -212,13 +212,20 @@ export function Visualization({
         }
 
         // 3) Gentle continuous "life" force — planets never completely freeze
-        // This makes the motion feel organic and smooth forever
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
-          // Very small random acceleration ~8% of the time
           if (Math.random() < 0.085) {
             b.vx += (Math.random() - 0.5) * 0.014
             b.vy += (Math.random() - 0.5) * 0.014
+          }
+        }
+
+        // 4) Extra stability for the selected planet (reduces visual trembling of the rotating rings)
+        if (selectedId) {
+          const sel = bubbles.find(b => b.id === selectedId)
+          if (sel) {
+            sel.vx *= 0.982
+            sel.vy *= 0.982
           }
         }
 
@@ -407,21 +414,74 @@ export function Visualization({
 
       ctx.globalAlpha = 1.0
 
-      // Selection rings (cyan)
+      // Selection effect — beautiful rotating orbiting ring (as requested)
       if (selectedId === coin.id) {
-        ctx.globalAlpha = 0.85
-        ctx.strokeStyle = '#67f6ff'
-        ctx.lineWidth = 2.5
+        const t = Date.now()
+
+        // Soft wide cyan glow (stable, no tremble)
+        ctx.globalAlpha = 0.22
+        ctx.fillStyle = '#67f6ff'
         ctx.beginPath()
-        ctx.arc(x, y, r + 6, 0, Math.PI * 2)
+        ctx.arc(x, y, r + 28, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Main crisp ring (slightly pulsing radius but very subtle)
+        ctx.globalAlpha = 0.95
+        ctx.strokeStyle = '#67f6ff'
+        ctx.lineWidth = 2.0
+        const ringRadius = r + 7.5 + Math.sin(t / 520) * 0.8
+        ctx.beginPath()
+        ctx.arc(x, y, ringRadius, 0, Math.PI * 2)
         ctx.stroke()
 
-        const pulse = Math.sin(Date.now() / 280) * 0.6 + 1.6
-        ctx.globalAlpha = 0.55
-        ctx.lineWidth = 1.5
+        // Rotating dashed energy ring (the "spinning" feeling)
+        ctx.globalAlpha = 0.75
+        ctx.lineWidth = 1.6
+        ctx.strokeStyle = '#a5f3fc'
+        ctx.setLineDash([4, 7])
+        ctx.lineDashOffset = -(t / 95) % 22   // continuous smooth rotation
         ctx.beginPath()
-        ctx.arc(x, y, r + 14 + pulse, 0, Math.PI * 2)
+        ctx.arc(x, y, r + 13, 0, Math.PI * 2)
         ctx.stroke()
+        ctx.setLineDash([])
+
+        // Orbiting bright particles — this is the nice rotating ring effect
+        ctx.globalAlpha = 1.0
+        const orbitCount = 6
+        for (let i = 0; i < orbitCount; i++) {
+          // Two different orbit speeds and radii for rich layered rotation
+          const speed1 = t / 380 + (i * (Math.PI * 2 / orbitCount))
+          const speed2 = t / 620 + (i * 1.7)
+
+          const dist = r + 17.5 + Math.sin(speed2) * 2.2
+          const ox = x + Math.cos(speed1) * dist
+          const oy = y + Math.sin(speed1) * dist * 0.93
+
+          // Bright outer dot
+          ctx.fillStyle = '#67f6ff'
+          ctx.beginPath()
+          ctx.arc(ox, oy, 2.4, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Hot white core
+          ctx.fillStyle = '#ffffff'
+          ctx.beginPath()
+          ctx.arc(ox, oy, 1.05, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        // Second, slower, farther orbit ring (more depth)
+        for (let i = 0; i < 4; i++) {
+          const angle = (t / 920) + (i * 1.8) + (i * (Math.PI * 2 / 4))
+          const dist2 = r + 25 + Math.cos(t / 410 + i) * 1.5
+          const ox2 = x + Math.cos(angle) * dist2
+          const oy2 = y + Math.sin(angle) * dist2 * 0.9
+
+          ctx.fillStyle = i % 2 === 0 ? '#a5f3fc' : '#67f6ff'
+          ctx.beginPath()
+          ctx.arc(ox2, oy2, 1.6, 0, Math.PI * 2)
+          ctx.fill()
+        }
       }
 
       // Orbiting sparkles when a big mover is highlighted
@@ -515,12 +575,24 @@ export function Visualization({
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
-    canvas.width = Math.floor(window.innerWidth * dpr * 1.4)
-    canvas.height = Math.floor((window.innerHeight - 56) * dpr * 1.4)
+    // Measure the *actual* visible area of the visualization pane (not full window)
+    // This is the root cause of planets disappearing on right/bottom
+    const parent = canvas.parentElement
+    if (!parent) return
 
-    const ctx = canvas.getContext('2d')
-    if (ctx) ctx.scale(dpr, dpr)
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+
+    // Use the parent's rendered size — this respects sidebar + bottom table
+    const displayWidth = parent.clientWidth
+    const displayHeight = parent.clientHeight
+
+    canvas.width = Math.max(300, Math.floor(displayWidth * dpr))
+    canvas.height = Math.max(200, Math.floor(displayHeight * dpr))
+
+    const ctx = canvas.getContext('2d', { alpha: true })
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // clean scale (better than ctx.scale after possible previous transforms)
+    }
   }, [])
 
   useEffect(() => {
@@ -528,15 +600,29 @@ export function Visualization({
     if (!canvas) return
 
     resizeCanvas()
+
+    // Window resize
     window.addEventListener('resize', resizeCanvas)
 
-    // Only start the animation loop if not paused
+    // ResizeObserver: critical so the canvas always matches the exact visible area
+    // (sidebar, bottom table, or any layout shift). This fixes right/bottom disappearing planets.
+    let ro: ResizeObserver | null = null
+    const parent = canvas.parentElement
+    if (parent && 'ResizeObserver' in window) {
+      ro = new ResizeObserver(() => {
+        resizeCanvas()
+      })
+      ro.observe(parent)
+    }
+
+    // Start RAF loop
     if (!paused) {
       animationRef.current = requestAnimationFrame(tick)
     }
 
     return () => {
       window.removeEventListener('resize', resizeCanvas)
+      if (ro) ro.disconnect()
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
     }
   }, [tick, resizeCanvas, paused])

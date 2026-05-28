@@ -20,11 +20,11 @@ body {
   font-family: 'Inter', system_ui, sans-serif;
 }
 
-/* Full-screen immersive canvas container */
+/* Full-screen immersive canvas container — now correctly fills only the available visualization area */
 .viz-container {
   position: relative;
-  width: 100vw;
-  height: calc(100vh - 56px); /* header height */
+  width: 100%;
+  height: 100%;
   background: #0a0a12;
   overflow: hidden;
 }

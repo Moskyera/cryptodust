@@ -621,69 +621,68 @@ export default function App() {
           Loading 500 coins from CoinGecko...
         </div>
       )}
-    </div>
 
-    {/* RampNow Buy Modal - Best UX for desktop (Option A) */}
-    {showRampModal && selectedCoin && (
-      <div 
-        className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" 
-        onClick={() => setShowRampModal(false)}
-      >
+      {/* RampNow Buy Modal - Correctly placed inside root container */}
+      {showRampModal && selectedCoin && (
         <div 
-          className="w-full max-w-md rounded-3xl border border-[#25252f] bg-[#111118] overflow-hidden"
-          onClick={e => e.stopPropagation()}
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" 
+          onClick={() => setShowRampModal(false)}
         >
-          <div className="px-6 pt-6 pb-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-sm text-[#6b7280]">Buy instantly via</div>
-                <div className="text-2xl font-semibold tracking-tight">RampNow</div>
+          <div 
+            className="w-full max-w-md rounded-3xl border border-[#25252f] bg-[#111118] overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-sm text-[#6b7280]">Buy instantly via</div>
+                  <div className="text-2xl font-semibold tracking-tight">RampNow</div>
+                </div>
+                <button 
+                  onClick={() => setShowRampModal(false)}
+                  className="text-2xl text-[#6b7280] hover:text-white leading-none"
+                >
+                  ×
+                </button>
               </div>
-              <button 
-                onClick={() => setShowRampModal(false)}
-                className="text-2xl text-[#6b7280] hover:text-white leading-none"
+
+              <div className="flex items-center gap-3 mb-5">
+                {selectedCoin.image && (
+                  <img src={selectedCoin.image} alt="" className="w-11 h-11 rounded-full ring-1 ring-white/10" />
+                )}
+                <div>
+                  <div className="font-semibold text-lg">{selectedCoin.symbol}</div>
+                  <div className="text-sm text-[#9ca3af]">{selectedCoin.name}</div>
+                </div>
+              </div>
+
+              <div className="bg-[#0a0a12] rounded-2xl p-4 mb-5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#6b7280]">Current Price</span>
+                  <span className="font-semibold tabular-nums">
+                    ${selectedCoin.current_price?.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  const url = `https://app.rampnow.io/order/quote?dstCurrency=${selectedCoin.symbol}`;
+                  window.open(url, '_blank');
+                  setShowRampModal(false);
+                }}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-semibold text-base active:scale-[0.985] transition-all"
               >
-                ×
+                Continue to RampNow →
               </button>
+
+              <p className="text-center text-[11px] text-[#6b7280] mt-3">
+                Card • Bank Transfer • Apple Pay • Google Pay
+              </p>
             </div>
-
-            <div className="flex items-center gap-3 mb-5">
-              {selectedCoin.image && (
-                <img src={selectedCoin.image} alt="" className="w-11 h-11 rounded-full ring-1 ring-white/10" />
-              )}
-              <div>
-                <div className="font-semibold text-lg">{selectedCoin.symbol}</div>
-                <div className="text-sm text-[#9ca3af]">{selectedCoin.name}</div>
-              </div>
-            </div>
-
-            <div className="bg-[#0a0a12] rounded-2xl p-4 mb-5">
-              <div className="flex justify-between text-sm">
-                <span className="text-[#6b7280]">Current Price</span>
-                <span className="font-semibold tabular-nums">
-                  ${selectedCoin.current_price?.toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                const url = `https://app.rampnow.io/order/quote?dstCurrency=${selectedCoin.symbol}`;
-                window.open(url, '_blank');
-                setShowRampModal(false);
-              }}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-semibold text-base active:scale-[0.985] transition-all"
-            >
-              Continue to RampNow →
-            </button>
-
-            <p className="text-center text-[11px] text-[#6b7280] mt-3">
-              Card • Bank Transfer • Apple Pay • Google Pay
-            </p>
           </div>
         </div>
-      </div>
-    )}
-  </div>
+      )}
+    </div>
   )
 }

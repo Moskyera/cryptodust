@@ -820,9 +820,9 @@ export function Visualization({
         className="absolute inset-0 pointer-events-none z-20" 
       />
 
-      <div className="absolute top-4 left-4 hud px-4 py-2 rounded-2xl text-xs flex items-center gap-x-4 z-30">
+      <div className="absolute top-3 left-3 md:top-4 md:left-4 hud px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-[10px] md:text-xs flex items-center gap-x-2 md:gap-x-4 z-30">
         <div>Visible: <span className="font-semibold tabular-nums">{tokens.length}</span></div>
-        <div className="w-px h-3 bg-white/20" />
+        <div className="w-px h-3 bg-white/20 hidden md:block" />
         <div 
           onClick={onTogglePaused}
           className={`cursor-pointer transition-colors ${paused ? 'text-red-400 hover:text-red-300' : 'text-emerald-400 hover:text-emerald-300'}`}
@@ -830,8 +830,8 @@ export function Visualization({
         >
           {paused ? '▶ Resume' : '⏸ Pause'}
         </div>
-        <div className="text-[#6b7280]">•</div>
-        <div className="text-white/70">Drag planets to fling them</div>
+        <div className="text-[#6b7280] hidden md:block">•</div>
+        <div className="text-white/70 hidden md:block text-[10px]">Drag to fling</div>
       </div>
 
       {tokens.length === 0 && (
@@ -841,15 +841,19 @@ export function Visualization({
       )}
 
       {selectedId && (
-        <div className="absolute bottom-4 right-4 bg-[#111118] border border-[#25252f] rounded-2xl p-4 text-sm z-30 w-72">
-          <div className="font-semibold mb-1">Selected</div>
-          <div>{tokens.find(t => t.id === selectedId)?.symbol}</div>
-          <button 
-            onClick={() => setSelectedId(null)}
-            className="mt-2 text-xs text-[#6b7280] hover:text-white"
-          >
-            Clear selection
-          </button>
+        <div className="absolute bottom-3 right-3 md:bottom-4 md:right-4 bg-[#111118] border border-[#25252f] rounded-2xl p-3 md:p-4 text-sm z-30 w-56 md:w-72">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-xs md:text-sm">Selected</div>
+              <div className="font-medium">{tokens.find(t => t.id === selectedId)?.symbol}</div>
+            </div>
+            <button 
+              onClick={() => setSelectedId(null)}
+              className="text-[10px] md:text-xs px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[#6b7280] hover:text-white"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
     </div>

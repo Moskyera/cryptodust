@@ -135,23 +135,23 @@ export default function App() {
               <span className="font-medium">Refresh</span>
             </button>
 
-            {/* Beautiful external links */}
+            {/* Beautiful external links - enhanced premium style */}
             <a 
               href="https://app.provex.com" 
               target="_blank" 
-              className="premium-button flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-gradient-to-r from-orange-500/10 to-amber-500/10 hover:from-orange-500/20 hover:to-amber-500/20 border border-orange-500/20 text-orange-400"
+              className="premium-button group flex items-center gap-x-2 px-5 h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10"
             >
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden md:inline font-medium">ProveX</span>
+              <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+              <span className="hidden md:inline font-semibold tracking-tight">ProveX</span>
             </a>
 
             <a 
               href="https://libertyswap.finance" 
               target="_blank" 
-              className="premium-button flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-teal-500/10 hover:from-cyan-500/20 hover:to-teal-500/20 border border-cyan-500/20 text-cyan-400"
+              className="premium-button group flex items-center gap-x-2 px-5 h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10"
             >
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden md:inline font-medium">LibertySwap</span>
+              <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+              <span className="hidden md:inline font-semibold tracking-tight">LibertySwap</span>
             </a>
 
             {/* Beautiful Export group */}
@@ -283,6 +283,28 @@ export default function App() {
                 {f.label}
               </button>
             ))}
+          </div>
+
+          {/* Page Tabs - Show again every 100 coins for the first 500 coins */}
+          <div className="flex items-center gap-x-1.5 flex-wrap mt-2">
+            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2">PAGES (500 coins)</div>
+            {Array.from({ length: totalPages }).map((_, index) => {
+              const start = index * 100
+              const end = Math.min(start + 100, filteredTokens.length)
+              return (
+                <button
+                  key={index}
+                  onClick={() => setCurrentPage(index)}
+                  className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
+                    currentPage === index
+                      ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
+                  }`}
+                >
+                  {start}–{end}
+                </button>
+              )
+            })}
           </div>
 
         </div>

@@ -205,8 +205,8 @@ export default function App() {
               { label: "24H VOLUME", value: `$${(filteredTokens.reduce((sum, t) => sum + (t.total_volume || 0), 0) / 1e9).toFixed(1)}B` },
               { label: "BTC DOMINANCE", value: "~52%" },
               { label: "COINS VISIBLE", value: `${filteredTokens.length} / 500` },
-            ].map((stat, index) => (
-              <div key={index} className="stat-card rounded-2xl px-4 py-3">
+            ].map((stat) => (
+              <div key={stat.label} className="stat-card rounded-2xl px-4 py-3">
                 <div className="text-[#6b7280] text-[10px] tracking-[0.5px] mb-1">{stat.label}</div>
                 <div className="font-semibold tabular-nums text-xl tracking-tighter">{stat.value}</div>
               </div>
@@ -293,7 +293,7 @@ export default function App() {
               const end = Math.min(start + 100, filteredTokens.length)
               return (
                 <button
-                  key={index}
+                  key={start}
                   onClick={() => setCurrentPage(index)}
                   className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
                     currentPage === index
@@ -462,7 +462,7 @@ export default function App() {
                 const end = Math.min(start + 100, filteredTokens.length)
                 return (
                   <button
-                    key={index}
+                    key={start}
                     onClick={() => setCurrentPage(index)}
                     className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
                       currentPage === index

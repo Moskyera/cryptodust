@@ -149,26 +149,22 @@ export default function App() {
             <a 
               href="https://app.provex.com" 
               target="_blank" 
-              className="premium-button group flex items-center gap-x-1.5 md:gap-x-2 px-3 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10 text-xs md:text-sm"
+              className="premium-button group flex items-center gap-x-2 md:gap-x-2.5 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10 text-xs md:text-sm"
             >
-              <img 
-                src="/provex-logo.png" 
-                alt="ProveX" 
-                className="w-5 h-5 md:w-5 md:h-5 object-contain" 
-              />
+              <div className="flex h-5 w-5 md:h-[22px] md:w-[22px] items-center justify-center rounded-md bg-orange-500 text-[10px] font-bold text-black ring-1 ring-orange-300/60 shadow-sm">
+                PX
+              </div>
               <span className="font-semibold tracking-tight">ProveX</span>
             </a>
 
             <a 
               href="https://libertyswap.finance" 
               target="_blank" 
-              className="premium-button group flex items-center gap-x-1.5 md:gap-x-2 px-3 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10 text-xs md:text-sm"
+              className="premium-button group flex items-center gap-x-2 md:gap-x-2.5 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10 text-xs md:text-sm"
             >
-              <img 
-                src="/libertyswap-logo.png" 
-                alt="LibertySwap" 
-                className="w-5 h-5 md:w-5 md:h-5 object-contain" 
-              />
+              <div className="flex h-5 w-5 md:h-[22px] md:w-[22px] items-center justify-center rounded-md bg-cyan-500 text-[10px] font-bold text-black ring-1 ring-cyan-300/60 shadow-sm">
+                LS
+              </div>
               <span className="font-semibold tracking-tight">LibertySwap</span>
             </a>
 

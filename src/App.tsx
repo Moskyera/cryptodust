@@ -87,26 +87,26 @@ export default function App() {
     <div className="h-screen w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">
       {/* Top Navigation - Premium cyberpunk style */}
       <nav className="border-b border-[#25252f] bg-[#0a0a12]/95 backdrop-blur-xl z-50 flex-shrink-0">
-        <div className="w-full px-3 md:px-5 h-12 md:h-14 flex items-center justify-between">
-          <div className="flex items-center gap-x-4">
+        <div className="w-full px-3 md:px-5 h-11 md:h-14 flex items-center justify-between">
+          <div className="flex items-center gap-x-2 md:gap-x-4">
             {/* Logo - using the new custom CryptoDUST logo */}
-            <div className="flex items-center gap-x-3 group">
+            <div className="flex items-center gap-x-2 md:gap-x-3 group">
               <img 
                 src="/cryptodust-logo.png" 
                 alt="CryptoDUST" 
-                className="w-7 h-7 md:w-9 md:h-9 object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] group-hover:scale-105 transition-transform" 
+                className="w-6 h-6 md:w-9 md:h-9 object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] group-hover:scale-105 transition-transform" 
               />
               <div className="leading-none">
-                <div>
-                  <span className="font-semibold tracking-[-1.5px] text-2xl">Crypto</span>
-                  <span className="font-semibold tracking-[-1.5px] text-2xl text-orange-400">DUST</span>
+                <div className="flex items-baseline gap-x-1">
+                  <span className="font-semibold tracking-[-1.2px] text-xl md:text-2xl">Crypto</span>
+                  <span className="font-semibold tracking-[-1.2px] text-xl md:text-2xl text-orange-400">DUST</span>
                 </div>
-                <div className="text-[9px] text-[#6b7280] -mt-1 tracking-[1px]">MARKET VISUALIZER</div>
+                <div className="text-[8px] md:text-[9px] text-[#6b7280] -mt-0.5 tracking-[1px] hidden sm:block">MARKET VISUALIZER</div>
               </div>
             </div>
 
-            <div className="flex items-center gap-x-2 px-3 py-1 rounded-full bg-white/5 text-xs border border-white/10">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+            <div className="flex items-center gap-x-1.5 px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-white/5 text-[10px] md:text-xs border border-white/10">
+              <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-emerald-400 rounded-full animate-pulse"></div>
               <span className="text-emerald-400 font-medium tracking-widest">LIVE</span>
             </div>
           </div>
@@ -129,29 +129,29 @@ export default function App() {
 
             <button 
               onClick={() => window.location.reload()} 
-              className="premium-button flex items-center gap-x-2 px-4 h-9 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10"
+              className="premium-button flex items-center gap-x-1.5 md:gap-x-2 px-3 md:px-4 h-8 md:h-9 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs md:text-sm"
             >
-              <TrendingUp className="w-4 h-4" />
-              <span className="font-medium">Refresh</span>
+              <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="font-medium hidden sm:inline">Refresh</span>
             </button>
 
             {/* Beautiful external links - enhanced premium style */}
             <a 
               href="https://app.provex.com" 
               target="_blank" 
-              className="premium-button group flex items-center gap-x-2 px-5 h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10"
+              className="premium-button group flex items-center gap-x-1.5 md:gap-x-2 px-3 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10 text-xs md:text-sm"
             >
-              <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-              <span className="hidden md:inline font-semibold tracking-tight">ProveX</span>
+              <ExternalLink className="w-3.5 h-3.5 md:w-4 md:h-4 transition-transform group-hover:translate-x-0.5" />
+              <span className="font-semibold tracking-tight">ProveX</span>
             </a>
 
             <a 
               href="https://libertyswap.finance" 
               target="_blank" 
-              className="premium-button group flex items-center gap-x-2 px-5 h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10"
+              className="premium-button group flex items-center gap-x-1.5 md:gap-x-2 px-3 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10 text-xs md:text-sm"
             >
-              <ExternalLink className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-              <span className="hidden md:inline font-semibold tracking-tight">LibertySwap</span>
+              <ExternalLink className="w-3.5 h-3.5 md:w-4 md:h-4 transition-transform group-hover:translate-x-0.5" />
+              <span className="font-semibold tracking-tight">LibertySwap</span>
             </a>
 
             {/* Beautiful Export group */}
@@ -393,21 +393,50 @@ export default function App() {
         )}
       </div>
 
-      {/* Bottom Market Tab — Tap to open the beautiful slide-up drawer */}
+      {/* Mobile-only selected info bar */}
+      {selectedCoin && (
+        <div className="md:hidden border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl px-4 py-2 flex items-center justify-between text-sm z-40">
+          <div className="flex items-center gap-2">
+            {selectedCoin.image && (
+              <img src={selectedCoin.image} alt="" className="w-6 h-6 rounded-full" />
+            )}
+            <span className="font-semibold">{selectedCoin.symbol}</span>
+            <span className={(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+              {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(1)}%
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => toggleFavorite(selectedCoin.id)}
+              className="text-lg"
+            >
+              {favorites.includes(selectedCoin.id) ? '★' : '☆'}
+            </button>
+            <button 
+              onClick={() => setSelectedId(null)}
+              className="text-xs px-2 py-1 rounded bg-white/10"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Market Tab — On mobile it's a nice floating-style bar */}
       <div className="border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40">
         <button
           onClick={() => setIsMarketOpen(!isMarketOpen)}
           className={`w-full flex items-center justify-between px-4 md:px-5 py-2.5 md:py-3 text-xs md:text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}
         >
-          <div className="flex items-center gap-x-3">
+          <div className="flex items-center gap-x-2 md:gap-x-3">
             <span className="text-[#67f6ff] text-base">📋</span>
-            <span className="font-semibold tracking-[-0.3px]">Market Table</span>
-            <span className="text-[#6b7280] text-[10px] px-2.5 py-px rounded-full bg-white/5 border border-white/10 tabular-nums">
+            <span className="font-semibold tracking-[-0.3px]">Market</span>
+            <span className="text-[#6b7280] text-[10px] px-2 py-px rounded-full bg-white/5 border border-white/10 tabular-nums">
               {filteredTokens.length}
             </span>
           </div>
 
-          <div className="flex items-center gap-x-2 text-[#6b7280] text-xs">
+          <div className="flex items-center gap-x-1.5 text-[#6b7280] text-xs">
             <span className="hidden sm:inline">Page {currentPage + 1}</span>
             <span className={`transition-transform duration-200 ${isMarketOpen ? 'rotate-180' : ''} text-[10px]`}>▼</span>
           </div>

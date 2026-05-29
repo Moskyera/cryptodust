@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices } from './lib/prices'
-import { TrendingUp, Zap, ExternalLink } from 'lucide-react'
+import { TrendingUp, Zap } from 'lucide-react'
 
 export default function App() {
   const { tokens, isLoading, error } = usePrices()

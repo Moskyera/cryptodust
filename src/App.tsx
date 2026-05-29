@@ -7,6 +7,15 @@ export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price'>('market_cap')
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Simple mobile detection for planet sizing and UI
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
   const [activePreset, setActivePreset] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
@@ -215,8 +224,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Controls + Quick Filters - More beautiful and interesting */}
-      <div className="border-b border-[#25252f] bg-[#111118] flex-shrink-0">
+      {/* Controls - Hidden on mobile for super clean experience. Only planets + Highlight button visible on phones. */}
+      <div className="border-b border-[#25252f] bg-[#111118] flex-shrink-0 hidden md:block">
         <div className="w-full px-5 py-3.5">
           {/* Timeframe & Metrics */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
@@ -321,6 +330,7 @@ export default function App() {
           sizeMetric={sizeMetric}
           paused={physicsPaused}
           onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
+          planetScale={isMobile ? 0.62 : 1}   // Smaller planets only on mobile for better visibility
         />
 
         {/* Details Panel - Opens automatically when you select a planet.

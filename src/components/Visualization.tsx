@@ -25,6 +25,7 @@ interface VisualizationProps {
   sizeMetric?: 'market_cap' | 'volume' | 'price'
   paused?: boolean
   onTogglePaused?: () => void
+  planetScale?: number   // For making planets smaller on mobile only
 }
 
 export function Visualization({ 
@@ -35,7 +36,8 @@ export function Visualization({
   highlightUntil = 0,
   sizeMetric = 'market_cap',
   paused = false,
-  onTogglePaused
+  onTogglePaused,
+  planetScale = 1
 }: VisualizationProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const labelsContainerRef = useRef<HTMLDivElement>(null)
@@ -78,13 +80,14 @@ export function Visualization({
     const h = canvas.height || window.innerHeight * 1.5
 
     const getBaseRadius = (coin: TokenPrice) => {
-      if (sizeMetric === 'volume') {
-        return Math.max(18, Math.min(92, 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10))
-      } else if (sizeMetric === 'price') {
-        return Math.max(18, Math.min(92, 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8))
-      }
-      // default: market_cap - made smaller again for less crowding + less visual tremble
-      return Math.max(18, Math.min(92, 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11))
+      const base = sizeMetric === 'volume'
+        ? 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10
+        : sizeMetric === 'price'
+          ? 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
+          : 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
+
+      const scaled = Math.max(18, Math.min(92, base)) * planetScale
+      return Math.max(14, Math.min(75, scaled)) // Cap on mobile so they don't get too small
     }
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {

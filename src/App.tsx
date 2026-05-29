@@ -539,7 +539,7 @@ export default function App() {
       )}
       {isLoading && tokens.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a12]/80 text-sm">
-          Loading 1000 coins from CoinGecko...
+          Loading 500 coins from CoinGecko...
         </div>
       )}
     </div>

@@ -350,7 +350,15 @@ export default function App() {
         {/* Mobile-only info panel (absolute inside visualization) — prevents canvas from resizing when opened, fixing planets disappearing right/bottom.
             Shows rich stats ONLY on mobile when a planet is tapped. */}
         {selectedCoin && (
-          <div className="md:hidden absolute bottom-0 left-0 right-0 z-50 bg-[#0f0f16]/97 backdrop-blur-2xl border-t border-[#25252f] px-4 py-3 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]">
+          <div 
+            className="md:hidden absolute bottom-[52px] left-0 right-0 z-50 bg-[#0f0f16]/97 backdrop-blur-2xl border-t border-[#25252f] px-4 py-3 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] pointer-events-auto"
+            onClick={(e) => {
+              // Allow tapping the empty area of the panel to close it (better mobile UX)
+              if ((e.target as HTMLElement).tagName === 'DIV') {
+                setSelectedId(null)
+              }
+            }}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 {selectedCoin.image && (

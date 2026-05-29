@@ -172,7 +172,7 @@ export function Visualization({
     // Desktop stays at full 60fps
     const now = performance.now()
     if (isMobile) {
-      const targetInterval = 26   // ~38 fps
+      const targetInterval = 20   // ~50 fps on mobile — much more responsive touch/drag without feeling laggy ("κολλαει")
       if (now - lastFrameTimeRef.current < targetInterval) {
         animationRef.current = requestAnimationFrame(tick)
         return
@@ -319,8 +319,8 @@ export function Visualization({
 
         // 5) Soft edge forces + strict bounds (gentler to avoid constant small pushes)
         // On mobile we want planets to stay comfortably inside the screen, never near the edges
-        const hard = isMobile ? 32 : 12
-        const soft = isMobile ? 85 : 55
+        const hard = isMobile ? 42 : 12   // extra safety on mobile so planets never reach the right or bottom edge of the phone screen
+        const soft = isMobile ? 95 : 55
         const edgeStrength = 0.065
 
         for (let i = 0; i < bubbles.length; i++) {
@@ -345,10 +345,11 @@ export function Visualization({
           }
 
           // Final hard safety clamp (impossible to leave)
+          // On mobile give extra margin on the right and bottom so planets never visually disappear off-screen
           const left = b.r + hard
-          const right = w - b.r - hard
+          const right = w - b.r - hard - (isMobile ? 18 : 0)
           const top = b.r + hard
-          const bottom = h - b.r - hard
+          const bottom = h - b.r - hard - (isMobile ? 24 : 0)
 
           if (b.x < left) {
             b.x = left
@@ -804,10 +805,11 @@ export function Visualization({
     let closest: Bubble | null = null
     let minDist = Infinity
 
+    const hitMultiplier = isMobile ? 2.6 : 1.75   // much larger tap target on mobile so selection is reliable and direct
     for (let i = 0; i < currentBubbles.length; i++) {
       const b = currentBubbles[i]
       const dist = Math.hypot(b.x - wx, b.y - wy)
-      if (dist < b.r * 1.75 && dist < minDist) {
+      if (dist < b.r * hitMultiplier && dist < minDist) {
         minDist = dist
         closest = b
       }
@@ -835,7 +837,17 @@ export function Visualization({
     const { x: wx, y: wy } = screenToWorld(e.clientX, e.clientY)
     mouseRef.current = { x: wx, y: wy }
 
-    if (draggingIdRef.current) {
+    // Make drag feel 100% direct and instant on mobile (no waiting for next RAF tick)
+    const draggingId = draggingIdRef.current
+    if (draggingId) {
+      const db = bubblesRef.current.find(b => b.id === draggingId)
+      if (db) {
+        db.x = wx
+        db.y = wy
+        db.vx = 0
+        db.vy = 0
+      }
+
       // Update last pos for fling calculation (throttled a bit)
       const now = Date.now()
       if (now - lastDragPosRef.current.time > 16) {
@@ -899,6 +911,7 @@ export function Visualization({
     <div className="viz-container">
       <canvas
         ref={canvasRef}
+        style={{ touchAction: 'none' }}   // critical for direct, non-laggy touch on mobile
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

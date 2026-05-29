@@ -166,6 +166,7 @@ export function Visualization({
     // No artificial frame throttling on mobile.
     // We keep full speed + drawing simplification during drag (see simplifyForDrag below)
     // This makes touch feel much more direct and responsive, like cryptobubbles.net on phone.
+    const isDragging = !!draggingIdRef.current
 
     // Clear background
     ctx.fillStyle = '#0a0a12'

@@ -205,8 +205,8 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Global Market Stats - Premium cards */}
-      <div className="border-b border-[#25252f] bg-[#0a0a12] flex-shrink-0">
+      {/* Global Market Stats - Premium cards (hidden on mobile to give maximum space to the planets) */}
+      <div className="border-b border-[#25252f] bg-[#0a0a12] flex-shrink-0 hidden md:block">
         <div className="w-full px-5 py-3.5">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             {[

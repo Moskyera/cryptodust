@@ -191,7 +191,6 @@ export function Visualization({
 
     const bubbles = bubblesRef.current
     const isHighlighting = Date.now() < highlightUntil
-    const isDragging = !!draggingIdRef.current
 
     // On mobile during drag, simplify drawing heavily to eliminate lag / jank
     const simplifyForDrag = isMobile && isDragging

@@ -347,6 +347,61 @@ export default function App() {
           {highlightUntil > Date.now() ? 'HIGHLIGHTING' : 'BIG MOVERS'}
         </button>
 
+        {/* Mobile-only info panel (absolute inside visualization) — prevents canvas from resizing when opened, fixing planets disappearing right/bottom.
+            Shows rich stats ONLY on mobile when a planet is tapped. */}
+        {selectedCoin && (
+          <div className="md:hidden absolute bottom-0 left-0 right-0 z-50 bg-[#0f0f16]/97 backdrop-blur-2xl border-t border-[#25252f] px-4 py-3 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {selectedCoin.image && (
+                  <img src={selectedCoin.image} alt="" className="w-9 h-9 rounded-full ring-1 ring-white/10 flex-shrink-0" />
+                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-lg tracking-tighter">{selectedCoin.symbol}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-px rounded ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400' }`}>
+                      24h {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(1)}%
+                    </span>
+                    {typeof selectedCoin.price_change_percentage_1h === 'number' && (
+                      <span className={`text-[10px] font-semibold px-1.5 py-px rounded ${ (selectedCoin.price_change_percentage_1h || 0) >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400' }`}>
+                        1h {(selectedCoin.price_change_percentage_1h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_1h || 0).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xl font-semibold tabular-nums tracking-[-1px] mt-0.5">
+                    ${selectedCoin.current_price?.toLocaleString(undefined, { maximumFractionDigits: selectedCoin.current_price > 100 ? 0 : selectedCoin.current_price > 1 ? 2 : 5 })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5 items-end text-right flex-shrink-0">
+                <button onClick={() => toggleFavorite(selectedCoin.id)} className="text-xs px-2.5 py-1 rounded-lg bg-white/5 active:bg-white/10">
+                  {favorites.includes(selectedCoin.id) ? '★ Saved' : '☆ Favorite'}
+                </button>
+                <button onClick={() => setSelectedId(null)} className="text-xs px-2.5 py-0.5 rounded-lg bg-white/10 text-[#888]">
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {/* Stats row - exactly the data user requested for mobile */}
+            <div className="mt-2.5 pt-2.5 border-t border-white/10 grid grid-cols-2 gap-x-4 text-[11px]">
+              {selectedCoin.market_cap && (
+                <div className="flex justify-between">
+                  <span className="text-[#6b7280]">Market Cap</span>
+                  <span className="font-medium tabular-nums">${(selectedCoin.market_cap / 1e9).toFixed(2)}B</span>
+                </div>
+              )}
+              {selectedCoin.total_volume && (
+                <div className="flex justify-between">
+                  <span className="text-[#6b7280]">24h Volume</span>
+                  <span className="font-medium tabular-nums">${(selectedCoin.total_volume / 1e9).toFixed(2)}B</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Details Panel - Opens automatically when you select a planet.
             Hidden on mobile to not block the visualization. */}
         {selectedCoin && (
@@ -417,69 +472,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Mobile-only info panel — appears when you tap a planet (proper πίνακας with details) */}
-      {selectedCoin && (
-        <div className="md:hidden border-t border-[#25252f] bg-[#0f0f16]/98 backdrop-blur-2xl px-4 py-3 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.4)]">
-          <div className="flex items-start justify-between gap-3">
-            {/* Left: Coin identity + price */}
-            <div className="flex items-center gap-3 min-w-0">
-              {selectedCoin.image && (
-                <img 
-                  src={selectedCoin.image} 
-                  alt="" 
-                  className="w-10 h-10 rounded-full ring-1 ring-white/10 flex-shrink-0" 
-                />
-              )}
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-lg tracking-tight">{selectedCoin.symbol}</span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400 bg-emerald-500/15' : 'text-red-400 bg-red-500/15' }`}>
-                    {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="font-semibold tabular-nums text-2xl tracking-tighter mt-0.5">
-                  ${selectedCoin.current_price?.toLocaleString(undefined, { 
-                    maximumFractionDigits: selectedCoin.current_price > 1000 ? 0 : 
-                    selectedCoin.current_price > 1 ? 2 : 5 
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Actions */}
-            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-              <button 
-                onClick={() => toggleFavorite(selectedCoin.id)}
-                className="flex items-center gap-1 text-sm px-3 py-1 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
-              >
-                {favorites.includes(selectedCoin.id) ? '★ Saved' : '☆ Favorite'}
-              </button>
-              <button 
-                onClick={() => setSelectedId(null)}
-                className="text-xs px-3 py-1 rounded-xl bg-white/10 active:bg-white/20 text-[#9ca3af]"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-
-          {/* Extra info row */}
-          <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-            {selectedCoin.market_cap && (
-              <div className="flex justify-between">
-                <span className="text-[#6b7280]">Market Cap</span>
-                <span className="font-medium tabular-nums">${(selectedCoin.market_cap / 1e9).toFixed(2)}B</span>
-              </div>
-            )}
-            {selectedCoin.total_volume && (
-              <div className="flex justify-between">
-                <span className="text-[#6b7280]">24h Volume</span>
-                <span className="font-medium tabular-nums">${(selectedCoin.total_volume / 1e9).toFixed(2)}B</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Mobile info panel moved inside visualization as absolute overlay — prevents canvas resize when opening, which was causing planets to "disappear" to the right/bottom */}
 
       {/* Bottom Market Tab — very thin & minimal on mobile to maximize planet space */}
       <div className="border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40">

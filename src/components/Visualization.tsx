@@ -319,8 +319,8 @@ export function Visualization({
 
         // 5) Soft edge forces + strict bounds (gentler to avoid constant small pushes)
         // On mobile we want planets to stay comfortably inside the screen, never near the edges
-        const hard = isMobile ? 26 : 12
-        const soft = isMobile ? 72 : 55
+        const hard = isMobile ? 32 : 12
+        const soft = isMobile ? 85 : 55
         const edgeStrength = 0.065
 
         for (let i = 0; i < bubbles.length; i++) {

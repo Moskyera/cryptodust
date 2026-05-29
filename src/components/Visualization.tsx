@@ -170,7 +170,7 @@ export function Visualization({
     // Lively, smooth, persistent motion with perfect screen bounds
     // =====================================================
     if (!paused) {
-      const SUBSTEPS = 2   // lower substeps for smoother overall feeling and less force noise
+      const SUBSTEPS = 1   // 1 = big perf win, still feels lively with current personality + drift system
 
       // Handle active drag-to-fling — IMPORTANT: zero velocity while dragging to prevent shake
       const draggingId = draggingIdRef.current
@@ -390,8 +390,8 @@ export function Visualization({
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
       const isCurrentlyHighlighted = isBigMover && isHighlighting
 
-      // Favorite golden pulsing glow
-      if (isFavorite) {
+      // Favorite golden pulsing glow — skip for tiny planets (big perf win on mobile)
+      if (isFavorite && r > 18) {
         const favPulse = Math.sin(Date.now() / 380) * 0.14 + 1.03
         const favSize = r * 2.35 * favPulse
         const favGlow = ctx.createRadialGradient(x - r * 0.2, y - r * 0.3, r * 0.4, x, y, favSize)
@@ -406,8 +406,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Big Mover intense layered glow (Highlight Big Movers button)
-      if (isCurrentlyHighlighted) {
+      // Big Mover intense layered glow — skip for tiny planets
+      if (isCurrentlyHighlighted && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
         const moverSize = r * 3.2 * moverPulse
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
@@ -422,15 +422,17 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Atmospheric outer glow
-      ctx.globalAlpha = 0.35
-      const glow = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.4, x, y, r * 2.1)
-      glow.addColorStop(0, baseColor)
-      glow.addColorStop(1, 'transparent')
-      ctx.fillStyle = glow
-      ctx.beginPath()
-      ctx.arc(x, y, r * 2.1, 0, Math.PI * 2)
-      ctx.fill()
+      // Atmospheric outer glow — skip expensive gradient for tiny planets
+      if (r > 14) {
+        ctx.globalAlpha = 0.35
+        const glow = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.4, x, y, r * 2.1)
+        glow.addColorStop(0, baseColor)
+        glow.addColorStop(1, 'transparent')
+        ctx.fillStyle = glow
+        ctx.beginPath()
+        ctx.arc(x, y, r * 2.1, 0, Math.PI * 2)
+        ctx.fill()
+      }
 
       // Solid planet disk
       ctx.globalAlpha = 0.95
@@ -439,7 +441,7 @@ export function Visualization({
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.fill()
 
-      // Real coin logo (inset, clipped, with subtle shadow)
+      // Real coin logo — skip heavy shadows + clip work on very small planets
       const img = imageCache.current.get(coin.id)
       if (img && img.complete && img.naturalWidth > 0) {
         const logoSize = r * 1.72
@@ -448,10 +450,13 @@ export function Visualization({
 
         ctx.save()
         ctx.globalAlpha = 0.92
-        ctx.shadowColor = 'rgba(0,0,0,0.5)'
-        ctx.shadowBlur = 6
-        ctx.shadowOffsetX = 1
-        ctx.shadowOffsetY = 1
+
+        if (r > 18) {
+          ctx.shadowColor = 'rgba(0,0,0,0.5)'
+          ctx.shadowBlur = 5
+          ctx.shadowOffsetX = 1
+          ctx.shadowOffsetY = 1
+        }
 
         ctx.beginPath()
         ctx.arc(x, y, r * 0.92, 0, Math.PI * 2)
@@ -468,12 +473,14 @@ export function Visualization({
         imageCache.current.set(coin.id, newImg)
       }
 
-      // Specular highlight (shiny top-left)
-      ctx.globalAlpha = 0.6
-      ctx.fillStyle = '#ffffff'
-      ctx.beginPath()
-      ctx.arc(x - r * 0.3, y - r * 0.32, r * 0.26, 0, Math.PI * 2)
-      ctx.fill()
+      // Specular highlight (shiny top-left) — skip on tiny planets
+      if (r > 15) {
+        ctx.globalAlpha = 0.6
+        ctx.fillStyle = '#ffffff'
+        ctx.beginPath()
+        ctx.arc(x - r * 0.3, y - r * 0.32, r * 0.26, 0, Math.PI * 2)
+        ctx.fill()
+      }
 
       // Attractive rings (especially visible on larger planets)
       if (r > 26) {
@@ -518,56 +525,57 @@ export function Visualization({
         ctx.stroke()
         ctx.setLineDash([])
 
-        // Orbiting bright particles — this is the nice rotating ring effect
-        ctx.globalAlpha = 1.0
-        const orbitCount = 5   // one less particle = calmer visual when selected
-        for (let i = 0; i < orbitCount; i++) {
-          // Slightly slower speeds than before for calmer, less nervous movement
-          const speed1 = t / 720 + (i * (Math.PI * 2 / orbitCount))
-          const speed2 = t / 1050 + (i * 1.7)
+        // Orbiting bright particles — expensive, so only for reasonably large selected planets
+        if (r > 20) {
+          ctx.globalAlpha = 1.0
+          const orbitCount = 4   // reduced from 5
+          for (let i = 0; i < orbitCount; i++) {
+            const speed1 = t / 720 + (i * (Math.PI * 2 / orbitCount))
+            const speed2 = t / 1050 + (i * 1.7)
 
-          const dist = r + 17.5 + Math.sin(speed2) * 2.2
-          const ox = x + Math.cos(speed1) * dist
-          const oy = y + Math.sin(speed1) * dist * 0.93
+            const dist = r + 17.5 + Math.sin(speed2) * 2.2
+            const ox = x + Math.cos(speed1) * dist
+            const oy = y + Math.sin(speed1) * dist * 0.93
 
-          // Bright outer dot (slightly smaller for calmer look)
-          ctx.fillStyle = '#67f6ff'
-          ctx.beginPath()
-          ctx.arc(ox, oy, 2.1, 0, Math.PI * 2)
-          ctx.fill()
+            ctx.fillStyle = '#67f6ff'
+            ctx.beginPath()
+            ctx.arc(ox, oy, 1.9, 0, Math.PI * 2)
+            ctx.fill()
 
-          // Hot white core
-          ctx.fillStyle = '#ffffff'
-          ctx.beginPath()
-          ctx.arc(ox, oy, 0.9, 0, Math.PI * 2)
-          ctx.fill()
-        }
+            ctx.fillStyle = '#ffffff'
+            ctx.beginPath()
+            ctx.arc(ox, oy, 0.85, 0, Math.PI * 2)
+            ctx.fill()
+          }
 
-        // Second, slower, farther orbit ring (more depth)
-        for (let i = 0; i < 3; i++) {
-          const angle = (t / 1650) + (i * 1.8) + (i * (Math.PI * 2 / 4))
-          const dist2 = r + 25 + Math.cos(t / 820 + i) * 1.5
-          const ox2 = x + Math.cos(angle) * dist2
-          const oy2 = y + Math.sin(angle) * dist2 * 0.9
+          // Second orbit — only on bigger planets
+          if (r > 28) {
+            for (let i = 0; i < 2; i++) {
+              const angle = (t / 1650) + (i * 1.8)
+              const dist2 = r + 25 + Math.cos(t / 820 + i) * 1.5
+              const ox2 = x + Math.cos(angle) * dist2
+              const oy2 = y + Math.sin(angle) * dist2 * 0.9
 
-          ctx.fillStyle = i % 2 === 0 ? '#a5f3fc' : '#67f6ff'
-          ctx.beginPath()
-          ctx.arc(ox2, oy2, 1.6, 0, Math.PI * 2)
-          ctx.fill()
+              ctx.fillStyle = i % 2 === 0 ? '#a5f3fc' : '#67f6ff'
+              ctx.beginPath()
+              ctx.arc(ox2, oy2, 1.5, 0, Math.PI * 2)
+              ctx.fill()
+            }
+          }
         }
       }
 
-      // Orbiting sparkles when a big mover is highlighted
-      if (isCurrentlyHighlighted) {
+      // Orbiting sparkles when a big mover is highlighted — skip on tiny planets
+      if (isCurrentlyHighlighted && r > 18) {
         const t = Date.now()
         ctx.globalAlpha = 0.9
-        const sparkCount = 5
+        const sparkCount = 4   // reduced
         for (let s = 0; s < sparkCount; s++) {
           const angle = (t / 420) + (s * (Math.PI * 2 / sparkCount))
           const dist = r * (1.35 + Math.sin(t / 180 + s) * 0.15)
           const sx = x + Math.cos(angle) * dist
           const sy = y + Math.sin(angle) * dist * 0.9
-          const sparkSize = 1.6 + Math.sin(t / 110 + s * 2) * 0.8
+          const sparkSize = 1.4 + Math.sin(t / 110 + s * 2) * 0.6
 
           ctx.fillStyle = change > 0 ? '#86efac' : '#fca5a5'
           ctx.beginPath()
@@ -591,7 +599,16 @@ export function Visualization({
     }
   }, [selectedId, paused, highlightUntil, favorites, sizeMetric, onTogglePaused])
 
+  // Highly optimized label sync — avoids innerHTML and repeated getBoundingClientRect per frame
   const updateLabels = (bubbles: Bubble[], container: HTMLDivElement) => {
+    // Compute scale ONCE outside the loop (very expensive otherwise)
+    const canvas = canvasRef.current
+    const rect = container.getBoundingClientRect()
+    const canvasW = canvas?.width || 1600
+    const canvasH = canvas?.height || 900
+    const scaleX = rect.width / canvasW
+    const scaleY = rect.height / canvasH
+
     const existing = new Map<string, HTMLDivElement>()
     container.childNodes.forEach((node) => {
       const el = node as HTMLDivElement
@@ -606,37 +623,72 @@ export function Visualization({
 
       let label = existing.get(b.id)
       if (!label) {
+        // Create stable structure once — never use innerHTML again
         label = document.createElement('div')
         label.className = 'bubble-label'
         label.dataset.id = b.id
+
+        const symbol = document.createElement('div')
+        symbol.className = 'symbol'
+        symbol.dataset.role = 'symbol'
+
+        const row = document.createElement('div')
+        row.style.display = 'flex'
+        row.style.alignItems = 'baseline'
+        row.style.gap = '4px'
+        row.style.justifyContent = 'center'
+        row.style.marginTop = '1px'
+
+        const priceEl = document.createElement('span')
+        priceEl.className = 'price'
+        priceEl.dataset.role = 'price'
+
+        const changeEl = document.createElement('span')
+        changeEl.className = 'change'
+        changeEl.dataset.role = 'change'
+
+        row.appendChild(priceEl)
+        row.appendChild(changeEl)
+
+        label.appendChild(symbol)
+        label.appendChild(row)
         container.appendChild(label)
       }
 
-      const rect = container.getBoundingClientRect()
-      const scaleX = rect.width / (canvasRef.current?.width || 1600)
-      const scaleY = rect.height / (canvasRef.current?.height || 900)
-
+      // Position (cheap style writes)
       const screenX = b.x * scaleX
       const screenY = b.y * scaleY + b.r * scaleY + 8
-
       label.style.left = `${screenX}px`
       label.style.top = `${screenY}px`
 
-      const price = b.coin.current_price
-      const priceStr = price > 1000 ? '$' + price.toLocaleString() : 
-                       price > 1 ? '$' + price.toFixed(2) : '$' + price.toFixed(5)
+      // Cheap textContent updates only — no HTML parsing, no reflow storm
+      const symbolEl = label.querySelector('[data-role="symbol"]') as HTMLDivElement | null
+      const priceEl = label.querySelector('[data-role="price"]') as HTMLSpanElement | null
+      const changeEl = label.querySelector('[data-role="change"]') as HTMLSpanElement | null
+
+      if (symbolEl && symbolEl.textContent !== b.coin.symbol) {
+        symbolEl.textContent = b.coin.symbol
+      }
+
+      const price = b.coin.current_price || 0
+      const priceStr = price > 1000 ? '$' + price.toLocaleString()
+                     : price > 1 ? '$' + price.toFixed(2)
+                     : '$' + price.toFixed(5)
+
+      if (priceEl && priceEl.textContent !== priceStr) {
+        priceEl.textContent = priceStr
+      }
 
       const chg = b.coin.price_change_percentage_24h || 0
       const chgClass = chg >= 0 ? 'change-up' : 'change-down'
       const chgStr = (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%'
 
-      label.innerHTML = `
-        <div class="symbol">${b.coin.symbol}</div>
-        <div style="display:flex; align-items:baseline; gap:4px; justify-content:center; margin-top:1px">
-          <span class="price">${priceStr}</span>
-          <span class="change ${chgClass}">${chgStr}</span>
-        </div>
-      `
+      if (changeEl) {
+        if (changeEl.textContent !== chgStr) changeEl.textContent = chgStr
+        if (!changeEl.classList.contains(chgClass)) {
+          changeEl.className = `change ${chgClass}`
+        }
+      }
     })
 
     existing.forEach((el, id) => {

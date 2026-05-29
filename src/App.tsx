@@ -93,7 +93,7 @@ export default function App() {
   )
 
   return (
-    <div className="h-screen w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">
+    <div className="h-[100dvh] w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">   {/* 100dvh is much better on mobile than h-screen */}
       {/* Top Navigation - Premium cyberpunk style (hidden on mobile for maximum planet space + clean view) */}
       <nav className="border-b border-[#25252f] bg-[#0a0a12]/95 backdrop-blur-xl z-50 flex-shrink-0 hidden md:block">
         <div className="w-full px-3 md:px-5 h-11 md:h-14 flex items-center justify-between">

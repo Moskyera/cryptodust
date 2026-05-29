@@ -200,8 +200,8 @@ export function Visualization({
           db.vy = 0
 
           // Keep it inside the visible safe area while dragging (especially important on mobile)
-          const m = db.r + (isMobile ? 42 : 8)
-          const dragBottomReserve = isMobile ? 72 : 0
+          const m = db.r + (isMobile ? 45 : 8)
+          const dragBottomReserve = isMobile ? 110 : 0
           db.x = Math.max(m, Math.min(w - m, db.x))
           db.y = Math.max(m, Math.min(h - m - dragBottomReserve, db.y))
         }
@@ -316,7 +316,7 @@ export function Visualization({
         const edgeStrength = isMobile ? 0.09 : 0.065
 
         // Reserve space for the compact bottom info bar + market tab on mobile
-        const mobileBottomReserve = isMobile ? 72 : 0
+        const mobileBottomReserve = isMobile ? 110 : 0   // aggressive reserve so planets stay well above bottom UI on phones
 
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
@@ -384,20 +384,21 @@ export function Visualization({
 
         // Final emergency hard clamp pass for mobile — guarantees planets can NEVER leave the visible screen
         // even after high-velocity flings or between substeps
+        // Final hard safety net for mobile — very important so planets never escape the visible area
         if (isMobile) {
-          const finalHard = 42
-          const finalBottomReserve = 72
+          const finalHard = 45
+          const finalBottomReserve = 110   // aggressive reserve so planets stay above the bottom UI
           for (let i = 0; i < bubbles.length; i++) {
             const b = bubbles[i]
             const minX = b.r + finalHard
-            const maxX = w - b.r - finalHard - 32
+            const maxX = w - b.r - finalHard - 35
             const minY = b.r + finalHard
-            const maxY = h - b.r - finalHard - finalBottomReserve - 32
+            const maxY = h - b.r - finalHard - finalBottomReserve - 35
 
-            if (b.x < minX) { b.x = minX; b.vx = Math.abs(b.vx) * 0.6 }
-            if (b.x > maxX) { b.x = maxX; b.vx = -Math.abs(b.vx) * 0.6 }
-            if (b.y < minY) { b.y = minY; b.vy = Math.abs(b.vy) * 0.6 }
-            if (b.y > maxY) { b.y = maxY; b.vy = -Math.abs(b.vy) * 0.6 }
+            if (b.x < minX) { b.x = minX; b.vx = Math.abs(b.vx) * 0.55 }
+            if (b.x > maxX) { b.x = maxX; b.vx = -Math.abs(b.vx) * 0.55 }
+            if (b.y < minY) { b.y = minY; b.vy = Math.abs(b.vy) * 0.55 }
+            if (b.y > maxY) { b.y = maxY; b.vy = -Math.abs(b.vy) * 0.55 }
           }
         }
       }
@@ -745,25 +746,41 @@ export function Visualization({
     const canvas = canvasRef.current
     if (!canvas) return
 
-    // Measure the *actual* visible area of the visualization pane (not full window)
-    // This is the root cause of planets disappearing on right/bottom
     const parent = canvas.parentElement
     if (!parent) return
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5)
 
-    // Use the parent's rendered size — this respects sidebar + bottom table
-    const displayWidth = parent.clientWidth
-    const displayHeight = parent.clientHeight
+    let displayWidth = parent.clientWidth
+    let displayHeight = parent.clientHeight
 
-    canvas.width = Math.max(300, Math.floor(displayWidth * dpr))
-    canvas.height = Math.max(200, Math.floor(displayHeight * dpr))
+    // Very important on mobile: respect dynamic viewport (address bar, keyboard, notch)
+    if ('visualViewport' in window && window.visualViewport) {
+      displayHeight = Math.min(displayHeight, window.visualViewport.height)
+    }
+
+    canvas.width = Math.floor(displayWidth * dpr)
+    canvas.height = Math.floor(displayHeight * dpr)
 
     const ctx = canvas.getContext('2d', { alpha: true })
     if (ctx) {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // clean scale (better than ctx.scale after possible previous transforms)
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
-  }, [])
+
+    // After resize (especially orientation change), force planets back inside the new bounds
+    const bubbles = bubblesRef.current
+    if (bubbles.length > 0) {
+      const w = canvas.width
+      const h = canvas.height
+      const mobileBottomReserve = isMobile ? 110 : 0
+      const hard = isMobile ? 45 : 12
+
+      bubbles.forEach(b => {
+        b.x = Math.max(b.r + hard, Math.min(w - b.r - hard, b.x))
+        b.y = Math.max(b.r + hard, Math.min(h - b.r - hard - mobileBottomReserve, b.y))
+      })
+    }
+  }, [isMobile])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -771,27 +788,38 @@ export function Visualization({
 
     resizeCanvas()
 
-    // Window resize
+    // Standard resize
     window.addEventListener('resize', resizeCanvas)
 
-    // ResizeObserver: critical so the canvas always matches the exact visible area
-    // (sidebar, bottom table, or any layout shift). This fixes right/bottom disappearing planets.
+    // Very important on mobile: orientation change often needs a small delay
+    const handleOrientation = () => setTimeout(resizeCanvas, 150)
+    window.addEventListener('orientationchange', handleOrientation)
+
+    // Best practice for modern mobile browsers (dynamic address bar, keyboard, etc.)
+    let vvResize: (() => void) | null = null
+    if ('visualViewport' in window && window.visualViewport) {
+      vvResize = resizeCanvas
+      window.visualViewport.addEventListener('resize', vvResize)
+    }
+
+    // ResizeObserver for any layout shifts inside the container
     let ro: ResizeObserver | null = null
     const parent = canvas.parentElement
     if (parent && 'ResizeObserver' in window) {
-      ro = new ResizeObserver(() => {
-        resizeCanvas()
-      })
+      ro = new ResizeObserver(resizeCanvas)
       ro.observe(parent)
     }
 
-    // Start RAF loop
     if (!paused) {
       animationRef.current = requestAnimationFrame(tick)
     }
 
     return () => {
       window.removeEventListener('resize', resizeCanvas)
+      window.removeEventListener('orientationchange', handleOrientation)
+      if (vvResize && 'visualViewport' in window && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', vvResize)
+      }
       if (ro) ro.disconnect()
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
     }

@@ -26,6 +26,7 @@ export interface TokenPrice {
   name: string
   current_price: number
   price_change_percentage_24h: number
+  price_change_percentage_1h?: number
   market_cap?: number
   total_volume?: number
   image?: string
@@ -33,7 +34,7 @@ export interface TokenPrice {
 
 // ==================== COINGECKO FETCH ====================
 async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPrice[]> {
-  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=24h`
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=1h,24h`
 
   try {
     const headers: HeadersInit = {}
@@ -56,6 +57,7 @@ async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPri
       name: coin.name,
       current_price: coin.current_price || 0,
       price_change_percentage_24h: coin.price_change_percentage_24h || 0,
+      price_change_percentage_1h: coin.price_change_percentage_1h || 0,
       market_cap: coin.market_cap,
       total_volume: coin.total_volume,
       image: coin.image,
@@ -97,7 +99,7 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
   if (SPECIAL_PULSECHAIN_IDS.length === 0) return []
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h`
     const res = await fetch(url)
     if (!res.ok) return []
 
@@ -108,6 +110,7 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
       name: coin.name,
       current_price: coin.current_price || 0,
       price_change_percentage_24h: coin.price_change_percentage_24h || 0,
+      price_change_percentage_1h: coin.price_change_percentage_1h || 0,
       market_cap: coin.market_cap,
       total_volume: coin.total_volume,
       image: coin.image,
@@ -151,6 +154,7 @@ async function fetchPulseChainTokenFromMoralis(
       name: data.tokenName || symbol,
       current_price: data.usdPrice || 0,
       price_change_percentage_24h: data.usdPrice24hrPercentChange ?? 0,
+      price_change_percentage_1h: undefined, // Moralis v2.2 doesn't provide 1h easily here
       market_cap: undefined,
       total_volume: undefined,
       image: undefined,

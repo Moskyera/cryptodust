@@ -333,6 +333,19 @@ export default function App() {
           planetScale={isMobile ? 0.45 : 1}   // Much smaller planets on mobile so they are easy on the eyes and don't overcrowd the small screen
         />
 
+        {/* Mobile-only floating "Highlight Big Movers" button — exactly as requested: on phones show ONLY the planets + this button (everything else hidden via md: classes) */}
+        <button
+          onClick={highlightBigMovers}
+          className={`md:hidden absolute top-3 right-3 z-40 px-3 py-1.5 text-[10px] font-semibold rounded-2xl flex items-center gap-x-1.5 active:scale-[0.97] transition-all border shadow-sm ${
+            highlightUntil > Date.now() 
+              ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-300' 
+              : 'bg-[#0f0f16]/90 text-orange-400 border-orange-500/40 backdrop-blur-xl'
+          }`}
+        >
+          <Zap className="w-3 h-3" /> 
+          {highlightUntil > Date.now() ? 'HIGHLIGHTING' : 'BIG MOVERS'}
+        </button>
+
         {/* Details Panel - Opens automatically when you select a planet.
             Hidden on mobile to not block the visualization. */}
         {selectedCoin && (

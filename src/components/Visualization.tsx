@@ -92,7 +92,6 @@ export function Visualization({
       const mobileMax = planetScale < 0.7 ? 46 : 75
       return Math.max(12, Math.min(mobileMax, scaled))
     }
-    }
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {
       const baseR = getBaseRadius(coin)

@@ -123,18 +123,21 @@ export function Visualization({
     if (!bubblesRef.current.length) return
 
     const getBaseRadius = (coin: TokenPrice) => {
-      if (sizeMetric === 'volume') {
-        return Math.max(18, Math.min(92, 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10))
-      } else if (sizeMetric === 'price') {
-        return Math.max(18, Math.min(92, 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8))
-      }
-      return Math.max(18, Math.min(92, 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11))
+      const base = sizeMetric === 'volume'
+        ? 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10
+        : sizeMetric === 'price'
+          ? 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
+          : 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
+
+      const scaled = Math.max(18, Math.min(92, base)) * planetScale
+      const mobileMax = planetScale < 0.7 ? 46 : 75
+      return Math.max(12, Math.min(mobileMax, scaled))
     }
 
     bubblesRef.current.forEach(b => {
       b.targetR = getBaseRadius(b.coin)
     })
-  }, [sizeMetric])
+  }, [sizeMetric, planetScale])
 
   // Physics + Render loop (fully self-contained, balanced braces)
   const tick = useCallback(() => {

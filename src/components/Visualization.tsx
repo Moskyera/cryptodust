@@ -815,10 +815,9 @@ export function Visualization({
     // - Combine with planet radius but don't over-extend
     // - This prevents "tap empty space selects planet" and "tap one, gets another"
     const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height   // usually same as scaleX
+    const scale = canvas.width / rect.width
 
-    const minTapRadiusWorld = isMobile ? 34 / scaleX : 18 / scaleX   // ~34px comfortable on phone
+    const minTapRadiusWorld = isMobile ? 34 / scale : 18 / scale   // ~34px comfortable on phone
 
     for (let i = 0; i < currentBubbles.length; i++) {
       const b = currentBubbles[i]

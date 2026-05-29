@@ -87,7 +87,11 @@ export function Visualization({
           : 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
 
       const scaled = Math.max(18, Math.min(92, base)) * planetScale
-      return Math.max(14, Math.min(75, scaled)) // Cap on mobile so they don't get too small
+
+      // On mobile we want significantly smaller planets for readability
+      const mobileMax = planetScale < 0.7 ? 46 : 75
+      return Math.max(12, Math.min(mobileMax, scaled))
+    }
     }
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {

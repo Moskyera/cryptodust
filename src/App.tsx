@@ -330,7 +330,7 @@ export default function App() {
           sizeMetric={sizeMetric}
           paused={physicsPaused}
           onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
-          planetScale={isMobile ? 0.62 : 1}   // Smaller planets only on mobile for better visibility
+          planetScale={isMobile ? 0.45 : 1}   // Much smaller planets on mobile so they are easy on the eyes and don't overcrowd the small screen
         />
 
         {/* Details Panel - Opens automatically when you select a planet.

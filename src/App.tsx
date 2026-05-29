@@ -94,8 +94,8 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">
-      {/* Top Navigation - Premium cyberpunk style */}
-      <nav className="border-b border-[#25252f] bg-[#0a0a12]/95 backdrop-blur-xl z-50 flex-shrink-0">
+      {/* Top Navigation - Premium cyberpunk style (hidden on mobile for maximum planet space + clean view) */}
+      <nav className="border-b border-[#25252f] bg-[#0a0a12]/95 backdrop-blur-xl z-50 flex-shrink-0 hidden md:block">
         <div className="w-full px-3 md:px-5 h-11 md:h-14 flex items-center justify-between">
           <div className="flex items-center gap-x-2 md:gap-x-4">
             {/* Logo - using the new custom CryptoDUST logo */}
@@ -330,7 +330,8 @@ export default function App() {
           sizeMetric={sizeMetric}
           paused={physicsPaused}
           onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
-          planetScale={isMobile ? 0.45 : 1}   // Much smaller planets on mobile so they are easy on the eyes and don't overcrowd the small screen
+          planetScale={isMobile ? 0.45 : 1}
+          isMobile={isMobile}
         />
 
         {/* Mobile-only floating "Highlight Big Movers" button — exactly as requested: on phones show ONLY the planets + this button (everything else hidden via md: classes) */}
@@ -445,23 +446,23 @@ export default function App() {
         </div>
       )}
 
-      {/* Bottom Market Tab — On mobile it's a nice floating-style bar */}
+      {/* Bottom Market Tab — very thin & minimal on mobile to maximize planet space */}
       <div className="border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40">
         <button
           onClick={() => setIsMarketOpen(!isMarketOpen)}
-          className={`w-full flex items-center justify-between px-4 md:px-5 py-2.5 md:py-3 text-xs md:text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}
+          className={`w-full flex items-center justify-between px-3 md:px-5 py-1.5 md:py-3 text-[10px] md:text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}
         >
-          <div className="flex items-center gap-x-2 md:gap-x-3">
-            <span className="text-[#67f6ff] text-base">📋</span>
-            <span className="font-semibold tracking-[-0.3px]">Market</span>
-            <span className="text-[#6b7280] text-[10px] px-2 py-px rounded-full bg-white/5 border border-white/10 tabular-nums">
+          <div className="flex items-center gap-x-1.5 md:gap-x-3">
+            <span className="text-[#67f6ff] text-sm md:text-base">📋</span>
+            <span className="font-semibold tracking-[-0.3px] text-[10px] md:text-sm">Market</span>
+            <span className="text-[#6b7280] text-[9px] md:text-[10px] px-1.5 md:px-2 py-px rounded-full bg-white/5 border border-white/10 tabular-nums">
               {filteredTokens.length}
             </span>
           </div>
 
-          <div className="flex items-center gap-x-1.5 text-[#6b7280] text-xs">
+          <div className="flex items-center gap-x-1 text-[#6b7280] text-[10px]">
             <span className="hidden sm:inline">Page {currentPage + 1}</span>
-            <span className={`transition-transform duration-200 ${isMarketOpen ? 'rotate-180' : ''} text-[10px]`}>▼</span>
+            <span className={`transition-transform duration-200 ${isMarketOpen ? 'rotate-180' : ''}`}>▼</span>
           </div>
         </button>
       </div>

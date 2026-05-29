@@ -168,17 +168,21 @@ export function Visualization({
     const h = canvas.height
 
     // === MOBILE PERFORMANCE MODE ===
-    // Cap at ~38 fps on mobile for much better smoothness + battery + thermals
-    // Desktop stays at full 60fps
     const now = performance.now()
-    if (isMobile) {
-      const targetInterval = 20   // ~50 fps on mobile — much more responsive touch/drag without feeling laggy ("κολλαει")
+    const isDragging = !!draggingIdRef.current
+
+    if (isMobile && !isDragging) {
+      // Only throttle when NOT actively dragging — during drag we want full responsiveness
+      const targetInterval = 20   // ~50 fps when idle
       if (now - lastFrameTimeRef.current < targetInterval) {
         animationRef.current = requestAnimationFrame(tick)
         return
       }
       lastFrameTimeRef.current = now
       frameCountRef.current++
+    } else if (isMobile && isDragging) {
+      // During drag: run as fast as possible (no artificial delay) so it feels direct
+      lastFrameTimeRef.current = now
     }
 
     // Clear background
@@ -319,9 +323,9 @@ export function Visualization({
 
         // 5) Soft edge forces + strict bounds (gentler to avoid constant small pushes)
         // On mobile we want planets to stay comfortably inside the screen, never near the edges
-        const hard = isMobile ? 42 : 12   // extra safety on mobile so planets never reach the right or bottom edge of the phone screen
+        const hard = isMobile ? 42 : 12
         const soft = isMobile ? 95 : 55
-        const edgeStrength = 0.065
+        const edgeStrength = isMobile ? 0.09 : 0.065   // stronger push away from edges on mobile
 
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
@@ -345,11 +349,12 @@ export function Visualization({
           }
 
           // Final hard safety clamp (impossible to leave)
-          // On mobile give extra margin on the right and bottom so planets never visually disappear off-screen
+          // Very aggressive on mobile to stop planets from ever disappearing off the right or bottom edge
+          const extraMobileMargin = isMobile ? 32 : 0
           const left = b.r + hard
-          const right = w - b.r - hard - (isMobile ? 18 : 0)
+          const right = w - b.r - hard - extraMobileMargin
           const top = b.r + hard
-          const bottom = h - b.r - hard - (isMobile ? 24 : 0)
+          const bottom = h - b.r - hard - extraMobileMargin
 
           if (b.x < left) {
             b.x = left
@@ -805,11 +810,22 @@ export function Visualization({
     let closest: Bubble | null = null
     let minDist = Infinity
 
-    const hitMultiplier = isMobile ? 2.6 : 1.75   // much larger tap target on mobile so selection is reliable and direct
+    // Much better hit detection for mobile:
+    // - Use screen pixels for comfortable finger size (min ~30-34px tap radius)
+    // - Combine with planet radius but don't over-extend
+    // - This prevents "tap empty space selects planet" and "tap one, gets another"
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height   // usually same as scaleX
+
+    const minTapRadiusWorld = isMobile ? 34 / scaleX : 18 / scaleX   // ~34px comfortable on phone
+
     for (let i = 0; i < currentBubbles.length; i++) {
       const b = currentBubbles[i]
       const dist = Math.hypot(b.x - wx, b.y - wy)
-      if (dist < b.r * hitMultiplier && dist < minDist) {
+      const effectiveRadius = Math.max(b.r * (isMobile ? 1.9 : 1.6), minTapRadiusWorld)
+
+      if (dist < effectiveRadius && dist < minDist) {
         minDist = dist
         closest = b
       }

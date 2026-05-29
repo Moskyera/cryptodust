@@ -191,6 +191,10 @@ export function Visualization({
 
     const bubbles = bubblesRef.current
     const isHighlighting = Date.now() < highlightUntil
+    const isDragging = !!draggingIdRef.current
+
+    // On mobile during drag, simplify drawing heavily to eliminate lag / jank
+    const simplifyForDrag = isMobile && isDragging
 
     // =====================================================
     // PHYSICS SECTION — ONLY RUNS WHEN NOT PAUSED
@@ -213,10 +217,11 @@ export function Visualization({
           db.vx = 0
           db.vy = 0
 
-          // Keep it inside while dragging
-          const m = db.r + 8
+          // Keep it inside the visible safe area while dragging (especially important on mobile)
+          const m = db.r + (isMobile ? 48 : 8)
+          const dragBottomReserve = isMobile ? 95 : 0
           db.x = Math.max(m, Math.min(w - m, db.x))
-          db.y = Math.max(m, Math.min(h - m, db.y))
+          db.y = Math.max(m, Math.min(h - m - dragBottomReserve, db.y))
         }
       }
 
@@ -322,10 +327,14 @@ export function Visualization({
         }
 
         // 5) Soft edge forces + strict bounds (gentler to avoid constant small pushes)
-        // On mobile we want planets to stay comfortably inside the screen, never near the edges
-        const hard = isMobile ? 42 : 12
-        const soft = isMobile ? 95 : 55
-        const edgeStrength = isMobile ? 0.09 : 0.065   // stronger push away from edges on mobile
+        // On mobile we want planets to stay comfortably inside the visible screen area,
+        // accounting for the bottom info panel and market tab that overlay/cover the lower part.
+        const hard = isMobile ? 48 : 12
+        const soft = isMobile ? 110 : 55
+        const edgeStrength = isMobile ? 0.095 : 0.065
+
+        // Reserve extra space at the bottom on mobile so planets never go behind the info panel / market tab
+        const mobileBottomReserve = isMobile ? 95 : 0
 
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
@@ -343,18 +352,18 @@ export function Visualization({
             const p = (soft - (b.y - b.r)) / soft
             b.vy += edgeStrength * p * 1.7
           }
-          if (b.y > h - b.r - soft) {
-            const p = (soft - (h - b.r - b.y)) / soft
+          if (b.y > h - b.r - soft - mobileBottomReserve) {
+            const p = (soft - (h - b.r - mobileBottomReserve - b.y)) / soft
             b.vy -= edgeStrength * p * 1.7
           }
 
           // Final hard safety clamp (impossible to leave)
-          // Very aggressive on mobile to stop planets from ever disappearing off the right or bottom edge
-          const extraMobileMargin = isMobile ? 32 : 0
+          // Very aggressive on mobile — planets literally cannot leave the visible screen
+          const extraMobileMargin = isMobile ? 38 : 0
           const left = b.r + hard
           const right = w - b.r - hard - extraMobileMargin
           const top = b.r + hard
-          const bottom = h - b.r - hard - extraMobileMargin
+          const bottom = h - b.r - hard - extraMobileMargin - mobileBottomReserve
 
           if (b.x < left) {
             b.x = left
@@ -373,8 +382,8 @@ export function Visualization({
             b.vy = -Math.abs(b.vy) * 0.72
           }
 
-          // Velocity safety cap (slightly higher so flings feel good)
-          const maxV = 3.6
+          // Velocity safety cap — lower on mobile to prevent planets from overshooting the walls
+          const maxV = isMobile ? 2.8 : 3.6
           const sp = Math.hypot(b.vx, b.vy)
           if (sp > maxV) {
             const s = maxV / sp
@@ -388,6 +397,25 @@ export function Visualization({
           if (finalSpeed < deadzoneThreshold) {
             b.vx = 0
             b.vy = 0
+          }
+        }
+
+        // Final emergency hard clamp pass for mobile — guarantees planets can NEVER leave the visible screen
+        // even after high-velocity flings or between substeps
+        if (isMobile) {
+          const finalHard = 48
+          const finalBottomReserve = 95
+          for (let i = 0; i < bubbles.length; i++) {
+            const b = bubbles[i]
+            const minX = b.r + finalHard
+            const maxX = w - b.r - finalHard - 38
+            const minY = b.r + finalHard
+            const maxY = h - b.r - finalHard - finalBottomReserve - 38
+
+            if (b.x < minX) { b.x = minX; b.vx = Math.abs(b.vx) * 0.6 }
+            if (b.x > maxX) { b.x = maxX; b.vx = -Math.abs(b.vx) * 0.6 }
+            if (b.y < minY) { b.y = minY; b.vy = Math.abs(b.vy) * 0.6 }
+            if (b.y > maxY) { b.y = maxY; b.vy = -Math.abs(b.vy) * 0.6 }
           }
         }
       }
@@ -420,8 +448,8 @@ export function Visualization({
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
       const isCurrentlyHighlighted = isBigMover && isHighlighting
 
-      // Favorite golden pulsing glow — skip for tiny planets (big perf win on mobile)
-      if (isFavorite && r > 18) {
+      // Favorite golden pulsing glow — skip during mobile drag for smoothness
+      if (!simplifyForDrag && isFavorite && r > 18) {
         const favPulse = Math.sin(Date.now() / 380) * 0.14 + 1.03
         const favSize = r * 2.35 * favPulse
         const favGlow = ctx.createRadialGradient(x - r * 0.2, y - r * 0.3, r * 0.4, x, y, favSize)
@@ -436,8 +464,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Big Mover intense layered glow — skip for tiny planets
-      if (isCurrentlyHighlighted && r > 16) {
+      // Big Mover intense layered glow — skip during mobile drag
+      if (!simplifyForDrag && isCurrentlyHighlighted && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
         const moverSize = r * 3.2 * moverPulse
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
@@ -452,8 +480,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Atmospheric outer glow — skip expensive gradient for tiny planets
-      if (r > 14) {
+      // Atmospheric outer glow — skip during mobile drag for performance
+      if (!simplifyForDrag && r > 14) {
         ctx.globalAlpha = 0.35
         const glow = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.4, x, y, r * 2.1)
         glow.addColorStop(0, baseColor)
@@ -503,8 +531,8 @@ export function Visualization({
         imageCache.current.set(coin.id, newImg)
       }
 
-      // Specular highlight (shiny top-left) — skip on tiny planets
-      if (r > 15) {
+      // Specular highlight (shiny top-left) — skip during mobile drag
+      if (!simplifyForDrag && r > 15) {
         ctx.globalAlpha = 0.6
         ctx.fillStyle = '#ffffff'
         ctx.beginPath()
@@ -512,8 +540,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Attractive rings (especially visible on larger planets)
-      if (r > 26) {
+      // Attractive rings (especially visible on larger planets) — skip during drag
+      if (!simplifyForDrag && r > 26) {
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
         ctx.lineWidth = r * 0.09
@@ -555,8 +583,8 @@ export function Visualization({
         ctx.stroke()
         ctx.setLineDash([])
 
-        // Orbiting bright particles — expensive, so only for reasonably large selected planets
-        if (r > 20) {
+        // Orbiting bright particles — very expensive, completely skip during mobile drag
+        if (!simplifyForDrag && r > 20) {
           ctx.globalAlpha = 1.0
           const orbitCount = isMobile ? 3 : 4
           for (let i = 0; i < orbitCount; i++) {
@@ -595,8 +623,8 @@ export function Visualization({
         }
       }
 
-      // Orbiting sparkles when a big mover is highlighted — skip on tiny planets
-      if (isCurrentlyHighlighted && r > 18) {
+      // Orbiting sparkles when a big mover is highlighted — skip entirely during mobile drag
+      if (!simplifyForDrag && isCurrentlyHighlighted && r > 18) {
         const t = Date.now()
         ctx.globalAlpha = 0.9
         const sparkCount = isMobile ? 3 : 4

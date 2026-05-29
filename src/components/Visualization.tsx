@@ -25,7 +25,8 @@ interface VisualizationProps {
   sizeMetric?: 'market_cap' | 'volume' | 'price'
   paused?: boolean
   onTogglePaused?: () => void
-  planetScale?: number   // For making planets smaller on mobile only
+  planetScale?: number
+  isMobile?: boolean   // explicit for aggressive mobile perf paths
 }
 
 export function Visualization({ 
@@ -37,13 +38,19 @@ export function Visualization({
   sizeMetric = 'market_cap',
   paused = false,
   onTogglePaused,
-  planetScale = 1
+  planetScale = 1,
+  isMobile: explicitIsMobile
 }: VisualizationProps) {
+  const isMobile = explicitIsMobile ?? (planetScale < 0.7)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const labelsContainerRef = useRef<HTMLDivElement>(null)
   const bubblesRef = useRef<Bubble[]>([])
   const animationRef = useRef<number>()
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
+
+  // Mobile perf: frame timing for lower target FPS
+  const lastFrameTimeRef = useRef(0)
+  const frameCountRef = useRef(0)
 
   // Drag-to-fling state (for smooth grab & throw interaction)
   const draggingIdRef = useRef<string | null>(null)
@@ -157,6 +164,20 @@ export function Visualization({
 
     const w = canvas.width
     const h = canvas.height
+
+    // === MOBILE PERFORMANCE MODE ===
+    // Cap at ~38 fps on mobile for much better smoothness + battery + thermals
+    // Desktop stays at full 60fps
+    const now = performance.now()
+    if (isMobile) {
+      const targetInterval = 26   // ~38 fps
+      if (now - lastFrameTimeRef.current < targetInterval) {
+        animationRef.current = requestAnimationFrame(tick)
+        return
+      }
+      lastFrameTimeRef.current = now
+      frameCountRef.current++
+    }
 
     // Clear background
     ctx.fillStyle = '#0a0a12'
@@ -528,7 +549,7 @@ export function Visualization({
         // Orbiting bright particles — expensive, so only for reasonably large selected planets
         if (r > 20) {
           ctx.globalAlpha = 1.0
-          const orbitCount = 4   // reduced from 5
+          const orbitCount = isMobile ? 3 : 4
           for (let i = 0; i < orbitCount; i++) {
             const speed1 = t / 720 + (i * (Math.PI * 2 / orbitCount))
             const speed2 = t / 1050 + (i * 1.7)
@@ -569,7 +590,7 @@ export function Visualization({
       if (isCurrentlyHighlighted && r > 18) {
         const t = Date.now()
         ctx.globalAlpha = 0.9
-        const sparkCount = 4   // reduced
+        const sparkCount = isMobile ? 3 : 4
         for (let s = 0; s < sparkCount; s++) {
           const angle = (t / 420) + (s * (Math.PI * 2 / sparkCount))
           const dist = r * (1.35 + Math.sin(t / 180 + s) * 0.15)
@@ -590,8 +611,11 @@ export function Visualization({
       }
     })
 
-    // DOM labels (always updated so they stay correct even when paused)
-    updateLabels(bubbles, labelsContainer)
+    // DOM labels — on mobile we update every other frame for big perf win
+    const shouldUpdateLabels = !isMobile || (frameCountRef.current % 2 === 0)
+    if (shouldUpdateLabels) {
+      updateLabels(bubbles, labelsContainer)
+    }
 
     // Schedule next frame ONLY when physics is running
     if (!paused) {

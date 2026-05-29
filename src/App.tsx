@@ -149,12 +149,12 @@ export default function App() {
             <a 
               href="https://app.provex.com" 
               target="_blank" 
-              className="premium-button group flex items-center gap-x-2 md:gap-x-2.5 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10 text-xs md:text-sm"
+              className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10 text-xs md:text-sm"
             >
               <img 
                 src="/provex.webp" 
                 alt="ProveX" 
-                className="h-5 w-5 md:h-[22px] md:w-[22px] object-contain transition-all duration-150 hover:scale-110 hover:ring-2 hover:ring-orange-400/70 hover:shadow-[0_0_6px_rgb(249,115,22,0.35)]" 
+                className="h-6 w-6 md:h-7 md:w-7 object-contain transition-all duration-150 hover:scale-110 hover:ring-2 hover:ring-orange-400/70 hover:shadow-[0_0_6px_rgb(249,115,22,0.35)]" 
               />
               <span className="font-semibold tracking-tight">ProveX</span>
             </a>
@@ -162,12 +162,12 @@ export default function App() {
             <a 
               href="https://libertyswap.finance" 
               target="_blank" 
-              className="premium-button group flex items-center gap-x-2 md:gap-x-2.5 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10 text-xs md:text-sm"
+              className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10 text-xs md:text-sm"
             >
               <img 
                 src="/logo.svg" 
                 alt="LibertySwap" 
-                className="h-5 w-5 md:h-[22px] md:w-[22px] object-contain transition-all duration-150 hover:scale-110 hover:ring-2 hover:ring-cyan-400/70 hover:shadow-[0_0_6px_rgb(103,232,249,0.35)]" 
+                className="h-6 w-6 md:h-7 md:w-7 object-contain transition-all duration-150 hover:scale-110 hover:ring-2 hover:ring-cyan-400/70 hover:shadow-[0_0_6px_rgb(103,232,249,0.35)]" 
               />
               <span className="font-semibold tracking-tight">LibertySwap</span>
             </a>

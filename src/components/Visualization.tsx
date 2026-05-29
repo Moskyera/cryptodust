@@ -48,10 +48,6 @@ export function Visualization({
   const animationRef = useRef<number>()
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
 
-  // Mobile perf: frame timing for lower target FPS
-  const lastFrameTimeRef = useRef(0)
-  const frameCountRef = useRef(0)
-
   // Drag-to-fling state (for smooth grab & throw interaction)
   const draggingIdRef = useRef<string | null>(null)
   const mouseRef = useRef({ x: 0, y: 0 })
@@ -167,23 +163,9 @@ export function Visualization({
     const w = canvas.width
     const h = canvas.height
 
-    // === MOBILE PERFORMANCE MODE ===
-    const now = performance.now()
-    const isDragging = !!draggingIdRef.current
-
-    if (isMobile && !isDragging) {
-      // Only throttle when NOT actively dragging — during drag we want full responsiveness
-      const targetInterval = 20   // ~50 fps when idle
-      if (now - lastFrameTimeRef.current < targetInterval) {
-        animationRef.current = requestAnimationFrame(tick)
-        return
-      }
-      lastFrameTimeRef.current = now
-      frameCountRef.current++
-    } else if (isMobile && isDragging) {
-      // During drag: run as fast as possible (no artificial delay) so it feels direct
-      lastFrameTimeRef.current = now
-    }
+    // No artificial frame throttling on mobile.
+    // We keep full speed + drawing simplification during drag (see simplifyForDrag below)
+    // This makes touch feel much more direct and responsive, like cryptobubbles.net on phone.
 
     // Clear background
     ctx.fillStyle = '#0a0a12'
@@ -217,8 +199,8 @@ export function Visualization({
           db.vy = 0
 
           // Keep it inside the visible safe area while dragging (especially important on mobile)
-          const m = db.r + (isMobile ? 48 : 8)
-          const dragBottomReserve = isMobile ? 95 : 0
+          const m = db.r + (isMobile ? 42 : 8)
+          const dragBottomReserve = isMobile ? 72 : 0
           db.x = Math.max(m, Math.min(w - m, db.x))
           db.y = Math.max(m, Math.min(h - m - dragBottomReserve, db.y))
         }
@@ -328,12 +310,12 @@ export function Visualization({
         // 5) Soft edge forces + strict bounds (gentler to avoid constant small pushes)
         // On mobile we want planets to stay comfortably inside the visible screen area,
         // accounting for the bottom info panel and market tab that overlay/cover the lower part.
-        const hard = isMobile ? 48 : 12
-        const soft = isMobile ? 110 : 55
-        const edgeStrength = isMobile ? 0.095 : 0.065
+        const hard = isMobile ? 42 : 12
+        const soft = isMobile ? 100 : 55
+        const edgeStrength = isMobile ? 0.09 : 0.065
 
-        // Reserve extra space at the bottom on mobile so planets never go behind the info panel / market tab
-        const mobileBottomReserve = isMobile ? 95 : 0
+        // Reserve space for the compact bottom info bar + market tab on mobile
+        const mobileBottomReserve = isMobile ? 72 : 0
 
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
@@ -358,7 +340,7 @@ export function Visualization({
 
           // Final hard safety clamp (impossible to leave)
           // Very aggressive on mobile — planets literally cannot leave the visible screen
-          const extraMobileMargin = isMobile ? 38 : 0
+          const extraMobileMargin = isMobile ? 32 : 0
           const left = b.r + hard
           const right = w - b.r - hard - extraMobileMargin
           const top = b.r + hard
@@ -402,14 +384,14 @@ export function Visualization({
         // Final emergency hard clamp pass for mobile — guarantees planets can NEVER leave the visible screen
         // even after high-velocity flings or between substeps
         if (isMobile) {
-          const finalHard = 48
-          const finalBottomReserve = 95
+          const finalHard = 42
+          const finalBottomReserve = 72
           for (let i = 0; i < bubbles.length; i++) {
             const b = bubbles[i]
             const minX = b.r + finalHard
-            const maxX = w - b.r - finalHard - 38
+            const maxX = w - b.r - finalHard - 32
             const minY = b.r + finalHard
-            const maxY = h - b.r - finalHard - finalBottomReserve - 38
+            const maxY = h - b.r - finalHard - finalBottomReserve - 32
 
             if (b.x < minX) { b.x = minX; b.vx = Math.abs(b.vx) * 0.6 }
             if (b.x > maxX) { b.x = maxX; b.vx = -Math.abs(b.vx) * 0.6 }
@@ -647,9 +629,8 @@ export function Visualization({
       }
     })
 
-    // DOM labels — on mobile we update every other frame for big perf win
-    const shouldUpdateLabels = !isMobile || (frameCountRef.current % 2 === 0)
-    if (shouldUpdateLabels) {
+    // Labels are completely disabled on mobile (as per previous requirement)
+    if (!isMobile) {
       updateLabels(bubbles, labelsContainer)
     }
 

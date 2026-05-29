@@ -107,10 +107,12 @@ export function Visualization({
       const driftBiasX = (Math.random() - 0.5) * 0.009
       const driftBiasY = (Math.random() - 0.5) * 0.009
 
+      // Larger safe spawn area on mobile so planets start well inside the screen
+      const spawnPadding = isMobile ? 60 : 80
       return {
         id: coin.id,
-        x: 80 + Math.random() * (w - 160),
-        y: 80 + Math.random() * (h - 160),
+        x: spawnPadding + Math.random() * (w - spawnPadding * 2),
+        y: spawnPadding + Math.random() * (h - spawnPadding * 2),
         vx: (Math.random() - 0.5) * 1.85,
         vy: (Math.random() - 0.5) * 1.85,
         r: baseR * 0.75,
@@ -316,8 +318,9 @@ export function Visualization({
         }
 
         // 5) Soft edge forces + strict bounds (gentler to avoid constant small pushes)
-        const hard = 12
-        const soft = 55
+        // On mobile we want planets to stay comfortably inside the screen, never near the edges
+        const hard = isMobile ? 26 : 12
+        const soft = isMobile ? 72 : 55
         const edgeStrength = 0.065
 
         for (let i = 0; i < bubbles.length; i++) {

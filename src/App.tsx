@@ -417,37 +417,66 @@ export default function App() {
         )}
       </div>
 
-      {/* Mobile-only selected info bar (shows name + price + % ONLY when a planet is tapped) */}
+      {/* Mobile-only info panel — appears when you tap a planet (proper πίνακας with details) */}
       {selectedCoin && (
-        <div className="md:hidden border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl px-4 py-2 flex items-center justify-between text-sm z-40">
-          <div className="flex items-center gap-2.5">
-            {selectedCoin.image && (
-              <img src={selectedCoin.image} alt="" className="w-6 h-6 rounded-full ring-1 ring-white/10" />
-            )}
-            <div className="flex flex-col leading-tight">
-              <span className="font-semibold tracking-tight">{selectedCoin.symbol}</span>
-              <span className="text-[11px] text-[#9ca3af] tabular-nums">
-                ${selectedCoin.current_price?.toLocaleString(undefined, { maximumFractionDigits: selectedCoin.current_price > 1 ? 2 : 5 })}
-              </span>
+        <div className="md:hidden border-t border-[#25252f] bg-[#0f0f16]/98 backdrop-blur-2xl px-4 py-3 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.4)]">
+          <div className="flex items-start justify-between gap-3">
+            {/* Left: Coin identity + price */}
+            <div className="flex items-center gap-3 min-w-0">
+              {selectedCoin.image && (
+                <img 
+                  src={selectedCoin.image} 
+                  alt="" 
+                  className="w-10 h-10 rounded-full ring-1 ring-white/10 flex-shrink-0" 
+                />
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-lg tracking-tight">{selectedCoin.symbol}</span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400 bg-emerald-500/15' : 'text-red-400 bg-red-500/15' }`}>
+                    {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="font-semibold tabular-nums text-2xl tracking-tighter mt-0.5">
+                  ${selectedCoin.current_price?.toLocaleString(undefined, { 
+                    maximumFractionDigits: selectedCoin.current_price > 1000 ? 0 : 
+                    selectedCoin.current_price > 1 ? 2 : 5 
+                  })}
+                </div>
+              </div>
             </div>
-            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10' }`}>
-              {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(1)}%
-            </span>
+
+            {/* Right: Actions */}
+            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+              <button 
+                onClick={() => toggleFavorite(selectedCoin.id)}
+                className="flex items-center gap-1 text-sm px-3 py-1 rounded-xl bg-white/5 active:bg-white/10 transition-colors"
+              >
+                {favorites.includes(selectedCoin.id) ? '★ Saved' : '☆ Favorite'}
+              </button>
+              <button 
+                onClick={() => setSelectedId(null)}
+                className="text-xs px-3 py-1 rounded-xl bg-white/10 active:bg-white/20 text-[#9ca3af]"
+              >
+                Close
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => toggleFavorite(selectedCoin.id)}
-              className="text-lg active:scale-90 transition-transform"
-            >
-              {favorites.includes(selectedCoin.id) ? '★' : '☆'}
-            </button>
-            <button 
-              onClick={() => setSelectedId(null)}
-              className="text-[10px] px-2.5 py-1 rounded-lg bg-white/10 active:bg-white/20"
-            >
-              Close
-            </button>
+          {/* Extra info row */}
+          <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            {selectedCoin.market_cap && (
+              <div className="flex justify-between">
+                <span className="text-[#6b7280]">Market Cap</span>
+                <span className="font-medium tabular-nums">${(selectedCoin.market_cap / 1e9).toFixed(2)}B</span>
+              </div>
+            )}
+            {selectedCoin.total_volume && (
+              <div className="flex justify-between">
+                <span className="text-[#6b7280]">24h Volume</span>
+                <span className="font-medium tabular-nums">${(selectedCoin.total_volume / 1e9).toFixed(2)}B</span>
+              </div>
+            )}
           </div>
         </div>
       )}

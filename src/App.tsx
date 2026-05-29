@@ -285,6 +285,28 @@ export default function App() {
             ))}
           </div>
 
+          {/* Page Tabs - Show again every 100 coins for the first 500 coins */}
+          <div className="flex items-center gap-x-1.5 flex-wrap mt-2">
+            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2">PAGES (500 coins)</div>
+            {Array.from({ length: totalPages }).map((_, index) => {
+              const start = index * 100
+              const end = Math.min(start + 100, filteredTokens.length)
+              return (
+                <button
+                  key={index}
+                  onClick={() => setCurrentPage(index)}
+                  className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
+                    currentPage === index
+                      ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
+                  }`}
+                >
+                  {start}–{end}
+                </button>
+              )
+            })}
+          </div>
+
         </div>
       </div>
 

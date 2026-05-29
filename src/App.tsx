@@ -87,14 +87,14 @@ export default function App() {
     <div className="h-screen w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">
       {/* Top Navigation - Premium cyberpunk style */}
       <nav className="border-b border-[#25252f] bg-[#0a0a12]/95 backdrop-blur-xl z-50 flex-shrink-0">
-        <div className="w-full px-5 h-14 flex items-center justify-between">
+        <div className="w-full px-3 md:px-5 h-12 md:h-14 flex items-center justify-between">
           <div className="flex items-center gap-x-4">
             {/* Logo - using the new custom CryptoDUST logo */}
             <div className="flex items-center gap-x-3 group">
               <img 
                 src="/cryptodust-logo.png" 
                 alt="CryptoDUST" 
-                className="w-9 h-9 object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] group-hover:scale-105 transition-transform" 
+                className="w-7 h-7 md:w-9 md:h-9 object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] group-hover:scale-105 transition-transform" 
               />
               <div className="leading-none">
                 <div>
@@ -122,7 +122,7 @@ export default function App() {
                   setSearchTerm(e.target.value)
                   setCurrentPage(0)
                 }}
-                className="bg-[#0b0b12] border border-[#25252f] rounded-2xl pl-10 pr-4 py-2 text-sm w-72 focus:outline-none focus:border-[#67f6ff] focus:bg-[#111118] transition-all placeholder:text-[#6b7280]"
+                className="bg-[#0b0b12] border border-[#25252f] rounded-2xl pl-8 pr-3 py-1.5 md:py-2 text-sm w-48 md:w-72 focus:outline-none focus:border-[#67f6ff] focus:bg-[#111118] transition-all placeholder:text-[#6b7280]"
               />
               <div className="absolute left-3.5 top-2.5 text-[#6b7280] group-focus-within:text-[#67f6ff]">⌘</div>
             </div>
@@ -323,9 +323,10 @@ export default function App() {
           onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
         />
 
-        {/* Details Panel - Opens automatically when you select a planet (slide-in from right) */}
+        {/* Details Panel - Opens automatically when you select a planet.
+            Hidden on mobile to not block the visualization. */}
         {selectedCoin && (
-          <div className="absolute top-4 right-4 z-50 w-80 rounded-3xl border border-[#25252f] bg-[#111118]/95 backdrop-blur-2xl shadow-2xl overflow-hidden transition-all duration-200">
+          <div className="absolute top-4 right-4 z-50 w-80 rounded-3xl border border-[#25252f] bg-[#111118]/95 backdrop-blur-2xl shadow-2xl overflow-hidden transition-all duration-200 hidden md:block">
             <div className="px-5 pt-4 pb-3 border-b border-[#25252f] flex items-center justify-between bg-black/30">
               <div className="font-semibold tracking-tight text-sm">DETAILS</div>
               <button 
@@ -396,7 +397,7 @@ export default function App() {
       <div className="border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40">
         <button
           onClick={() => setIsMarketOpen(!isMarketOpen)}
-          className={`w-full flex items-center justify-between px-5 py-3 text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}
+          className={`w-full flex items-center justify-between px-4 md:px-5 py-2.5 md:py-3 text-xs md:text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}
         >
           <div className="flex items-center gap-x-3">
             <span className="text-[#67f6ff] text-base">📋</span>

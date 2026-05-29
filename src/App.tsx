@@ -151,7 +151,11 @@ export default function App() {
               target="_blank" 
               className="premium-button group flex items-center gap-x-1.5 md:gap-x-2 px-3 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10 text-xs md:text-sm"
             >
-              <ExternalLink className="w-3.5 h-3.5 md:w-4 md:h-4 transition-transform group-hover:translate-x-0.5" />
+              <img 
+                src="/provex-logo.png" 
+                alt="ProveX" 
+                className="w-5 h-5 md:w-5 md:h-5 object-contain" 
+              />
               <span className="font-semibold tracking-tight">ProveX</span>
             </a>
 
@@ -160,7 +164,11 @@ export default function App() {
               target="_blank" 
               className="premium-button group flex items-center gap-x-1.5 md:gap-x-2 px-3 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10 text-xs md:text-sm"
             >
-              <ExternalLink className="w-3.5 h-3.5 md:w-4 md:h-4 transition-transform group-hover:translate-x-0.5" />
+              <img 
+                src="/libertyswap-logo.png" 
+                alt="LibertySwap" 
+                className="w-5 h-5 md:w-5 md:h-5 object-contain" 
+              />
               <span className="font-semibold tracking-tight">LibertySwap</span>
             </a>
 

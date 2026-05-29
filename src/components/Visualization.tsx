@@ -625,6 +625,9 @@ export function Visualization({
 
   // Highly optimized label sync — avoids innerHTML and repeated getBoundingClientRect per frame
   const updateLabels = (bubbles: Bubble[], container: HTMLDivElement) => {
+    // Completely remove floating labels on mobile (user request: only show name/price when selected)
+    if (isMobile) return
+
     // Compute scale ONCE outside the loop (very expensive otherwise)
     const canvas = canvasRef.current
     const rect = container.getBoundingClientRect()

@@ -618,7 +618,7 @@ export default function App() {
                         setActivePreset(null);
                       } else if (item.label === 'Big Movers') {
                         highlightBigMovers();
-                      } else {
+                      } else if (item.key !== undefined) {
                         setActivePreset(item.key);
                       }
                       setCurrentPage(0);

@@ -108,4 +108,27 @@ Your live site will be at something like `https://cryptodust-xxx.vercel.app`. Ev
 - All price fetching happens client-side.
 - The visualization uses a safe export method to avoid any canvas tainting issues.
 
+## Automated Git Push (Recommended)
+
+For faster development, use the automated push script instead of manual `git add / commit / push`.
+
+### Options:
+
+```bash
+# Interactive (recommended)
+npm run push
+
+# With a commit message (non-interactive)
+npm run push -- "feat: add PulseChain filter"
+
+# Or directly on Windows
+./push.ps1
+./push.bat
+```
+
+The script will:
+- Show current changes
+- Let you enter (or pass) a commit message
+- Automatically commit + push to the current branch
+
 Enjoy the bubbles!

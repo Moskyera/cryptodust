@@ -863,12 +863,7 @@ export function Visualization({
       displayHeight = window.visualViewport.height
     }
 
-    // Rough safe-area handling for notched phones (iPhone X+ / Dynamic Island)
-    const safeAreaBottom = (typeof window !== 'undefined' && 'CSS' in window && CSS.supports?.('padding: env(safe-area-inset-bottom)'))
-      ? 0 // We'll rely on visualViewport + CSS padding for now
-      : 0
-
-    // Add extra bottom padding on iOS notched devices
+    // Add extra bottom padding on iOS notched devices (Dynamic Island / notch)
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     const extraBottom = isIOS ? 12 : 0
     displayHeight -= extraBottom

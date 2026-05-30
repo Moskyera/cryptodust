@@ -222,9 +222,9 @@ export function Visualization({
 
     // =====================================================
     // PHYSICS SECTION — ONLY RUNS WHEN NOT PAUSED
-    // Lively, smooth, persistent motion with perfect screen bounds
+    // On mobile we disable physics completely for stability and better touch experience (Proposal 1)
     // =====================================================
-    if (!paused) {
+    if (!paused && !isMobile) {
       const SUBSTEPS = 1   // 1 = big perf win, still feels lively with current personality + drift system
 
       // Handle active drag-to-fling — IMPORTANT: zero velocity while dragging to prevent shake
@@ -358,7 +358,7 @@ export function Visualization({
         const edgeStrength = isMobile ? 0.09 : 0.065
 
         // Reserve space for the compact bottom info bar + market tab on mobile
-        const mobileBottomReserve = isMobile ? 125 : 0   // increased slightly for richer mobile info panel
+        const mobileBottomReserve = isMobile ? 180 : 0   // increased for the new richer Bottom Sheet on mobile
 
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
@@ -563,11 +563,29 @@ export function Visualization({
       }
 
       // Solid planet disk
-      ctx.globalAlpha = simplifyForDrag ? 0.85 : 0.95
+      let drawRadius = r;
+      let alpha = simplifyForDrag ? 0.85 : 0.95;
+
+      // On mobile: give visual emphasis to the selected planet
+      if (isMobile && selectedId === coin.id) {
+        drawRadius = r * 1.18;
+        alpha = 1.0;
+      }
+
+      ctx.globalAlpha = alpha;
       ctx.fillStyle = baseColor
       ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.arc(x, y, drawRadius, 0, Math.PI * 2)
       ctx.fill()
+
+      // Extra subtle glow on mobile when planet is selected (better visual feedback)
+      if (isMobile && selectedId === coin.id && !simplifyForDrag) {
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#ffffff'
+        ctx.beginPath()
+        ctx.arc(x, y, drawRadius * 1.35, 0, Math.PI * 2)
+        ctx.fill()
+      }
 
       // Real coin logo — completely skip during mobile drag for max performance
       if (!simplifyForDrag) {
@@ -1074,12 +1092,12 @@ export function Visualization({
     const rect = canvas.getBoundingClientRect()
     const scale = canvas.width / rect.width
 
-    const minTapRadiusWorld = isMobile ? 38 / scale : 18 / scale   // Slightly larger tap target on mobile for better reliability
+    const minTapRadiusWorld = isMobile ? 44 / scale : 18 / scale   // More comfortable tap area on mobile for reliable selection
 
     for (let i = 0; i < currentBubbles.length; i++) {
       const b = currentBubbles[i]
       const dist = Math.hypot(b.x - wx, b.y - wy)
-      const effectiveRadius = Math.max(b.r * (isMobile ? 2.1 : 1.6), minTapRadiusWorld)
+      const effectiveRadius = Math.max(b.r * (isMobile ? 2.3 : 1.6), minTapRadiusWorld)
 
       if (dist < effectiveRadius && dist < minDist) {
         minDist = dist

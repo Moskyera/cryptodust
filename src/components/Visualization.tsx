@@ -320,7 +320,7 @@ export function Visualization({
         const edgeStrength = isMobile ? 0.09 : 0.065
 
         // Reserve space for the compact bottom info bar + market tab on mobile
-        const mobileBottomReserve = isMobile ? 110 : 0   // aggressive reserve so planets stay well above bottom UI on phones
+        const mobileBottomReserve = isMobile ? 125 : 0   // increased slightly for richer mobile info panel
 
         for (let i = 0; i < bubbles.length; i++) {
           const b = bubbles[i]
@@ -391,7 +391,7 @@ export function Visualization({
         // Final hard safety net for mobile — very important so planets never escape the visible area
         if (isMobile) {
           const finalHard = 45
-          const finalBottomReserve = 110   // aggressive reserve so planets stay above the bottom UI
+          const finalBottomReserve = 125
           for (let i = 0; i < bubbles.length; i++) {
             const b = bubbles[i]
             const minX = b.r + finalHard
@@ -874,7 +874,7 @@ export function Visualization({
     if (bubbles.length > 0) {
       const w = canvas.width
       const h = canvas.height
-      const mobileBottomReserve = isMobile ? 110 : 0
+      const mobileBottomReserve = isMobile ? 125 : 0
       const hard = isMobile ? 45 : 12
 
       bubbles.forEach(b => {

@@ -578,7 +578,7 @@ export default function App() {
           isMobile={isMobile}
         />
 
-        {/* Mobile-only floating "Highlight Big Movers" button — exactly as requested: on phones show ONLY the planets + this button (everything else hidden via md: classes) */}
+        {/* Mobile-only floating "Highlight Big Movers" button */}
         <button
           onClick={highlightBigMovers}
           className={`md:hidden absolute top-3 right-3 z-40 px-3 py-1.5 text-[10px] font-semibold rounded-2xl flex items-center gap-x-1.5 active:scale-[0.97] transition-all border shadow-sm ${
@@ -591,8 +591,15 @@ export default function App() {
           {highlightUntil > Date.now() ? 'HIGHLIGHTING' : 'BIG MOVERS'}
         </button>
 
-        {/* Mobile info panel — compact, cryptobubbles.net style.
-            Clean, minimal, feels native on phone. Shows key info without eating too much screen. */}
+        {/* Mobile Filters button — opens the market drawer for browsing & filters */}
+        <button
+          onClick={() => setIsMarketOpen(true)}
+          className="md:hidden absolute top-3 left-3 z-40 px-3 py-1.5 text-[10px] font-semibold rounded-2xl bg-[#0f0f16]/90 text-[#67f6ff] border border-[#67f6ff]/40 backdrop-blur-xl active:scale-[0.97] transition-all"
+        >
+          FILTERS
+        </button>
+
+        {/* Mobile info panel — improved for better info density while staying compact */}
         {selectedCoin && (
           <div 
             className="md:hidden absolute bottom-[42px] left-0 right-0 z-50 bg-[#0f0f16]/96 backdrop-blur-xl border-t border-[#25252f] px-4 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] pointer-events-auto"
@@ -600,7 +607,8 @@ export default function App() {
               if ((e.target as HTMLElement).tagName === 'DIV') setSelectedId(null)
             }}
           >
-            <div className="flex items-center justify-between">
+            {/* First row: Symbol + Price + 24h% */}
+            <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-3">
                 {selectedCoin.image && (
                   <img src={selectedCoin.image} alt="" className="w-8 h-8 rounded-full ring-1 ring-white/10" />
@@ -624,6 +632,24 @@ export default function App() {
                   ✕
                 </button>
               </div>
+            </div>
+
+            {/* Second row: More stats (Market Cap, Volume, 1h%) */}
+            <div className="flex items-center justify-between text-xs text-[#9ca3af]">
+              <div className="flex gap-x-3">
+                {selectedCoin.market_cap ? (
+                  <span>MC: {formatMarketValue(selectedCoin.market_cap)}</span>
+                ) : null}
+                {selectedCoin.total_volume ? (
+                  <span>Vol: {formatMarketValue(selectedCoin.total_volume)}</span>
+                ) : null}
+              </div>
+
+              {selectedCoin.price_change_percentage_1h !== undefined && (
+                <span className={`${(selectedCoin.price_change_percentage_1h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  1h: {(selectedCoin.price_change_percentage_1h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_1h || 0).toFixed(1)}%
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -797,6 +823,32 @@ export default function App() {
                 Close
               </button>
             </div>
+          </div>
+
+          {/* Quick filters inside mobile drawer for easy access */}
+          <div className="md:hidden px-4 pt-3 pb-1 flex gap-1.5 flex-wrap">
+            {[
+              { label: 'Big Movers', key: null }, // reuse highlight
+              { label: 'Gainers', key: 'gainers' },
+              { label: 'PulseChain', key: 'pulsechain' },
+              { label: 'Favorites', key: 'favorites' },
+            ].map((f, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  if (f.key === null) {
+                    highlightBigMovers()
+                  } else {
+                    setActivePreset(f.key)
+                    setCurrentPage(0)
+                  }
+                  setIsMarketOpen(false) // close after selection on mobile
+                }}
+                className="text-[10px] px-2.5 py-1 rounded-2xl border bg-white/5 border-white/10 text-white/80 active:bg-white/10"
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
 
           {/* Market Table Content (inside drawer) */}

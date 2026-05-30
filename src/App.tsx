@@ -454,7 +454,10 @@ export default function App() {
             <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2 flex items-center gap-1.5">
               QUICK FILTERS
               {activePreset === 'pulsechain' && (
-                <span className="text-[9px] px-1.5 py-px rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">API TEST</span>
+                <>
+                  <span className="text-[9px] px-1.5 py-px rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">API TEST</span>
+                  <span className="text-[9px] text-violet-400/70 ml-1">(Market data limited on some tokens)</span>
+                </>
               )}
             </div>
             {[
@@ -637,17 +640,29 @@ export default function App() {
                   <MiniSparkline coin={selectedCoin} />
                 </div>
 
-                {selectedCoin.market_cap && (
-                  <div className="flex justify-between items-baseline pt-2 border-t border-white/10">
-                    <span className="text-[#6b7280]">Market Cap</span>
-                    <span className="font-medium">${(selectedCoin.market_cap / 1e9).toFixed(2)}B</span>
-                  </div>
-                )}
+                {/* Market Cap - always show row, handle missing data gracefully for PulseChain tokens */}
+                <div className="flex justify-between items-baseline pt-2 border-t border-white/10">
+                  <span className="text-[#6b7280]">Market Cap</span>
+                  <span className="font-medium">
+                    {selectedCoin.market_cap && selectedCoin.market_cap > 0 
+                      ? `$${(selectedCoin.market_cap / 1e9).toFixed(2)}B` 
+                      : '—'}
+                  </span>
+                </div>
 
-                {selectedCoin.total_volume && (
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-[#6b7280]">24h Volume</span>
-                    <span className="font-medium">${(selectedCoin.total_volume / 1e9).toFixed(2)}B</span>
+                {/* 24h Volume - always show row, handle missing data gracefully for PulseChain tokens */}
+                <div className="flex justify-between items-baseline">
+                  <span className="text-[#6b7280]">24h Volume</span>
+                  <span className="font-medium">
+                    {selectedCoin.total_volume && selectedCoin.total_volume > 0 
+                      ? `$${(selectedCoin.total_volume / 1e6).toFixed(2)}M` 
+                      : '—'}
+                  </span>
+                </div>
+
+                {activePreset === 'pulsechain' && (
+                  <div className="text-[10px] text-violet-400/60 pt-1">
+                    Note: Many PulseChain tokens have limited market data on CoinGecko
                   </div>
                 )}
               </div>

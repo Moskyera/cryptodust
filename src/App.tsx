@@ -584,35 +584,55 @@ export default function App() {
         {/* Mobile: Simple list view instead of planets (due to touch issues) */}
         {isMobile && (
           <div className="h-full overflow-auto px-3 pt-2 pb-20 text-sm custom-scrollbar">
-            {/* Quick Filters on mobile */}
+            {/* Quick Filters + External Services on mobile */}
             <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar">
               {[
                 { label: 'All', key: null },
                 { label: 'Big Movers', key: 'gainers' },
                 { label: 'PulseChain', key: 'pulsechain' },
                 { label: 'Favorites', key: 'favorites' },
-              ].map((f, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    if (f.key === null) {
-                      setActivePreset(null);
-                    } else if (f.label === 'Big Movers') {
-                      highlightBigMovers();
-                    } else {
-                      setActivePreset(f.key);
-                    }
-                    setCurrentPage(0);
-                  }}
-                  className={`text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap transition-all ${
-                    (f.key === null && !activePreset) || activePreset === f.key
-                      ? 'bg-white text-black border-white'
-                      : 'bg-white/5 border-white/10 text-white/80'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
+                { label: 'ProveX', url: 'https://app.provex.com' },
+                { label: 'LibertySwap', url: 'https://libertyswap.finance' },
+              ].map((item, idx) => {
+                // External link (ProveX / LibertySwap)
+                if (item.url) {
+                  return (
+                    <a
+                      key={idx}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap bg-gradient-to-r from-orange-500/10 to-amber-500/10 border-orange-500/30 text-orange-300 active:from-orange-500/20 active:to-amber-500/20"
+                    >
+                      {item.label}
+                    </a>
+                  );
+                }
+
+                // Internal filter
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      if (item.key === null) {
+                        setActivePreset(null);
+                      } else if (item.label === 'Big Movers') {
+                        highlightBigMovers();
+                      } else {
+                        setActivePreset(item.key);
+                      }
+                      setCurrentPage(0);
+                    }}
+                    className={`text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap transition-all ${
+                      (item.key === null && !activePreset) || activePreset === item.key
+                        ? 'bg-white text-black border-white'
+                        : 'bg-white/5 border-white/10 text-white/80'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Pages - better spacing and touch targets on mobile */}

@@ -99,7 +99,14 @@ export function Visualization({
         // Size by 24h % change — positive moves make the planet bigger
         const change = coin.price_change_percentage_24h || 0
         // Base size + strong scaling on the percentage
-        base = 32 + (change * 1.15)
+        let baseSize = 32 + (change * 1.15)
+
+        // Special rule: if 25% or more (positive or negative), double the size
+        if (Math.abs(change) >= 25) {
+          baseSize *= 2
+        }
+
+        base = baseSize
       } else {
         // market_cap
         base = 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
@@ -153,7 +160,13 @@ export function Visualization({
         base = 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
       } else if (sizeMetric === 'change_24h') {
         const change = coin.price_change_percentage_24h || 0
-        base = 32 + (change * 1.15)
+        let baseSize = 32 + (change * 1.15)
+
+        if (Math.abs(change) >= 25) {
+          baseSize *= 2
+        }
+
+        base = baseSize
       } else {
         base = 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
       }
@@ -176,7 +189,13 @@ export function Visualization({
 
     bubblesRef.current.forEach(b => {
       const change = b.coin.price_change_percentage_24h || 0
-      const newTarget = 32 + (change * 1.15)
+      let newTarget = 32 + (change * 1.15)
+
+      // Double size for extreme moves (>= 25%)
+      if (Math.abs(change) >= 25) {
+        newTarget *= 2
+      }
+
       const scaled = Math.max(18, Math.min(92, newTarget)) * planetScale
       const mobileMax = planetScale < 0.7 ? 46 : 75
       const final = Math.max(12, Math.min(mobileMax, scaled))

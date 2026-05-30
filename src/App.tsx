@@ -153,7 +153,7 @@ export default function App() {
             >
               <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
                 <img 
-                  src="/p.png" 
+                  src="https://app.provex.com/provex.webp" 
                   alt="ProveX" 
                   className="h-full w-full object-contain" 
                 />
@@ -168,7 +168,7 @@ export default function App() {
             >
               <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
                 <img 
-                  src="/l.png" 
+                  src="https://libertyswap.finance/logo.svg" 
                   alt="LibertySwap" 
                   className="h-full w-full object-contain" 
                 />

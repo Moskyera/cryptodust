@@ -70,10 +70,12 @@ function MiniSparkline({ coin, width = 260, height = 52 }: { coin: any; width?: 
   )
 }
 
-// Known PulseChain token identifiers (used for the dedicated filter to test the special CoinGecko API)
+// Known PulseChain token identifiers (used for the "PulseChain" filter)
+// Expanded to cover the official CoinGecko Pulsechain Ecosystem category
 const PULSECHAIN_IDS = new Set([
   'pulsechain', 'hex-pulsechain', 'pulsex', 'incentive', 'pcock',
-  'provex', 'ptgc', 'most', 'zerø', 'prvx'
+  'provex', 'ptgc', 'most', 'zerø', 'prvx', 'phex', 'plsx', 'inc',
+  'ehex', 'hex', 'pls', 'phex-pulsechain'
 ])
 
 export default function App() {
@@ -136,12 +138,21 @@ export default function App() {
     } else if (activePreset === 'favorites') {
       result = result.filter(t => favorites.includes(t.id))
     } else if (activePreset === 'pulsechain') {
-      // Filter to only PulseChain ecosystem tokens — great for testing if the dedicated
-      // CoinGecko /platform/pulsechain/contract/... calls (using the demo key) are working
-      result = result.filter(t =>
-        PULSECHAIN_IDS.has(t.id.toLowerCase()) ||
-        PULSECHAIN_IDS.has(t.symbol.toLowerCase())
-      )
+      // Filter to only PulseChain ecosystem tokens
+      // Uses the official CoinGecko "pulsechain-ecosystem" category data
+      result = result.filter(t => {
+        const id = t.id.toLowerCase()
+        const symbol = t.symbol.toLowerCase()
+        const name = t.name.toLowerCase()
+
+        return (
+          PULSECHAIN_IDS.has(id) ||
+          PULSECHAIN_IDS.has(symbol) ||
+          id.includes('pulse') ||
+          symbol.includes('pulse') ||
+          name.includes('pulse')
+        )
+      })
     }
 
     return result.slice(0, 500) // keep max 500 coins

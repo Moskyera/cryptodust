@@ -3,7 +3,8 @@
  *
  * - Normal coins (top ~500) → CoinGecko (use VITE_COINGECKO_API_KEY)
  * - PulseChain ecosystem tokens → CoinGecko Demo/Free (use VITE_COINGECKO_PULSE_DEMO_KEY)
- *   via the platform/contract endpoint for much better coverage.
+ *   Now using the official "pulsechain-ecosystem" category for best coverage + logos
+ *   https://www.coingecko.com/en/categories/pulsechain-ecosystem
  *
  * Recommended:
  * - Put your main/paid CoinGecko key in VITE_COINGECKO_API_KEY
@@ -71,25 +72,8 @@ async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPri
   }
 }
 
-// =====================================================
-// PULSECHAIN TOKENS (via CoinGecko platform/contract endpoint)
-// =====================================================
-
-// Contract addresses on PulseChain (0x171)
-const PULSECHAIN_TOKENS: Record<string, string> = {
-  // 'pulsechain': 'native', // Native PLS - handled differently
-  'hex-pulsechain': '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39', // pHEX
-  'pulsex': '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab',         // PLSX
-  'incentive': '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d',       // INC
-  'pcock': '0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F',           // PCOCK
-'ProveX': '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11', // PRVX
-  'pTGC': '0x94534EeEe131840b1c0F61847c572228bdfDDE93',         // pTGC
-  'MOST': '0xe33a5AE21F93aceC5CfC0b7b0FDBB65A0f0Be5cC',       // MOST
-  'ZERØ': '0xf6703DBff070F231eEd966D33B1B6D7eF5207d26',           // ZERØ
-
-}
-
-// Special PulseChain tokens the user wants searchable
+// Special PulseChain tokens we still want to ensure are included
+// (especially native PLS which may not always rank high in the category)
 const SPECIAL_PULSECHAIN_IDS = [
   'pulsechain',           // PLS
   'hex-pulsechain',       // pHEX / eHEX on PulseChain
@@ -124,17 +108,17 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
 }
 
 // =====================================================
-// PULSECHAIN via CoinGecko (free/demo plan)
-// Using /coins/platform/pulsechain/contract/{address}
-// This gives much better data for PulseChain tokens than /markets
+// PULSECHAIN ECOSYSTEM via CoinGecko Category
+// Using the official "pulsechain-ecosystem" category
+// This is much more efficient and provides better logos + stats
+// Source: https://www.coingecko.com/en/categories/pulsechain-ecosystem
 // =====================================================
 
-async function fetchPulseChainTokenFromCoinGecko(
-  address: string,
-  symbol: string
-): Promise<TokenPrice | null> {
+async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
+  console.log('[CryptoDUST] Fetching PulseChain Ecosystem tokens via CoinGecko category...');
+
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/platform/pulsechain/contract/${address}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h,24h`;
 
     const headers: HeadersInit = {};
     if (COINGECKO_PULSE_DEMO_KEY) {
@@ -145,63 +129,37 @@ async function fetchPulseChainTokenFromCoinGecko(
 
     if (!res.ok) {
       if (res.status === 429) {
-        console.warn(`[CoinGecko Pulse] Rate limit hit while fetching ${symbol}. Using fallback data.`);
+        console.warn('[CoinGecko Pulse] Rate limit hit on category endpoint.');
       } else {
-        console.warn(`[CoinGecko Pulse] Failed to fetch ${symbol} (${address}): ${res.status}`);
+        console.warn(`[CoinGecko Pulse] Category fetch failed: ${res.status}`);
       }
-      return null;
+      return [];
     }
 
     const data = await res.json();
-    const md = data.market_data || {};
 
-    return {
-      id: symbol.toLowerCase(),
-      symbol: symbol.toUpperCase(),
-      name: data.name || symbol,
-      current_price: md.current_price?.usd || 0,
-      price_change_percentage_24h: md.price_change_percentage_24h || 0,
-      price_change_percentage_1h: md.price_change_percentage_1h || 0,
-      market_cap: md.market_cap?.usd,
-      total_volume: md.total_volume?.usd,
-      image: data.image?.small || data.image?.thumb,
-    };
+    const tokens = data.map((coin: any) => ({
+      id: coin.id,
+      symbol: coin.symbol.toUpperCase(),
+      name: coin.name,
+      current_price: coin.current_price || 0,
+      price_change_percentage_24h: coin.price_change_percentage_24h || 0,
+      price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      market_cap: coin.market_cap,
+      total_volume: coin.total_volume,
+      image: coin.image,
+    }));
+
+    console.log(`[CryptoDUST] PulseChain Ecosystem category returned ${tokens.length} tokens.`);
+    return tokens;
+
   } catch (error) {
-    console.warn(`[CoinGecko Pulse] Error fetching ${symbol}:`, error);
-    return null;
+    console.warn('[CoinGecko Pulse] Error fetching ecosystem category:', error);
+    return [];
   }
 }
 
-async function fetchPulseChainTokensFromCoinGecko(): Promise<TokenPrice[]> {
-  console.log('[CryptoDUST] Fetching PulseChain tokens via CoinGecko (demo/free plan)...');
-
-  const results: TokenPrice[] = [];
-  let rateLimitHits = 0;
-
-  for (const [symbol, address] of Object.entries(PULSECHAIN_TOKENS)) {
-    const token = await fetchPulseChainTokenFromCoinGecko(address, symbol);
-    if (token) {
-      results.push(token);
-      console.log(`[CoinGecko Pulse] ✅ ${symbol} → $${token.current_price}`);
-    } else {
-      console.log(`[CoinGecko Pulse] ❌ Failed to fetch ${symbol}`);
-      rateLimitHits++;
-      // If we hit rate limit multiple times, stop early to avoid wasting calls
-      if (rateLimitHits >= 2) {
-        console.warn('[CoinGecko Pulse] Multiple rate limit hits detected. Stopping early and using fallback data for remaining tokens.');
-        break;
-      }
-    }
-
-    // Respect CoinGecko demo rate limits (very important on free plan)
-    await new Promise((r) => setTimeout(r, 2500)); // ~24 calls per minute max
-  }
-
-  console.log(`[CryptoDUST] CoinGecko PulseChain fetch finished. Got ${results.length} tokens.`);
-  return results;
-}
-
-// Fetch top 500 coins (2 pages of 250) + important PulseChain tokens via CoinGecko
+// Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem via CoinGecko category
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial] = await Promise.all([
@@ -214,7 +172,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
 
     let all = mainPages.flat().slice(0, 500)
 
-    // Merge CoinGecko special tokens first (fallback)
+    // Merge special tokens (PLS, pHEX etc.)
     const existingIds = new Set(all.map(t => t.id))
     for (const token of coinGeckoSpecial) {
       if (!existingIds.has(token.id)) {
@@ -223,23 +181,27 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     }
 
     // ============================================
-    // PulseChain tokens via CoinGecko (demo/free plan)
-    // Better coverage than the limited /markets list
+    // PulseChain Ecosystem via official category
+    // Much better than manual contract list:
+    // - Proper logos from the category
+    // - Accurate market stats
+    // - More coins automatically
+    // Source: https://www.coingecko.com/en/categories/pulsechain-ecosystem
     // ============================================
     try {
-      const coinGeckoPulse = await fetchPulseChainTokensFromCoinGecko()
+      const pulseEcosystem = await fetchPulseChainEcosystemTokens()
 
-      for (const token of coinGeckoPulse) {
-        // Prefer CoinGecko PulseChain data over main CoinGecko list
+      for (const token of pulseEcosystem) {
         const index = all.findIndex(t => t.id === token.id)
         if (index !== -1) {
+          // Prefer richer category data when available
           all[index] = { ...all[index], ...token }
         } else {
           all.push(token)
         }
       }
     } catch (e) {
-      console.warn('[CryptoDUST] CoinGecko PulseChain fetch failed', e)
+      console.warn('[CryptoDUST] PulseChain Ecosystem category fetch failed', e)
     }
 
     return all

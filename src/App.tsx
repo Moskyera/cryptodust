@@ -165,6 +165,21 @@ export default function App() {
     return result.slice(0, 500) // keep max 500 coins
   }, [tokens, activePreset, searchTerm, favorites])
 
+  // Smart formatter for market cap and volume (handles K / M / B)
+  function formatMarketValue(value: number | null | undefined): string {
+    if (!value || value <= 0) return '—';
+
+    if (value >= 1_000_000_000) {
+      return `$${(value / 1_000_000_000).toFixed(2)}B`;
+    } else if (value >= 1_000_000) {
+      return `$${(value / 1_000_000).toFixed(2)}M`;
+    } else if (value >= 1_000) {
+      return `$${(value / 1_000).toFixed(2)}K`;
+    } else {
+      return `$${Math.round(value).toLocaleString()}`;
+    }
+  }
+
   const handleSelect = (id: string | null) => {
     if (id === null) {
       setSelectedId(null)
@@ -640,23 +655,19 @@ export default function App() {
                   <MiniSparkline coin={selectedCoin} />
                 </div>
 
-                {/* Market Cap - always show row, handle missing data gracefully for PulseChain tokens */}
+                {/* Market Cap */}
                 <div className="flex justify-between items-baseline pt-2 border-t border-white/10">
                   <span className="text-[#6b7280]">Market Cap</span>
                   <span className="font-medium">
-                    {selectedCoin.market_cap && selectedCoin.market_cap > 0 
-                      ? `$${(selectedCoin.market_cap / 1e9).toFixed(2)}B` 
-                      : '—'}
+                    {formatMarketValue(selectedCoin.market_cap)}
                   </span>
                 </div>
 
-                {/* 24h Volume - always show row, handle missing data gracefully for PulseChain tokens */}
+                {/* 24h Volume */}
                 <div className="flex justify-between items-baseline">
                   <span className="text-[#6b7280]">24h Volume</span>
                   <span className="font-medium">
-                    {selectedCoin.total_volume && selectedCoin.total_volume > 0 
-                      ? `$${(selectedCoin.total_volume / 1e6).toFixed(2)}M` 
-                      : '—'}
+                    {formatMarketValue(selectedCoin.total_volume)}
                   </span>
                 </div>
 
@@ -807,7 +818,7 @@ export default function App() {
                       {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
                     </td>
                     <td className="py-2.5 text-right hidden md:table-cell text-[#9ca3af] tabular-nums">
-                      {coin.total_volume ? '$' + (coin.total_volume / 1e6).toFixed(0) + 'M' : '—'}
+                      {formatMarketValue(coin.total_volume)}
                     </td>
                     <td className="py-2.5 text-center">
                       <button

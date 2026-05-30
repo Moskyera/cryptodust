@@ -490,9 +490,24 @@ export function Visualization({
       if (!simplifyForDrag) {
         const img = imageCache.current.get(coin.id)
         if (img && img.complete && img.naturalWidth > 0) {
-          const logoSize = r * 1.72
-          const logoX = x - logoSize / 2
-          const logoY = y - logoSize / 2
+          // Preserve original image aspect ratio so logos don't look stretched/pressed
+          const maxLogoDiameter = r * 1.68
+          const imgAspect = img.width / img.height
+
+          let drawW, drawH
+
+          if (imgAspect > 1) {
+            // image is wider
+            drawW = maxLogoDiameter
+            drawH = maxLogoDiameter / imgAspect
+          } else {
+            // image is taller or square
+            drawH = maxLogoDiameter
+            drawW = maxLogoDiameter * imgAspect
+          }
+
+          const logoX = x - drawW / 2
+          const logoY = y - drawH / 2
 
           ctx.save()
           ctx.globalAlpha = 0.92
@@ -504,10 +519,12 @@ export function Visualization({
             ctx.shadowOffsetY = 1
           }
 
+          // Circular mask - slightly smaller than the planet for a nice border
           ctx.beginPath()
-          ctx.arc(x, y, r * 0.92, 0, Math.PI * 2)
+          ctx.arc(x, y, r * 0.88, 0, Math.PI * 2)
           ctx.clip()
-          ctx.drawImage(img, logoX, logoY, logoSize, logoSize)
+
+          ctx.drawImage(img, logoX, logoY, drawW, drawH)
           ctx.restore()
         } else if (coin.image && !imageCache.current.has(coin.id)) {
           const newImg = new Image()

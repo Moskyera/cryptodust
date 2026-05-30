@@ -175,7 +175,7 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
 
     const data = await res.json();
 
-    let tokens = data.map((coin: any) => ({
+    let tokens: TokenPrice[] = data.map((coin: any) => ({
       id: coin.id,
       symbol: coin.symbol.toUpperCase(),
       name: coin.name,
@@ -226,7 +226,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 
     const data = await res.json();
 
-    let tokens = data.map((coin: any) => ({
+    let tokens: TokenPrice[] = data.map((coin: any) => ({
       id: coin.id,
       symbol: coin.symbol.toUpperCase(),
       name: coin.name,

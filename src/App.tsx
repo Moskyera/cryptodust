@@ -563,41 +563,115 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Area: Full immersive Visualization */}
+      {/* Main Area */}
       <div className="flex-1 relative overflow-hidden bg-black">
-        <Visualization 
-          tokens={currentPageTokens} 
-          selectedId={selectedId} 
-          onSelect={handleSelect}
-          favorites={favorites}
-          highlightUntil={highlightUntil}
-          sizeMetric={sizeMetric}
-          paused={physicsPaused}
-          onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
-          planetScale={isMobile ? 0.45 : 1}
-          isMobile={isMobile}
-        />
+        {/* Desktop: Visualization with bubbles */}
+        {!isMobile && (
+          <Visualization 
+            tokens={currentPageTokens} 
+            selectedId={selectedId} 
+            onSelect={handleSelect}
+            favorites={favorites}
+            highlightUntil={highlightUntil}
+            sizeMetric={sizeMetric}
+            paused={physicsPaused}
+            onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
+            planetScale={isMobile ? 0.45 : 1}
+            isMobile={isMobile}
+          />
+        )}
 
-        {/* Mobile-only floating "Highlight Big Movers" button */}
-        <button
-          onClick={highlightBigMovers}
-          className={`md:hidden absolute top-3 right-3 z-40 px-3 py-1.5 text-[10px] font-semibold rounded-2xl flex items-center gap-x-1.5 active:scale-[0.97] transition-all border shadow-sm ${
-            highlightUntil > Date.now() 
-              ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-300' 
-              : 'bg-[#0f0f16]/90 text-orange-400 border-orange-500/40 backdrop-blur-xl'
-          }`}
-        >
-          <Zap className="w-3 h-3" /> 
-          {highlightUntil > Date.now() ? 'HIGHLIGHTING' : 'BIG MOVERS'}
-        </button>
+        {/* Mobile: Simple list view instead of planets (due to touch issues) */}
+        {isMobile && (
+          <div className="h-full overflow-auto px-3 pt-2 pb-20 text-sm custom-scrollbar">
+            {/* Quick Filters on mobile */}
+            <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar">
+              {[
+                { label: 'All', key: null },
+                { label: 'Big Movers', key: 'gainers' },
+                { label: 'PulseChain', key: 'pulsechain' },
+                { label: 'Favorites', key: 'favorites' },
+              ].map((f, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (f.key === null) {
+                      setActivePreset(null);
+                    } else if (f.label === 'Big Movers') {
+                      highlightBigMovers();
+                    } else {
+                      setActivePreset(f.key);
+                    }
+                    setCurrentPage(0);
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap transition-all ${
+                    (f.key === null && !activePreset) || activePreset === f.key
+                      ? 'bg-white text-black border-white'
+                      : 'bg-white/5 border-white/10 text-white/80'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Mobile Filters button — opens the market drawer for browsing & filters */}
-        <button
-          onClick={() => setIsMarketOpen(true)}
-          className="md:hidden absolute top-3 left-3 z-40 px-3 py-1.5 text-[10px] font-semibold rounded-2xl bg-[#0f0f16]/90 text-[#67f6ff] border border-[#67f6ff]/40 backdrop-blur-xl active:scale-[0.97] transition-all"
-        >
-          FILTERS
-        </button>
+            {/* Pages */}
+            <div className="flex gap-1.5 overflow-x-auto pb-3 hide-scrollbar">
+              {Array.from({ length: totalPages }).map((_, index) => {
+                const start = index * 100;
+                const end = Math.min(start + 100, filteredTokens.length);
+                return (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentPage(index)}
+                    className={`text-xs px-3 py-1 rounded-xl border whitespace-nowrap ${
+                      currentPage === index
+                        ? 'bg-[#67f6ff] text-black border-[#67f6ff]'
+                        : 'bg-white/5 border-white/10 text-white/70'
+                    }`}
+                  >
+                    {start}–{end}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Mobile List */}
+            <div className="space-y-1">
+              {currentPageTokens.map(coin => {
+                const isHighlighted = highlightUntil > Date.now() && Math.abs(coin.price_change_percentage_24h || 0) > 6;
+                return (
+                  <div 
+                    key={coin.id}
+                    onClick={() => handleSelect(coin.id)}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-2xl border transition-all active:bg-white/5 ${
+                      isHighlighted 
+                        ? 'bg-orange-500/10 border-orange-500/30 animate-pulse' 
+                        : selectedId === coin.id 
+                          ? 'bg-white/5 border-[#67f6ff]' 
+                          : 'bg-white/5 border-white/10'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-semibold">{coin.symbol}</div>
+                      <div className="text-xs text-[#9ca3af]">{formatPrice(coin.current_price)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${(coin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-[#9ca3af]">
+                        {formatMarketValue(coin.market_cap)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Old mobile floating buttons are hidden in the new list view */}
 
         {/* Quick filter chips on mobile (faster than opening the drawer) */}
         <div className="md:hidden absolute top-12 left-3 right-3 z-40 flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
@@ -628,10 +702,10 @@ export default function App() {
           ))}
         </div>
 
-        {/* Mobile Bottom Sheet - Richer info panel (Proposal 1) */}
-        {selectedCoin && (
+        {/* Mobile Bottom Sheet - Richer info panel (only shown in mobile list view) */}
+        {isMobile && selectedCoin && (
           <div 
-            className="md:hidden fixed bottom-0 left-0 right-0 z-[70] bg-[#0f0f16] border-t border-[#25252f] rounded-t-3xl px-4 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]"
+            className="fixed bottom-0 left-0 right-0 z-[70] bg-[#0f0f16] border-t border-[#25252f] rounded-t-3xl px-4 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]"
             style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
           >
             {/* Header */}

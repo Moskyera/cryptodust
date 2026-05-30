@@ -107,9 +107,9 @@ export function Visualization({
 
       const scaled = Math.max(18, Math.min(92, base)) * planetScale
 
-      // On mobile we want significantly smaller planets for readability
-      const mobileMax = planetScale < 0.7 ? 46 : 75
-      return Math.max(12, Math.min(mobileMax, scaled))
+      // Desktop planets a little bigger (was 75)
+      const maxSize = planetScale < 0.7 ? 46 : 85
+      return Math.max(12, Math.min(maxSize, scaled))
     }
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {

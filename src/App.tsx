@@ -151,8 +151,12 @@ export default function App() {
               target="_blank" 
               className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10 text-xs md:text-sm"
             >
-              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-orange-500 text-white text-[10px] font-bold tracking-[0.5px] ring-1 ring-orange-300/50 shadow-sm transition-all duration-200 group-hover:scale-105 group-hover:bg-orange-600 group-hover:ring-orange-300/70">
-                PX
+              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
+                <img 
+                  src="/p.png" 
+                  alt="ProveX" 
+                  className="h-full w-full object-contain" 
+                />
               </div>
               <span className="font-semibold tracking-tight">ProveX</span>
             </a>
@@ -162,8 +166,12 @@ export default function App() {
               target="_blank" 
               className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10 text-xs md:text-sm"
             >
-              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-cyan-500 text-white text-[10px] font-bold tracking-[0.5px] ring-1 ring-cyan-300/50 shadow-sm transition-all duration-200 group-hover:scale-105 group-hover:bg-cyan-600 group-hover:ring-cyan-300/70">
-                LS
+              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
+                <img 
+                  src="/l.png" 
+                  alt="LibertySwap" 
+                  className="h-full w-full object-contain" 
+                />
               </div>
               <span className="font-semibold tracking-tight">LibertySwap</span>
             </a>

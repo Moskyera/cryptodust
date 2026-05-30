@@ -599,57 +599,113 @@ export default function App() {
           FILTERS
         </button>
 
-        {/* Mobile info panel — improved for better info density while staying compact */}
+        {/* Quick filter chips on mobile (faster than opening the drawer) */}
+        <div className="md:hidden absolute top-12 left-3 right-3 z-40 flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+          {[
+            { label: 'All', key: null },
+            { label: 'PulseChain', key: 'pulsechain' },
+            { label: 'Gainers', key: 'gainers' },
+            { label: 'Favorites', key: 'favorites' },
+          ].map((f, index) => (
+            <button
+              key={index}
+              onClick={() => {
+                if (f.key === null) {
+                  setActivePreset(null);
+                } else {
+                  setActivePreset(f.key);
+                }
+                setCurrentPage(0);
+              }}
+              className={`text-[11px] px-3 py-1 rounded-2xl border whitespace-nowrap transition-all ${
+                activePreset === f.key 
+                  ? 'bg-white text-black border-white' 
+                  : 'bg-[#0f0f16]/80 text-white/80 border-white/20 active:bg-white/10'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile Bottom Sheet - Richer info panel (Proposal 1) */}
         {selectedCoin && (
           <div 
-            className="md:hidden absolute bottom-[42px] left-0 right-0 z-50 bg-[#0f0f16]/96 backdrop-blur-xl border-t border-[#25252f] px-4 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] pointer-events-auto transition-all duration-200 ease-out"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).tagName === 'DIV') setSelectedId(null)
-            }}
+            className="md:hidden fixed bottom-0 left-0 right-0 z-[70] bg-[#0f0f16] border-t border-[#25252f] rounded-t-3xl px-4 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]"
+            style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
           >
-            {/* First row: Symbol + Price + 24h% */}
-            <div className="flex items-center justify-between mb-1">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 {selectedCoin.image && (
-                  <img src={selectedCoin.image} alt="" className="w-8 h-8 rounded-full ring-1 ring-white/10" />
+                  <img src={selectedCoin.image} alt="" className="w-10 h-10 rounded-full ring-1 ring-white/10" />
                 )}
                 <div>
-                  <span className="font-semibold text-base tracking-tight mr-2">{selectedCoin.symbol}</span>
-                  <span className="text-lg font-semibold tabular-nums">
-                    {formatPrice(selectedCoin.current_price)}
-                  </span>
+                  <div className="font-semibold text-lg">{selectedCoin.symbol}</div>
+                  <div className="text-sm text-[#9ca3af]">{selectedCoin.name}</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-sm">
-                <span className={`font-medium ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }`}>
-                  {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(1)}%
-                </span>
-                <button onClick={() => toggleFavorite(selectedCoin.id)} className="px-2 py-0.5 text-xs rounded bg-white/5 active:bg-white/10">
-                  {favorites.includes(selectedCoin.id) ? '★' : '☆'}
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => toggleFavorite(selectedCoin.id)} 
+                  className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
+                >
+                  {favorites.includes(selectedCoin.id) ? '★ Favorited' : '☆ Favorite'}
                 </button>
-                <button onClick={() => setSelectedId(null)} className="px-2 py-0.5 text-xs rounded bg-white/10">
-                  ✕
+                <button 
+                  onClick={() => setSelectedId(null)} 
+                  className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
+                >
+                  Close
                 </button>
               </div>
             </div>
 
-            {/* Second row: More stats (Market Cap, Volume, 1h%) */}
-            <div className="flex items-center justify-between text-xs text-[#9ca3af]">
-              <div className="flex gap-x-3">
-                {selectedCoin.market_cap ? (
-                  <span>MC: {formatMarketValue(selectedCoin.market_cap)}</span>
-                ) : null}
-                {selectedCoin.total_volume ? (
-                  <span>Vol: {formatMarketValue(selectedCoin.total_volume)}</span>
-                ) : null}
+            {/* Price + 24h% */}
+            <div className="flex items-baseline justify-between mb-3">
+              <div className="text-2xl font-semibold tabular-nums">
+                {formatPrice(selectedCoin.current_price)}
               </div>
+              <div className={`text-base font-medium ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }`}>
+                {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
+              </div>
+            </div>
 
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
+              <div className="flex justify-between border-b border-white/10 pb-1">
+                <span className="text-[#6b7280]">Market Cap</span>
+                <span className="font-medium">{formatMarketValue(selectedCoin.market_cap)}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/10 pb-1">
+                <span className="text-[#6b7280]">24h Volume</span>
+                <span className="font-medium">{formatMarketValue(selectedCoin.total_volume)}</span>
+              </div>
               {selectedCoin.price_change_percentage_1h !== undefined && (
-                <span className={`${(selectedCoin.price_change_percentage_1h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  1h: {(selectedCoin.price_change_percentage_1h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_1h || 0).toFixed(1)}%
-                </span>
+                <div className="flex justify-between border-b border-white/10 pb-1 col-span-2">
+                  <span className="text-[#6b7280]">1h Change</span>
+                  <span className={`font-medium ${ (selectedCoin.price_change_percentage_1h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }`}>
+                    {(selectedCoin.price_change_percentage_1h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_1h || 0).toFixed(2)}%
+                  </span>
+                </div>
               )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowRampModal(true)}
+                className="flex-1 py-2.5 rounded-2xl bg-emerald-500 text-black font-semibold active:bg-emerald-400"
+              >
+                Buy with RampNow
+              </button>
+              <button 
+                onClick={() => setSelectedId(null)}
+                className="px-5 py-2.5 rounded-2xl bg-white/5 border border-white/10 active:bg-white/10"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}

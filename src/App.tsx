@@ -380,6 +380,38 @@ export default function App() {
               <span className="font-semibold tracking-tight">LibertySwap</span>
             </a>
 
+            {/* Telegram Bot */}
+            <a 
+              href="https://t.me/iNFO_DUST_bot" 
+              target="_blank" 
+              className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-blue-500/15 to-sky-500/15 hover:from-blue-500/25 hover:to-sky-500/25 border border-blue-500/30 hover:border-blue-500/50 text-blue-300 hover:text-blue-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-blue-500/10 text-xs md:text-sm"
+            >
+              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
+                <img 
+                  src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" 
+                  alt="Telegram" 
+                  className="h-full w-full object-contain" 
+                />
+              </div>
+              <span className="font-semibold tracking-tight">Info Dust Bot</span>
+            </a>
+
+            {/* SimpleX Channel */}
+            <a 
+              href="https://smp16.simplex.im/c#k7z6aPXx-XHUGQE85X8R3fixZ7HITSmqC_eKlYsX9Y4" 
+              target="_blank" 
+              className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-purple-500/15 to-violet-500/15 hover:from-purple-500/25 hover:to-violet-500/25 border border-purple-500/30 hover:border-purple-500/50 text-purple-300 hover:text-purple-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-purple-500/10 text-xs md:text-sm"
+            >
+              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
+                <img 
+                  src="https://upload.wikimedia.org/wikipedia/en/8/81/SimpleX_Logo.png" 
+                  alt="SimpleX" 
+                  className="h-full w-full object-contain" 
+                />
+              </div>
+              <span className="font-semibold tracking-tight">SimpleX</span>
+            </a>
+
             {/* Donate Button - Support the project */}
             <button
               onClick={() => setShowDonateModal(true)}
@@ -593,6 +625,8 @@ export default function App() {
                 { label: 'Favorites', key: 'favorites' },
                 { label: 'ProveX', url: 'https://app.provex.com' },
                 { label: 'LibertySwap', url: 'https://libertyswap.finance' },
+                { label: 'Info Dust Bot', url: 'https://t.me/iNFO_DUST_bot' },
+                { label: 'SimpleX', url: 'https://smp16.simplex.im/c#k7z6aPXx-XHUGQE85X8R3fixZ7HITSmqC_eKlYsX9Y4' },
               ].map((item, idx) => {
                 // External link (ProveX / LibertySwap)
                 if (item.url) {

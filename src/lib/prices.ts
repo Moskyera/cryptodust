@@ -12,11 +12,7 @@ import useSWR from 'swr'
 
 // ==================== CONFIG ====================
 const COINGECKO_API_KEY = import.meta.env.VITE_COINGECKO_API_KEY || ''
-const MORALIS_API_KEY = import.meta.env.VITE_MORALIS_API_KEY || ''
 const REFRESH_INTERVAL = 5 * 60 * 1000 // 5 minutes
-
-// PulseChain chain id in Moralis format
-const PULSE_CHAIN = 'pulse' // or '0x171' in some endpoints
 
 // ==================== TYPES ====================
 export interface TokenPrice {
@@ -68,7 +64,7 @@ async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPri
 }
 
 // =====================================================
-// PULSECHAIN TOKENS - Moralis (better data than CoinGecko)
+// PULSECHAIN TOKENS (via CoinGecko platform/contract endpoint)
 // =====================================================
 
 // Contract addresses on PulseChain (0x171)
@@ -197,72 +193,7 @@ async function fetchPulseChainTokensFromCoinGecko(): Promise<TokenPrice[]> {
   return results;
 }
 
-// =====================================================
-// MORALIS - PulseChain only (kept as optional fallback)
-// =====================================================
-
-async function fetchPulseChainTokenFromMoralis(
-  symbol: string,
-  address: string
-): Promise<TokenPrice | null> {
-  if (!MORALIS_API_KEY) return null
-
-  try {
-    const url = `https://deep-index.moralis.io/api/v2.2/erc20/${address}/price?chain=${PULSE_CHAIN}`
-
-    const res = await fetch(url, {
-      headers: {
-        'X-API-Key': MORALIS_API_KEY,
-      },
-    })
-
-    if (!res.ok) {
-      console.warn(`[Moralis] ❌ Failed to fetch ${symbol}: Status ${res.status}`)
-      return null
-    }
-
-    const data = await res.json()
-
-    console.log(`[Moralis] ✅ Fetched ${symbol} → $${data.usdPrice} (24h: ${data.usdPrice24hrPercentChange}%)`)
-
-    return {
-      id: symbol.toLowerCase(),
-      symbol: symbol.toUpperCase(),
-      name: data.tokenName || symbol,
-      current_price: data.usdPrice || 0,
-      price_change_percentage_24h: data.usdPrice24hrPercentChange ?? 0,
-      price_change_percentage_1h: undefined, // Moralis v2.2 doesn't provide 1h easily here
-      market_cap: undefined,
-      total_volume: undefined,
-      image: undefined,
-    }
-  } catch (error) {
-    console.error(`[Moralis] ❌ Error fetching ${symbol}:`, error)
-    return null
-  }
-}
-
-async function fetchPulseChainTokensMoralis(): Promise<TokenPrice[]> {
-  if (!MORALIS_API_KEY) {
-    return []
-  }
-
-  console.log('[Moralis] Starting to fetch PulseChain tokens...')
-  const results: TokenPrice[] = []
-
-  for (const [id, address] of Object.entries(PULSECHAIN_TOKENS)) {
-    const token = await fetchPulseChainTokenFromMoralis(id, address)
-    if (token) {
-      results.push(token)
-    }
-    await new Promise((r) => setTimeout(r, 120))
-  }
-
-  console.log(`[Moralis] Finished fetching. Got ${results.length} tokens successfully.`)
-  return results
-}
-
-// Fetch top 500 coins (2 pages of 250) + important PulseChain tokens
+// Fetch top 500 coins (2 pages of 250) + important PulseChain tokens via CoinGecko
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial] = await Promise.all([

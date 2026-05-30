@@ -14,6 +14,8 @@ interface Bubble {
   restlessness: number      // How "lively" this planet is (higher = more idle movement)
   driftBiasX: number        // Personal subtle directional preference
   driftBiasY: number
+  // Locked base size so planets don't keep growing just because price/market cap moves
+  baseRadius: number
 }
 
 interface VisualizationProps {
@@ -73,7 +75,7 @@ export function Visualization({
     const newIds = new Set(tokens.map(t => t.id))
 
     // Re-initialize bubbles when the visible set of coins changes (from filters, search, pages, etc.)
-    // This ensures buttons like Quick Filters and Highlight work immediately without selecting a planet first
+    // Sizes are locked at creation time (via baseRadius) so planets don't keep inflating as prices move.
     const idsChanged = 
       currentIds.size !== newIds.size || 
       [...newIds].some(id => !currentIds.has(id))
@@ -121,6 +123,7 @@ export function Visualization({
         restlessness,
         driftBiasX,
         driftBiasY,
+        baseRadius: baseR,   // lock the size at creation time
       }
     })
 
@@ -144,7 +147,9 @@ export function Visualization({
     }
 
     bubblesRef.current.forEach(b => {
-      b.targetR = getBaseRadius(b.coin)
+      const newBase = getBaseRadius(b.coin)
+      b.baseRadius = newBase
+      b.targetR = newBase
     })
   }, [sizeMetric, planetScale])
 
@@ -226,7 +231,7 @@ export function Visualization({
           b.vx *= finalFriction
           b.vy *= finalFriction
 
-          // Smooth radius change (Size By)
+          // Smooth radius change (Size By) — uses the locked baseRadius so planets don't keep growing with live prices
           b.r += (b.targetR - b.r) * 0.085
         }
 

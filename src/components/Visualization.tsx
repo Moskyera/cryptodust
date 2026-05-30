@@ -858,15 +858,18 @@ export function Visualization({
     let displayWidth = parent.clientWidth
     let displayHeight = parent.clientHeight
 
-    // Better mobile viewport handling (notch, dynamic island, address bar, keyboard)
-    if ('visualViewport' in window && window.visualViewport) {
-      displayHeight = window.visualViewport.height
-    }
+    // Mobile-only viewport handling (notch, dynamic island, address bar, keyboard)
+    // IMPORTANT: Only apply on mobile so we don't change desktop behavior
+    if (isMobile) {
+      if ('visualViewport' in window && window.visualViewport) {
+        displayHeight = window.visualViewport.height
+      }
 
-    // Add extra bottom padding on iOS notched devices (Dynamic Island / notch)
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    const extraBottom = isIOS ? 12 : 0
-    displayHeight -= extraBottom
+      // Add extra bottom padding on iOS notched devices (Dynamic Island / notch)
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      const extraBottom = isIOS ? 12 : 0
+      displayHeight -= extraBottom
+    }
 
     canvas.width = Math.floor(displayWidth * dpr)
     canvas.height = Math.floor(displayHeight * dpr)

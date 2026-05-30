@@ -1,17 +1,25 @@
 /**
  * Price Service for CryptoDUST
  *
- * - Normal coins (top ~500) → CoinGecko (main markets)
- * - PulseChain ecosystem tokens → CoinGecko Demo/Free via /platform/pulsechain/contract/{address}
+ * - Normal coins (top ~500) → CoinGecko (use VITE_COINGECKO_API_KEY)
+ * - PulseChain ecosystem tokens → CoinGecko Demo/Free (use VITE_COINGECKO_PULSE_DEMO_KEY)
+ *   via the platform/contract endpoint for much better coverage.
  *
- * This approach gives significantly better data quality for PulseChain tokens
- * (PLS, pHEX, PLSX, INC, PCOCK, PRVX, etc.) than the generic markets endpoint.
+ * Recommended:
+ * - Put your main/paid CoinGecko key in VITE_COINGECKO_API_KEY
+ * - Put a free/demo CoinGecko key in VITE_COINGECKO_PULSE_DEMO_KEY (this isolates rate limits)
  */
 
 import useSWR from 'swr'
 
 // ==================== CONFIG ====================
+// Main CoinGecko key (can be paid or demo)
 const COINGECKO_API_KEY = import.meta.env.VITE_COINGECKO_API_KEY || ''
+
+// Dedicated key for PulseChain tokens (recommended to use a free/demo key here
+// so you don't burn quota on the main list). Falls back to the main key if not set.
+const COINGECKO_PULSE_DEMO_KEY = import.meta.env.VITE_COINGECKO_PULSE_DEMO_KEY || COINGECKO_API_KEY
+
 const REFRESH_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
 // ==================== TYPES ====================
@@ -129,8 +137,8 @@ async function fetchPulseChainTokenFromCoinGecko(
     const url = `https://api.coingecko.com/api/v3/coins/platform/pulsechain/contract/${address}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
 
     const headers: HeadersInit = {};
-    if (COINGECKO_API_KEY) {
-      headers['x-cg-demo-api-key'] = COINGECKO_API_KEY;
+    if (COINGECKO_PULSE_DEMO_KEY) {
+      headers['x-cg-demo-api-key'] = COINGECKO_PULSE_DEMO_KEY;
     }
 
     const res = await fetch(url, { headers });
@@ -165,7 +173,7 @@ async function fetchPulseChainTokenFromCoinGecko(
 }
 
 async function fetchPulseChainTokensFromCoinGecko(): Promise<TokenPrice[]> {
-  console.log('[CryptoDUST] Fetching PulseChain tokens via CoinGecko (demo/free)...');
+  console.log('[CryptoDUST] Fetching PulseChain tokens via CoinGecko (demo/free plan)...');
 
   const results: TokenPrice[] = [];
   let rateLimitHits = 0;

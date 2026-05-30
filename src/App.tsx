@@ -3,6 +3,73 @@ import { Visualization } from './components/Visualization'
 import { usePrices } from './lib/prices'
 import { TrendingUp, Zap } from 'lucide-react'
 
+// =====================================================
+// Mini Sparkline (Visual & UX Polish — Desktop Details)
+// Generates a beautiful plausible 24h trend line from the 24h% change.
+// No extra network calls. Looks organic and premium.
+// =====================================================
+function MiniSparkline({ coin, width = 260, height = 52 }: { coin: any; width?: number; height?: number }) {
+  if (!coin) return null
+
+  const chg = coin.price_change_percentage_24h || 0
+  const points = 19
+  const vals: number[] = []
+
+  // Seeded "random" using symbol for stable but varied shape per coin
+  let seed = 0
+  for (let i = 0; i < coin.symbol.length; i++) seed += coin.symbol.charCodeAt(i)
+
+  for (let i = 0; i < points; i++) {
+    // Base trend shape: upward or downward bias based on real 24h change
+    const progress = i / (points - 1)
+    const trend = (chg / 100) * 1.6 * (progress - 0.5) * 2   // stronger curve when big move
+
+    // Nice organic wiggles (seeded)
+    const w1 = Math.sin((i + seed * 0.7) * 0.9) * 0.6
+    const w2 = Math.sin((i * 1.7 + seed) * 0.6) * 0.45
+    const noise = ((seed * (i + 3)) % 17) / 17 - 0.5
+
+    // Combine + clamp
+    let v = 0.5 + trend * 0.65 + (w1 + w2) * 0.22 + noise * 0.11
+    v = Math.max(0.06, Math.min(0.94, v))
+    vals.push(v)
+  }
+
+  // Build SVG path
+  const stepX = width / (points - 1)
+  let d = ''
+  vals.forEach((v, i) => {
+    const px = i * stepX
+    const py = height - v * height
+    d += (i === 0 ? `M ${px} ${py}` : ` L ${px} ${py}`)
+  })
+
+  const isUp = chg >= 0
+  const stroke = isUp ? '#4ade80' : '#f87171'
+  const fillGradId = `spark-${coin.id || coin.symbol}`
+
+  return (
+    <svg width={width} height={height} className="block" style={{ marginTop: 2 }}>
+      <defs>
+        <linearGradient id={fillGradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={isUp ? '#4ade80' : '#f87171'} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={isUp ? '#4ade80' : '#f87171'} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+
+      {/* Subtle area fill */}
+      <path d={`${d} L ${width} ${height} L 0 ${height} Z`} fill={`url(#${fillGradId})`} />
+
+      {/* Main trend stroke */}
+      <path d={d} fill="none" stroke={stroke} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+
+      {/* Tiny dots at ends for polish */}
+      <circle cx="2" cy={height - vals[0] * height} r="1.6" fill={stroke} />
+      <circle cx={width - 2} cy={height - vals[vals.length - 1] * height} r="1.6" fill={stroke} />
+    </svg>
+  )
+}
+
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -16,6 +83,57 @@ export default function App() {
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // =====================================================
+  // DESKTOP KEYBOARD SHORTCUTS (Visual & UX Polish #4)
+  // ESC: clear selection | Space: pause/resume | Arrows: cycle planets
+  // H: highlight big movers | F: toggle favorites filter
+  // =====================================================
+  React.useEffect(() => {
+    if (isMobile) return // desktop only polish
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Ignore when user is typing in inputs / search
+      const active = document.activeElement as HTMLElement | null
+      const tag = active?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || active?.isContentEditable) return
+
+      const key = e.key.toLowerCase()
+
+      if (key === 'escape') {
+        e.preventDefault()
+        setSelectedId(null)
+      } else if (key === ' ' || key === 'spacebar') {
+        e.preventDefault()
+        setPhysicsPaused(p => !p)
+      } else if (key === 'h') {
+        e.preventDefault()
+        highlightBigMovers()
+      } else if (key === 'f') {
+        e.preventDefault()
+        // Toggle favorites quick filter or clear
+        setActivePreset(curr => curr === 'favorites' ? null : 'favorites')
+        setCurrentPage(0)
+      } else if (key === 'arrowright' || key === 'arrowleft') {
+        e.preventDefault()
+        // Cycle selection through currently visible page tokens (desktop polish)
+        if (!currentPageTokens.length) return
+        const idx = selectedId ? currentPageTokens.findIndex(t => t.id === selectedId) : -1
+        let nextIdx: number
+        if (key === 'arrowright') {
+          nextIdx = idx < 0 ? 0 : (idx + 1) % currentPageTokens.length
+        } else {
+          nextIdx = idx < 0 ? currentPageTokens.length - 1 : (idx - 1 + currentPageTokens.length) % currentPageTokens.length
+        }
+        const next = currentPageTokens[nextIdx]
+        if (next) setSelectedId(next.id)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isMobile, currentPageTokens, selectedId])
+
   const [activePreset, setActivePreset] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
@@ -442,6 +560,15 @@ export default function App() {
                   <span className={`font-semibold ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
                   </span>
+                </div>
+
+                {/* Mini Sparkline — desktop visual polish (idea 4) */}
+                <div className="pt-1 pb-2 border-t border-white/10">
+                  <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-0.5">
+                    <span>24h TREND</span>
+                    <span className="tabular-nums">{selectedCoin.price_change_percentage_24h > 0 ? '↑' : '↓'} simulated</span>
+                  </div>
+                  <MiniSparkline coin={selectedCoin} />
                 </div>
 
                 {selectedCoin.market_cap && (

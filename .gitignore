@@ -30,3 +30,12 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+# Leftover logo experiments from earlier iterations
+# (Current implementation uses external URLs for ProveX/LibertySwap + cryptodust-logo.png)
+public/l.png
+public/liberty.jpg
+public/logo.svg
+public/p.png
+public/prove.jpg
+public/provex.webp

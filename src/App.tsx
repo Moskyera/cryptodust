@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
-import { usePrices } from './lib/prices'
+import { usePrices, type TokenPrice } from './lib/prices'
 import { TrendingUp, Zap } from 'lucide-react'
 
 // =====================================================
@@ -70,6 +70,12 @@ function MiniSparkline({ coin, width = 260, height = 52 }: { coin: any; width?: 
   )
 }
 
+// Known PulseChain token identifiers (used for the dedicated filter to test the special CoinGecko API)
+const PULSECHAIN_IDS = new Set([
+  'pulsechain', 'hex-pulsechain', 'pulsex', 'incentive', 'pcock',
+  'provex', 'ptgc', 'most', 'zerø', 'prvx'
+])
+
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -84,55 +90,10 @@ export default function App() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // =====================================================
-  // DESKTOP KEYBOARD SHORTCUTS (Visual & UX Polish #4)
-  // ESC: clear selection | Space: pause/resume | Arrows: cycle planets
-  // H: highlight big movers | F: toggle favorites filter
-  // =====================================================
-  React.useEffect(() => {
-    if (isMobile) return // desktop only polish
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      // Ignore when user is typing in inputs / search
-      const active = document.activeElement as HTMLElement | null
-      const tag = active?.tagName?.toLowerCase()
-      if (tag === 'input' || tag === 'textarea' || active?.isContentEditable) return
-
-      const key = e.key.toLowerCase()
-
-      if (key === 'escape') {
-        e.preventDefault()
-        setSelectedId(null)
-      } else if (key === ' ' || key === 'spacebar') {
-        e.preventDefault()
-        setPhysicsPaused(p => !p)
-      } else if (key === 'h') {
-        e.preventDefault()
-        highlightBigMovers()
-      } else if (key === 'f') {
-        e.preventDefault()
-        // Toggle favorites quick filter or clear
-        setActivePreset(curr => curr === 'favorites' ? null : 'favorites')
-        setCurrentPage(0)
-      } else if (key === 'arrowright' || key === 'arrowleft') {
-        e.preventDefault()
-        // Cycle selection through currently visible page tokens (desktop polish)
-        if (!currentPageTokens.length) return
-        const idx = selectedId ? currentPageTokens.findIndex(t => t.id === selectedId) : -1
-        let nextIdx: number
-        if (key === 'arrowright') {
-          nextIdx = idx < 0 ? 0 : (idx + 1) % currentPageTokens.length
-        } else {
-          nextIdx = idx < 0 ? currentPageTokens.length - 1 : (idx - 1 + currentPageTokens.length) % currentPageTokens.length
-        }
-        const next = currentPageTokens[nextIdx]
-        if (next) setSelectedId(next.id)
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isMobile, currentPageTokens, selectedId])
+  // Refs used by keyboard handler (see below) so we never have stale closures
+  // and we avoid "used before declaration" errors.
+  const currentPageTokensRef = useRef<TokenPrice[]>([])
+  const selectedIdRef = useRef<string | null>(null)
 
   const [activePreset, setActivePreset] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
@@ -141,6 +102,7 @@ export default function App() {
   const [physicsPaused, setPhysicsPaused] = useState(false)
   const [isMarketOpen, setIsMarketOpen] = useState(false)
   const [showRampModal, setShowRampModal] = useState(false)
+  const [showDonateModal, setShowDonateModal] = useState(false)
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('cryptodust_favorites') || '[]')
@@ -173,6 +135,13 @@ export default function App() {
       result = result.sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0))
     } else if (activePreset === 'favorites') {
       result = result.filter(t => favorites.includes(t.id))
+    } else if (activePreset === 'pulsechain') {
+      // Filter to only PulseChain ecosystem tokens — great for testing if the dedicated
+      // CoinGecko /platform/pulsechain/contract/... calls (using the demo key) are working
+      result = result.filter(t =>
+        PULSECHAIN_IDS.has(t.id.toLowerCase()) ||
+        PULSECHAIN_IDS.has(t.symbol.toLowerCase())
+      )
     }
 
     return result.slice(0, 500) // keep max 500 coins
@@ -210,6 +179,61 @@ export default function App() {
     currentPage * PAGE_SIZE,
     (currentPage + 1) * PAGE_SIZE
   )
+
+  // Keep refs up to date so the keyboard handler (below) always sees fresh data
+  currentPageTokensRef.current = currentPageTokens
+  selectedIdRef.current = selectedId
+
+  // =====================================================
+  // DESKTOP KEYBOARD SHORTCUTS (Visual & UX Polish #4)
+  // ESC: clear selection | Space: pause/resume | Arrows: cycle planets
+  // H: highlight big movers | F: toggle favorites filter
+  // Uses refs to avoid "used before declaration" and stale closure problems.
+  // =====================================================
+  React.useEffect(() => {
+    if (isMobile) return // desktop only
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Ignore when user is typing in inputs / search
+      const active = document.activeElement as HTMLElement | null
+      const tag = active?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || active?.isContentEditable) return
+
+      const key = e.key.toLowerCase()
+      const tokens = currentPageTokensRef.current
+      const currentSel = selectedIdRef.current
+
+      if (key === 'escape') {
+        e.preventDefault()
+        setSelectedId(null)
+      } else if (key === ' ' || key === 'spacebar') {
+        e.preventDefault()
+        setPhysicsPaused(p => !p)
+      } else if (key === 'h') {
+        e.preventDefault()
+        highlightBigMovers()
+      } else if (key === 'f') {
+        e.preventDefault()
+        setActivePreset(curr => curr === 'favorites' ? null : 'favorites')
+        setCurrentPage(0)
+      } else if (key === 'arrowright' || key === 'arrowleft') {
+        e.preventDefault()
+        if (!tokens.length) return
+        const idx = currentSel ? tokens.findIndex(t => t.id === currentSel) : -1
+        let nextIdx: number
+        if (key === 'arrowright') {
+          nextIdx = idx < 0 ? 0 : (idx + 1) % tokens.length
+        } else {
+          nextIdx = idx < 0 ? tokens.length - 1 : (idx - 1 + tokens.length) % tokens.length
+        }
+        const next = tokens[nextIdx]
+        if (next) setSelectedId(next.id)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isMobile]) // minimal deps — live values come from refs
 
   return (
     <div className="h-[100dvh] w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">   {/* 100dvh is much better on mobile than h-screen */}
@@ -293,6 +317,15 @@ export default function App() {
               </div>
               <span className="font-semibold tracking-tight">LibertySwap</span>
             </a>
+
+            {/* Donate Button - Support the project */}
+            <button
+              onClick={() => setShowDonateModal(true)}
+              className="premium-button group flex items-center gap-x-2 px-4 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-amber-500/15 to-yellow-500/15 hover:from-amber-500/25 hover:to-yellow-500/25 border border-amber-500/30 hover:border-amber-500/50 text-amber-300 hover:text-amber-200 transition-all active:scale-[0.985] text-xs md:text-sm"
+              title="Support the project with ETH"
+            >
+              <span className="font-semibold tracking-tight">Donate ETH</span>
+            </button>
 
             {/* Beautiful Export group */}
             <div className="flex items-center bg-white/5 rounded-2xl border border-white/10 ml-1">
@@ -400,29 +433,44 @@ export default function App() {
 
           {/* Quick Filters - More interesting styling */}
           <div className="flex items-center gap-x-2 flex-wrap">
-            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2">QUICK FILTERS</div>
+            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2 flex items-center gap-1.5">
+              QUICK FILTERS
+              {activePreset === 'pulsechain' && (
+                <span className="text-[9px] px-1.5 py-px rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">API TEST</span>
+              )}
+            </div>
             {[
               { label: 'Big Gainers', key: 'gainers' },
               { label: 'Big Losers', key: 'losers' },
               { label: 'High Volume', key: 'volume' },
               { label: 'Favorites', key: 'favorites' },
+              { label: 'PulseChain', key: 'pulsechain' },
               { label: 'Clear', key: null },
-            ].map(f => (
-              <button
-                key={f.key || 'clear'}
-                onClick={() => {
-                  setActivePreset(f.key)
-                  setCurrentPage(0)
-                }}
-                className={`filter-chip px-4 py-1.5 text-xs rounded-3xl border font-medium ${
-                  activePreset === f.key 
-                    ? 'bg-white text-black border-white shadow-sm' 
-                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80 hover:text-white'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+            ].map(f => {
+              const isPulse = f.key === 'pulsechain'
+              const isActive = activePreset === f.key
+
+              return (
+                <button
+                  key={f.key || 'clear'}
+                  onClick={() => {
+                    setActivePreset(f.key)
+                    setCurrentPage(0)
+                  }}
+                  className={`filter-chip px-4 py-1.5 text-xs rounded-3xl border font-medium transition-all ${
+                    isActive 
+                      ? isPulse 
+                        ? 'bg-violet-500 text-white border-violet-400 shadow-sm' 
+                        : 'bg-white text-black border-white shadow-sm'
+                      : isPulse
+                        ? 'bg-violet-500/10 hover:bg-violet-500/20 border-violet-500/30 text-violet-300 hover:text-violet-200'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80 hover:text-white'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              )
+            })}
           </div>
 
           {/* Page Tabs - Show again every 100 coins for the first 500 coins */}
@@ -603,6 +651,13 @@ export default function App() {
 
             <div className="px-5 py-3 bg-black/40 border-t border-[#25252f] text-[10px] text-[#6b7280]">
               Click the star to favorite • Drag the planet to fling it
+              <span className="mx-2 text-amber-500/60">•</span>
+              <button 
+                onClick={() => setShowDonateModal(true)} 
+                className="text-amber-400 hover:text-amber-300 underline-offset-2 hover:underline transition-colors"
+              >
+                Support the project
+              </button>
             </div>
           </div>
         )}
@@ -817,6 +872,72 @@ export default function App() {
 
               <p className="text-center text-[11px] text-[#6b7280] mt-3">
                 Card • Bank Transfer • Apple Pay • Google Pay
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Donate Modal - Ethereum support for the project */}
+      {showDonateModal && (
+        <div 
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" 
+          onClick={() => setShowDonateModal(false)}
+        >
+          <div 
+            className="w-full max-w-md rounded-3xl border border-[#25252f] bg-[#111118] overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-sm text-[#6b7280]">Support the project</div>
+                  <div className="text-2xl font-semibold tracking-tight">Donate ETH</div>
+                </div>
+                <button 
+                  onClick={() => setShowDonateModal(false)}
+                  className="text-2xl text-[#6b7280] hover:text-white leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <p className="text-sm text-[#9ca3af] mb-5">
+                Your support helps me maintain and improve CryptoDUST. Thank you!
+              </p>
+
+              <div className="bg-[#0a0a12] rounded-2xl p-4 mb-4 border border-white/10">
+                <div className="text-xs text-[#6b7280] mb-1.5">Ethereum Address</div>
+                <div className="font-mono text-sm break-all text-white tracking-tight">
+                  0x38be95f628ed004a000ddf8724142a95e3c4b492
+                </div>
+              </div>
+
+              <button
+                onClick={async (e) => {
+                  try {
+                    await navigator.clipboard.writeText("0x38be95f628ed004a000ddf8724142a95e3c4b492")
+                    
+                    const btn = e.currentTarget as HTMLButtonElement
+                    const originalText = btn.innerText
+                    btn.innerText = "✓ Copied!"
+                    setTimeout(() => {
+                      if (btn && btn.innerText === "✓ Copied!") {
+                        btn.innerText = originalText
+                      }
+                    }, 2000)
+                  } catch {
+                    // Fallback: show the address
+                    alert("0x38be95f628ed004a000ddf8724142a95e3c4b492")
+                  }
+                }}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-semibold text-base active:scale-[0.985] transition-all"
+              >
+                Copy Ethereum Address
+              </button>
+
+              <p className="text-center text-[11px] text-[#6b7280] mt-3">
+                Any amount is appreciated ❤️
               </p>
             </div>
           </div>

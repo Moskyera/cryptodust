@@ -71,11 +71,18 @@ function MiniSparkline({ coin, width = 260, height = 52 }: { coin: any; width?: 
 }
 
 // Known PulseChain token identifiers (used for the "PulseChain" filter)
-// Expanded to cover the official CoinGecko Pulsechain Ecosystem category
+// Includes the user's curated list + common ecosystem tokens
 const PULSECHAIN_IDS = new Set([
   'pulsechain', 'hex-pulsechain', 'pulsex', 'incentive', 'pcock',
   'provex', 'ptgc', 'most', 'zerø', 'prvx', 'phex', 'plsx', 'inc',
-  'ehex', 'hex', 'pls', 'phex-pulsechain'
+  'ehex', 'hex', 'pls', 'phex-pulsechain',
+  // User's specific curated list
+  'dai-on-pulsechain', 'wrapped-pulse-wpls', 'the-grays-currency',
+  'pulsechain-peacock', 'most-wanted-2', 'liquid-loans-usdl', 'upx',
+  'zerotrust', 'vouch', 'emit-2', 'pulsechain-tiger', 'hex-dollar-coin',
+  'icosa', 'vouch-staked-pls', 'scada', 'pulsechain-bridged-hex-pulsechain',
+  'liquid-loans', 'just-a-pulse-guy', 'top-hat-2', 'wrapped-bitcoin-pulsechain',
+  'unity-3', 'coin-mafia', 't-i-m-e-dividendimpls-finance', 'teddy-bear', 'doubt'
 ])
 
 export default function App() {

@@ -82,6 +82,37 @@ const SPECIAL_PULSECHAIN_IDS = [
   'pcock'                 // PCOCK
 ]
 
+// Curated list of PulseChain tokens the user specifically wants to show
+// These are fetched efficiently using one ids= call (very API friendly)
+const CURATED_PULSECHAIN_IDS = [
+  'dai-on-pulsechain',
+  'wrapped-pulse-wpls',
+  'the-grays-currency',
+  'pulsechain-peacock',
+  'most-wanted-2',
+  'liquid-loans-usdl',
+  'upx',
+  'zerotrust',
+  'vouch',
+  'emit-2',
+  'pulsechain-tiger',
+  'hex-dollar-coin',
+  'icosa',
+  'vouch-staked-pls',
+  'hex-pulsechain',
+  'scada',
+  'pulsechain-bridged-hex-pulsechain',
+  'liquid-loans',
+  'just-a-pulse-guy',
+  'top-hat-2',
+  'wrapped-bitcoin-pulsechain',
+  'unity-3',
+  'coin-mafia',
+  't-i-m-e-dividendimpls-finance',
+  'teddy-bear',
+  'doubt'
+]
+
 async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
   if (SPECIAL_PULSECHAIN_IDS.length === 0) return []
 
@@ -159,6 +190,54 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
   }
 }
 
+// Fetch the user's specific curated PulseChain tokens using the efficient ids= parameter
+async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
+  if (CURATED_PULSECHAIN_IDS.length === 0) return [];
+
+  console.log(`[CryptoDUST] Fetching ${CURATED_PULSECHAIN_IDS.length} curated PulseChain tokens...`);
+
+  try {
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h`;
+
+    const headers: HeadersInit = {};
+    if (COINGECKO_PULSE_DEMO_KEY) {
+      headers['x-cg-demo-api-key'] = COINGECKO_PULSE_DEMO_KEY;
+    }
+
+    const res = await fetch(url, { headers });
+
+    if (!res.ok) {
+      if (res.status === 429) {
+        console.warn('[CoinGecko Pulse] Rate limit hit while fetching curated PulseChain tokens.');
+      } else {
+        console.warn(`[CoinGecko Pulse] Curated list fetch failed: ${res.status}`);
+      }
+      return [];
+    }
+
+    const data = await res.json();
+
+    const tokens = data.map((coin: any) => ({
+      id: coin.id,
+      symbol: coin.symbol.toUpperCase(),
+      name: coin.name,
+      current_price: coin.current_price || 0,
+      price_change_percentage_24h: coin.price_change_percentage_24h || 0,
+      price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      market_cap: coin.market_cap,
+      total_volume: coin.total_volume,
+      image: coin.image,
+    }));
+
+    console.log(`[CryptoDUST] Successfully fetched ${tokens.length} curated PulseChain tokens.`);
+    return tokens;
+
+  } catch (error) {
+    console.warn('[CoinGecko Pulse] Error fetching curated PulseChain tokens:', error);
+    return [];
+  }
+}
+
 // Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem via CoinGecko category
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
@@ -181,11 +260,27 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     }
 
     // ============================================
-    // PulseChain Ecosystem via official category
-    // Much better than manual contract list:
-    // - Proper logos from the category
-    // - Accurate market stats
-    // - More coins automatically
+    // User's Curated PulseChain tokens (highest priority)
+    // These are the specific coins you requested to guarantee they appear
+    // Fetched efficiently in one call using the ids= parameter
+    // ============================================
+    try {
+      const curatedPulse = await fetchCuratedPulseChainTokens()
+
+      for (const token of curatedPulse) {
+        const index = all.findIndex(t => t.id === token.id)
+        if (index !== -1) {
+          all[index] = { ...all[index], ...token }
+        } else {
+          all.push(token)
+        }
+      }
+    } catch (e) {
+      console.warn('[CryptoDUST] Curated PulseChain fetch failed', e)
+    }
+
+    // ============================================
+    // PulseChain Ecosystem via official category (broader discovery)
     // Source: https://www.coingecko.com/en/categories/pulsechain-ecosystem
     // ============================================
     try {

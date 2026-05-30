@@ -645,7 +645,22 @@ export function Visualization({
         ctx.globalAlpha = 0.92
         const badgePrice = coin.current_price || 0
         const badgeChg = coin.price_change_percentage_24h || 0
-        const priceLabel = badgePrice > 999 ? '$' + badgePrice.toFixed(0) : badgePrice > 99 ? '$' + badgePrice.toFixed(1) : '$' + badgePrice.toFixed(2)
+
+        // Better price formatting for very small coins (common in PulseChain)
+        let priceLabel: string
+        if (badgePrice >= 1000) {
+          priceLabel = '$' + badgePrice.toFixed(0)
+        } else if (badgePrice >= 1) {
+          priceLabel = '$' + badgePrice.toFixed(2)
+        } else if (badgePrice >= 0.01) {
+          priceLabel = '$' + badgePrice.toFixed(4)
+        } else if (badgePrice >= 0.0001) {
+          priceLabel = '$' + badgePrice.toFixed(6)
+        } else if (badgePrice >= 0.000001) {
+          priceLabel = '$' + badgePrice.toFixed(8)
+        } else {
+          priceLabel = '$' + badgePrice.toExponential(2)
+        }
         const chgLabel = (badgeChg > 0 ? '+' : '') + badgeChg.toFixed(1) + '%'
 
         // Measure text for pill background
@@ -793,9 +808,20 @@ export function Visualization({
       }
 
       const price = b.coin.current_price || 0
-      const priceStr = price > 1000 ? '$' + price.toLocaleString()
-                     : price > 1 ? '$' + price.toFixed(2)
-                     : '$' + price.toFixed(5)
+      let priceStr: string
+      if (price >= 1000) {
+        priceStr = '$' + price.toLocaleString(undefined, { maximumFractionDigits: 0 })
+      } else if (price >= 1) {
+        priceStr = '$' + price.toFixed(2)
+      } else if (price >= 0.01) {
+        priceStr = '$' + price.toFixed(4)
+      } else if (price >= 0.0001) {
+        priceStr = '$' + price.toFixed(6)
+      } else if (price >= 0.000001) {
+        priceStr = '$' + price.toFixed(8)
+      } else {
+        priceStr = '$' + price.toExponential(2)
+      }
 
       if (priceEl && priceEl.textContent !== priceStr) {
         priceEl.textContent = priceStr

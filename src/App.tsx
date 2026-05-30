@@ -180,6 +180,26 @@ export default function App() {
     }
   }
 
+  // Price formatter that shows enough decimals for very small coins
+  function formatPrice(price: number | null | undefined): string {
+    if (!price || price <= 0) return '$0';
+
+    if (price >= 1000) {
+      return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    } else if (price >= 1) {
+      return '$' + price.toFixed(2);
+    } else if (price >= 0.01) {
+      return '$' + price.toFixed(4);
+    } else if (price >= 0.0001) {
+      return '$' + price.toFixed(6);
+    } else if (price >= 0.000001) {
+      return '$' + price.toFixed(8);
+    } else {
+      // Extremely small prices (common on some PulseChain tokens)
+      return '$' + price.toExponential(2);
+    }
+  }
+
   const handleSelect = (id: string | null) => {
     if (id === null) {
       setSelectedId(null)
@@ -579,7 +599,7 @@ export default function App() {
                 <div>
                   <span className="font-semibold text-base tracking-tight mr-2">{selectedCoin.symbol}</span>
                   <span className="text-lg font-semibold tabular-nums">
-                    ${selectedCoin.current_price?.toLocaleString(undefined, { maximumFractionDigits: selectedCoin.current_price > 100 ? 0 : 2 })}
+                    {formatPrice(selectedCoin.current_price)}
                   </span>
                 </div>
               </div>
@@ -635,7 +655,7 @@ export default function App() {
                 <div className="flex justify-between items-baseline">
                   <span className="text-[#6b7280]">Price</span>
                   <span className="font-semibold tabular-nums text-2xl tracking-tighter">
-                    ${selectedCoin.current_price?.toLocaleString()}
+                    {formatPrice(selectedCoin.current_price)}
                   </span>
                 </div>
 
@@ -812,7 +832,7 @@ export default function App() {
                   >
                     <td className="py-2.5 font-medium text-white/90">{coin.symbol}</td>
                     <td className="py-2.5 text-right font-medium tabular-nums text-white/90">
-                      ${coin.current_price?.toLocaleString()}
+                      {formatPrice(coin.current_price)}
                     </td>
                     <td className={`py-2.5 text-right font-medium ${(coin.price_change_percentage_24h||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
@@ -898,7 +918,7 @@ export default function App() {
                 <div className="flex justify-between text-sm">
                   <span className="text-[#6b7280]">Current Price</span>
                   <span className="font-semibold tabular-nums">
-                    ${selectedCoin.current_price?.toLocaleString()}
+                    {formatPrice(selectedCoin.current_price)}
                   </span>
                 </div>
               </div>

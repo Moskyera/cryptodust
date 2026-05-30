@@ -585,7 +585,7 @@ export default function App() {
         {isMobile && (
           <div className="h-full overflow-auto px-3 pt-2 pb-20 text-sm custom-scrollbar">
             {/* Quick Filters on mobile */}
-            <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar">
+            <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar">
               {[
                 { label: 'All', key: null },
                 { label: 'Big Movers', key: 'gainers' },
@@ -616,7 +616,7 @@ export default function App() {
             </div>
 
             {/* Pages - better spacing and touch targets on mobile */}
-            <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-1">
+            <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
               {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100;
                 const end = Math.min(start + 100, filteredTokens.length);
@@ -686,36 +686,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Old mobile floating buttons are hidden in the new list view */}
-
-        {/* Quick filter chips on mobile (faster than opening the drawer) */}
-        <div className="md:hidden absolute top-12 left-3 right-3 z-40 flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
-          {[
-            { label: 'All', key: null },
-            { label: 'PulseChain', key: 'pulsechain' },
-            { label: 'Gainers', key: 'gainers' },
-            { label: 'Favorites', key: 'favorites' },
-          ].map((f, index) => (
-            <button
-              key={index}
-              onClick={() => {
-                if (f.key === null) {
-                  setActivePreset(null);
-                } else {
-                  setActivePreset(f.key);
-                }
-                setCurrentPage(0);
-              }}
-              className={`text-[11px] px-3 py-1 rounded-2xl border whitespace-nowrap transition-all ${
-                activePreset === f.key 
-                  ? 'bg-white text-black border-white' 
-                  : 'bg-[#0f0f16]/80 text-white/80 border-white/20 active:bg-white/10'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {/* Old mobile floating buttons and duplicate chips removed - using integrated list view instead */}
 
         {/* Mobile Bottom Sheet - Richer info panel (only shown in mobile list view) */}
         {isMobile && selectedCoin && (

@@ -53,6 +53,10 @@ export function Visualization({
   const mouseRef = useRef({ x: 0, y: 0 })
   const lastDragPosRef = useRef({ x: 0, y: 0, time: 0 }) // for calculating fling velocity on release
 
+  // Hover preview state (desktop UX polish) — separate from selection/click
+  const hoveredIdRef = useRef<string | null>(null)
+  const lastHoverCheckRef = useRef(0)
+
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
   const selectedId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedId
@@ -549,11 +553,21 @@ export function Visualization({
         // Main crisp ring (slightly pulsing radius but very subtle)
         ctx.globalAlpha = 0.95
         ctx.strokeStyle = '#67f6ff'
-        ctx.lineWidth = 2.0
+        ctx.lineWidth = isMobile ? 2.0 : 2.6   // richer on desktop
         const ringRadius = r + 7.5 + Math.sin(t / 520) * 0.8
         ctx.beginPath()
         ctx.arc(x, y, ringRadius, 0, Math.PI * 2)
         ctx.stroke()
+
+        // Extra "locked focus" outer ring — desktop only (stronger premium selection state)
+        if (!isMobile) {
+          ctx.globalAlpha = 0.28
+          ctx.strokeStyle = '#67f6ff'
+          ctx.lineWidth = 1.0
+          ctx.beginPath()
+          ctx.arc(x, y, r + 32, 0, Math.PI * 2)
+          ctx.stroke()
+        }
 
         // Rotating dashed energy ring (the "spinning" feeling)
         ctx.globalAlpha = 0.75
@@ -569,7 +583,7 @@ export function Visualization({
         // Orbiting bright particles — very expensive, completely skip during mobile drag
         if (!simplifyForDrag && r > 20) {
           ctx.globalAlpha = 1.0
-          const orbitCount = isMobile ? 3 : 4
+          const orbitCount = isMobile ? 3 : 5   // richer desktop selection energy
           for (let i = 0; i < orbitCount; i++) {
             const speed1 = t / 720 + (i * (Math.PI * 2 / orbitCount))
             const speed2 = t / 1050 + (i * 1.7)
@@ -580,18 +594,19 @@ export function Visualization({
 
             ctx.fillStyle = '#67f6ff'
             ctx.beginPath()
-            ctx.arc(ox, oy, 1.9, 0, Math.PI * 2)
+            ctx.arc(ox, oy, isMobile ? 1.7 : 2.1, 0, Math.PI * 2)
             ctx.fill()
 
             ctx.fillStyle = '#ffffff'
             ctx.beginPath()
-            ctx.arc(ox, oy, 0.85, 0, Math.PI * 2)
+            ctx.arc(ox, oy, isMobile ? 0.75 : 0.95, 0, Math.PI * 2)
             ctx.fill()
           }
 
-          // Second orbit — only on bigger planets
-          if (r > 28) {
-            for (let i = 0; i < 2; i++) {
+          // Second orbit — only on bigger planets (more particles on desktop)
+          if (r > 26) {
+            const secondCount = isMobile ? 2 : 3
+            for (let i = 0; i < secondCount; i++) {
               const angle = (t / 1650) + (i * 1.8)
               const dist2 = r + 25 + Math.cos(t / 820 + i) * 1.5
               const ox2 = x + Math.cos(angle) * dist2
@@ -599,11 +614,72 @@ export function Visualization({
 
               ctx.fillStyle = i % 2 === 0 ? '#a5f3fc' : '#67f6ff'
               ctx.beginPath()
-              ctx.arc(ox2, oy2, 1.5, 0, Math.PI * 2)
+              ctx.arc(ox2, oy2, isMobile ? 1.4 : 1.7, 0, Math.PI * 2)
               ctx.fill()
             }
           }
         }
+      }
+
+      // DESKTOP HOVER PREVIEW (Visual & UX Polish item 4)
+      // Soft elegant ring + floating info badge when hovering a planet (without selecting it)
+      // Gives instant rich feedback and "mini info on hover" feel on desktop only
+      if (!isMobile && !simplifyForDrag && hoveredIdRef.current === coin.id && selectedId !== coin.id) {
+        const t = Date.now()
+
+        // Very soft wide preview ring (distinct from selection, gentle presence)
+        ctx.globalAlpha = 0.13
+        ctx.fillStyle = '#e0f2fe'
+        ctx.beginPath()
+        ctx.arc(x, y, r + 36, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.globalAlpha = 0.65
+        ctx.strokeStyle = '#bae6fd'
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.arc(x, y, r + 18 + Math.sin(t / 640) * 0.6, 0, Math.PI * 2)
+        ctx.stroke()
+
+        // Tiny floating info badge (drawn in canvas — clean, no DOM sync)
+        ctx.globalAlpha = 0.92
+        const badgePrice = coin.current_price || 0
+        const badgeChg = coin.price_change_percentage_24h || 0
+        const priceLabel = badgePrice > 999 ? '$' + badgePrice.toFixed(0) : badgePrice > 99 ? '$' + badgePrice.toFixed(1) : '$' + badgePrice.toFixed(2)
+        const chgLabel = (badgeChg > 0 ? '+' : '') + badgeChg.toFixed(1) + '%'
+
+        // Measure text for pill background
+        ctx.font = '600 11px Inter, system-ui, sans-serif'
+        const textW = ctx.measureText(coin.symbol + '  ' + priceLabel + '  ' + chgLabel).width
+        const pillW = Math.max(78, textW + 22)
+        const pillH = 19
+        const pillX = x - pillW / 2
+        const pillY = y - r - 29
+
+        // Subtle pill background (reliable, works on all browsers)
+        ctx.fillStyle = 'rgba(17,17,24,0.92)'
+        ctx.beginPath()
+        ctx.roundRect(pillX, pillY, pillW, pillH, 5)
+        ctx.fill()
+
+        // Border accent
+        ctx.strokeStyle = 'rgba(103,246,255,0.35)'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.roundRect(pillX, pillY, pillW, pillH, 5)
+        ctx.stroke()
+
+        // Text content
+        ctx.fillStyle = '#e0f2fe'
+        ctx.fillText(coin.symbol, pillX + 9, pillY + 13.5)
+
+        ctx.fillStyle = '#f1f5f9'
+        ctx.fillText(priceLabel, pillX + 9 + ctx.measureText(coin.symbol + '  ').width, pillY + 13.5)
+
+        ctx.fillStyle = badgeChg >= 0 ? '#4ade80' : '#f87171'
+        ctx.fillText(chgLabel, pillX + pillW - 9 - ctx.measureText(chgLabel).width, pillY + 13.5)
+
+        ctx.globalAlpha = 1.0
       }
 
       // Orbiting sparkles when a big mover is highlighted — skip entirely during mobile drag
@@ -905,6 +981,39 @@ export function Visualization({
       if (now - lastDragPosRef.current.time > 16) {
         lastDragPosRef.current = { x: wx, y: wy, time: now }
       }
+      // While dragging, clear hover preview
+      hoveredIdRef.current = null
+      return
+    }
+
+    // Desktop-only hover preview detection (smooth, cheap, feels premium)
+    // Only on desktop and when not interacting — gives rich "info on hover" without clicking
+    if (!isMobile) {
+      const now = Date.now()
+      if (now - lastHoverCheckRef.current > 32) { // ~30fps hover test is plenty
+        lastHoverCheckRef.current = now
+
+        const currentBubbles = bubblesRef.current
+        let closest: Bubble | null = null
+        let minDist = Infinity
+
+        const hoverRadius = 52 // generous comfortable hover target on desktop
+
+        for (let i = 0; i < currentBubbles.length; i++) {
+          const b = currentBubbles[i]
+          const dist = Math.hypot(b.x - wx, b.y - wy)
+          const effective = b.r + hoverRadius
+          if (dist < effective && dist < minDist) {
+            minDist = dist
+            closest = b
+          }
+        }
+
+        const newHover = closest ? closest.id : null
+        if (newHover !== hoveredIdRef.current) {
+          hoveredIdRef.current = newHover
+        }
+      }
     }
   }
 
@@ -957,6 +1066,7 @@ export function Visualization({
       }
     }
     draggingIdRef.current = null
+    hoveredIdRef.current = null // clear hover preview on leave
   }
 
   return (
@@ -987,7 +1097,7 @@ export function Visualization({
           {paused ? '▶ Resume' : '⏸ Pause'}
         </div>
         <div className="text-[#6b7280] hidden md:block">•</div>
-        <div className="text-white/70 hidden md:block text-[10px]">Drag to fling</div>
+        <div className="text-white/70 hidden md:block text-[10px]">Drag to fling • Arrows / Space / H / F / ESC</div>
       </div>
 
       {tokens.length === 0 && (

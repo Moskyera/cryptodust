@@ -874,9 +874,13 @@ export function Visualization({
     canvas.width = Math.floor(displayWidth * dpr)
     canvas.height = Math.floor(displayHeight * dpr)
 
-    // Explicitly set CSS size for precise control (prevents stretching on desktop)
-    canvas.style.width = displayWidth + 'px'
-    canvas.style.height = displayHeight + 'px'
+    // On desktop we let CSS (width:100%; height:100%) handle sizing cleanly
+    // to keep perfect circle rendering. On mobile we set explicit sizes
+    // for better control with dynamic viewport.
+    if (isMobile) {
+      canvas.style.width = displayWidth + 'px'
+      canvas.style.height = displayHeight + 'px'
+    }
 
     const ctx = canvas.getContext('2d', { alpha: true })
     if (ctx) {

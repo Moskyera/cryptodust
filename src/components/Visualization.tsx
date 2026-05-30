@@ -89,11 +89,21 @@ export function Visualization({
     const h = canvas.height || window.innerHeight * 1.5
 
     const getBaseRadius = (coin: TokenPrice) => {
-      const base = sizeMetric === 'volume'
-        ? 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10
-        : sizeMetric === 'price'
-          ? 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
-          : 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
+      let base: number
+
+      if (sizeMetric === 'volume') {
+        base = 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10
+      } else if (sizeMetric === 'price') {
+        base = 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
+      } else if (sizeMetric === 'change_24h') {
+        // Size by 24h % change — positive moves make the planet bigger
+        const change = coin.price_change_percentage_24h || 0
+        // Base size + strong scaling on the percentage
+        base = 32 + (change * 1.15)
+      } else {
+        // market_cap
+        base = 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
+      }
 
       const scaled = Math.max(18, Math.min(92, base)) * planetScale
 
@@ -135,11 +145,18 @@ export function Visualization({
     if (!bubblesRef.current.length) return
 
     const getBaseRadius = (coin: TokenPrice) => {
-      const base = sizeMetric === 'volume'
-        ? 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10
-        : sizeMetric === 'price'
-          ? 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
-          : 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
+      let base: number
+
+      if (sizeMetric === 'volume') {
+        base = 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10
+      } else if (sizeMetric === 'price') {
+        base = 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
+      } else if (sizeMetric === 'change_24h') {
+        const change = coin.price_change_percentage_24h || 0
+        base = 32 + (change * 1.15)
+      } else {
+        base = 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
+      }
 
       const scaled = Math.max(18, Math.min(92, base)) * planetScale
       const mobileMax = planetScale < 0.7 ? 46 : 75
@@ -152,6 +169,22 @@ export function Visualization({
       b.targetR = newBase
     })
   }, [sizeMetric, planetScale])
+
+  // When in "Size by 24h %" mode, keep sizes updated as the percentage changes over time
+  useEffect(() => {
+    if (sizeMetric !== 'change_24h' || !bubblesRef.current.length) return
+
+    bubblesRef.current.forEach(b => {
+      const change = b.coin.price_change_percentage_24h || 0
+      const newTarget = 32 + (change * 1.15)
+      const scaled = Math.max(18, Math.min(92, newTarget)) * planetScale
+      const mobileMax = planetScale < 0.7 ? 46 : 75
+      const final = Math.max(12, Math.min(mobileMax, scaled))
+
+      b.baseRadius = final
+      b.targetR = final
+    })
+  }, [tokens, sizeMetric, planetScale])  // tokens update on every data refresh
 
   // Physics + Render loop (fully self-contained, balanced braces)
   const tick = useCallback(() => {

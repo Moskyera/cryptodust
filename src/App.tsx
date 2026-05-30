@@ -94,7 +94,7 @@ const PULSECHAIN_EXCLUDED_IDS = new Set([
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price'>('market_cap')
+  const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price' | 'change_24h'>('change_24h')
   const [isMobile, setIsMobile] = useState(false)
 
   // Simple mobile detection for planet sizing and UI
@@ -457,13 +457,13 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
             <div className="control-group flex items-center rounded-3xl p-1">
               <div className="px-3 text-xs font-medium text-[#6b7280] tracking-widest">SIZE BY</div>
-              {(['market_cap','volume','price'] as const).map(m => (
+              {(['change_24h', 'market_cap', 'volume', 'price'] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => setSizeMetric(m)}
                   className={`px-4 py-1.5 rounded-2xl text-sm font-medium ${sizeMetric === m ? 'bg-white text-black' : 'hover:bg-white/5 text-white/90'}`}
                 >
-                  {m === 'market_cap' ? 'Market Cap' : m.charAt(0).toUpperCase() + m.slice(1)}
+                  {m === 'change_24h' ? '24h %' : m === 'market_cap' ? 'Market Cap' : m.charAt(0).toUpperCase() + m.slice(1)}
                 </button>
               ))}
             </div>

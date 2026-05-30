@@ -874,6 +874,10 @@ export function Visualization({
     canvas.width = Math.floor(displayWidth * dpr)
     canvas.height = Math.floor(displayHeight * dpr)
 
+    // Explicitly set CSS size for precise control (prevents stretching on desktop)
+    canvas.style.width = displayWidth + 'px'
+    canvas.style.height = displayHeight + 'px'
+
     const ctx = canvas.getContext('2d', { alpha: true })
     if (ctx) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)

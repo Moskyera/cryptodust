@@ -140,7 +140,11 @@ async function fetchPulseChainTokenFromCoinGecko(
     const res = await fetch(url, { headers });
 
     if (!res.ok) {
-      console.warn(`[CoinGecko Pulse] Failed to fetch ${symbol} (${address}): ${res.status}`);
+      if (res.status === 429) {
+        console.warn(`[CoinGecko Pulse] Rate limit hit while fetching ${symbol}. Using fallback data.`);
+      } else {
+        console.warn(`[CoinGecko Pulse] Failed to fetch ${symbol} (${address}): ${res.status}`);
+      }
       return null;
     }
 
@@ -168,6 +172,7 @@ async function fetchPulseChainTokensFromCoinGecko(): Promise<TokenPrice[]> {
   console.log('[CryptoDUST] Fetching PulseChain tokens via CoinGecko (demo/free)...');
 
   const results: TokenPrice[] = [];
+  let rateLimitHits = 0;
 
   for (const [symbol, address] of Object.entries(PULSECHAIN_TOKENS)) {
     const token = await fetchPulseChainTokenFromCoinGecko(address, symbol);
@@ -176,6 +181,12 @@ async function fetchPulseChainTokensFromCoinGecko(): Promise<TokenPrice[]> {
       console.log(`[CoinGecko Pulse] ✅ ${symbol} → $${token.current_price}`);
     } else {
       console.log(`[CoinGecko Pulse] ❌ Failed to fetch ${symbol}`);
+      rateLimitHits++;
+      // If we hit rate limit multiple times, stop early to avoid wasting calls
+      if (rateLimitHits >= 2) {
+        console.warn('[CoinGecko Pulse] Multiple rate limit hits detected. Stopping early and using fallback data for remaining tokens.');
+        break;
+      }
     }
 
     // Respect CoinGecko demo rate limits (very important on free plan)

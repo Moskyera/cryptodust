@@ -1,12 +1,11 @@
 /**
- * Price Service for CryptoDUST (Hybrid: CoinGecko + Moralis)
+ * Price Service for CryptoDUST
  *
- * - Normal coins → CoinGecko
- * - PulseChain tokens (PLS, pHEX, PLSX, INC, PCOCK, ...) → Moralis (much better data)
+ * - Normal coins (top ~500) → CoinGecko (main markets)
+ * - PulseChain ecosystem tokens → CoinGecko Demo/Free via /platform/pulsechain/contract/{address}
  *
- * Uses SWR for caching and automatic background refreshing (every 5 minutes).
- *
- * To enable Moralis: Set VITE_MORALIS_API_KEY in .env.local or Vercel
+ * This approach gives significantly better data quality for PulseChain tokens
+ * (PLS, pHEX, PLSX, INC, PCOCK, PRVX, etc.) than the generic markets endpoint.
  */
 
 import useSWR from 'swr'
@@ -121,7 +120,74 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
 }
 
 // =====================================================
-// MORALIS - PulseChain only (for now)
+// PULSECHAIN via CoinGecko (free/demo plan)
+// Using /coins/platform/pulsechain/contract/{address}
+// This gives much better data for PulseChain tokens than /markets
+// =====================================================
+
+async function fetchPulseChainTokenFromCoinGecko(
+  address: string,
+  symbol: string
+): Promise<TokenPrice | null> {
+  try {
+    const url = `https://api.coingecko.com/api/v3/coins/platform/pulsechain/contract/${address}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
+
+    const headers: HeadersInit = {};
+    if (COINGECKO_API_KEY) {
+      headers['x-cg-demo-api-key'] = COINGECKO_API_KEY;
+    }
+
+    const res = await fetch(url, { headers });
+
+    if (!res.ok) {
+      console.warn(`[CoinGecko Pulse] Failed to fetch ${symbol} (${address}): ${res.status}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const md = data.market_data || {};
+
+    return {
+      id: symbol.toLowerCase(),
+      symbol: symbol.toUpperCase(),
+      name: data.name || symbol,
+      current_price: md.current_price?.usd || 0,
+      price_change_percentage_24h: md.price_change_percentage_24h || 0,
+      price_change_percentage_1h: md.price_change_percentage_1h || 0,
+      market_cap: md.market_cap?.usd,
+      total_volume: md.total_volume?.usd,
+      image: data.image?.small || data.image?.thumb,
+    };
+  } catch (error) {
+    console.warn(`[CoinGecko Pulse] Error fetching ${symbol}:`, error);
+    return null;
+  }
+}
+
+async function fetchPulseChainTokensFromCoinGecko(): Promise<TokenPrice[]> {
+  console.log('[CryptoDUST] Fetching PulseChain tokens via CoinGecko (demo/free)...');
+
+  const results: TokenPrice[] = [];
+
+  for (const [symbol, address] of Object.entries(PULSECHAIN_TOKENS)) {
+    const token = await fetchPulseChainTokenFromCoinGecko(address, symbol);
+    if (token) {
+      results.push(token);
+      console.log(`[CoinGecko Pulse] ✅ ${symbol} → $${token.current_price}`);
+    } else {
+      console.log(`[CoinGecko Pulse] ❌ Failed to fetch ${symbol}`);
+    }
+
+    // Respect CoinGecko demo rate limits (very important on free plan)
+    await new Promise((r) => setTimeout(r, 2500)); // ~24 calls per minute max
+  }
+
+  console.log(`[CryptoDUST] CoinGecko PulseChain fetch finished. Got ${results.length} tokens.`);
+  return results;
+}
+
+// =====================================================
+// MORALIS - PulseChain only (kept as optional fallback)
 // =====================================================
 
 async function fetchPulseChainTokenFromMoralis(
@@ -207,29 +273,23 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     }
 
     // ============================================
-    // MORALIS - PulseChain priority (if API key exists)
+    // PulseChain tokens via CoinGecko (demo/free plan)
+    // Better coverage than the limited /markets list
     // ============================================
-    if (MORALIS_API_KEY) {
-      console.log('[CryptoDUST] Using Moralis for PulseChain token prices')
-      try {
-        const moralisPulse = await fetchPulseChainTokensMoralis()
+    try {
+      const coinGeckoPulse = await fetchPulseChainTokensFromCoinGecko()
 
-        console.log(`[CryptoDUST] Moralis returned ${moralisPulse.length} PulseChain tokens`)
-
-        for (const token of moralisPulse) {
-          // Replace CoinGecko data with better Moralis data for PulseChain tokens
-          const index = all.findIndex(t => t.id === token.id)
-          if (index !== -1) {
-            all[index] = { ...all[index], ...token }
-          } else {
-            all.push(token)
-          }
+      for (const token of coinGeckoPulse) {
+        // Prefer CoinGecko PulseChain data over main CoinGecko list
+        const index = all.findIndex(t => t.id === token.id)
+        if (index !== -1) {
+          all[index] = { ...all[index], ...token }
+        } else {
+          all.push(token)
         }
-      } catch (e) {
-        console.warn('Moralis PulseChain fetch failed, using CoinGecko fallback', e)
       }
-    } else {
-      console.log('[CryptoDUST] No Moralis key found - using only CoinGecko')
+    } catch (e) {
+      console.warn('[CryptoDUST] CoinGecko PulseChain fetch failed', e)
     }
 
     return all

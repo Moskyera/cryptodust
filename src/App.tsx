@@ -602,7 +602,7 @@ export default function App() {
         {/* Mobile info panel — improved for better info density while staying compact */}
         {selectedCoin && (
           <div 
-            className="md:hidden absolute bottom-[42px] left-0 right-0 z-50 bg-[#0f0f16]/96 backdrop-blur-xl border-t border-[#25252f] px-4 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] pointer-events-auto"
+            className="md:hidden absolute bottom-[42px] left-0 right-0 z-50 bg-[#0f0f16]/96 backdrop-blur-xl border-t border-[#25252f] px-4 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] pointer-events-auto transition-all duration-200 ease-out"
             onClick={(e) => {
               if ((e.target as HTMLElement).tagName === 'DIV') setSelectedId(null)
             }}

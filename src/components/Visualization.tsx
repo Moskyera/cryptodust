@@ -179,7 +179,7 @@ export function Visualization({
     const bubbles = bubblesRef.current
     const isHighlighting = Date.now() < highlightUntil
 
-    // On mobile during drag, simplify drawing heavily to eliminate lag / jank
+    // On mobile during drag, simplify drawing *very* aggressively to eliminate lag / jank
     const simplifyForDrag = isMobile && isDragging
 
     // =====================================================
@@ -480,42 +480,44 @@ export function Visualization({
       }
 
       // Solid planet disk
-      ctx.globalAlpha = 0.95
+      ctx.globalAlpha = simplifyForDrag ? 0.85 : 0.95
       ctx.fillStyle = baseColor
       ctx.beginPath()
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.fill()
 
-      // Real coin logo — skip heavy shadows + clip work on very small planets
-      const img = imageCache.current.get(coin.id)
-      if (img && img.complete && img.naturalWidth > 0) {
-        const logoSize = r * 1.72
-        const logoX = x - logoSize / 2
-        const logoY = y - logoSize / 2
+      // Real coin logo — completely skip during mobile drag for max performance
+      if (!simplifyForDrag) {
+        const img = imageCache.current.get(coin.id)
+        if (img && img.complete && img.naturalWidth > 0) {
+          const logoSize = r * 1.72
+          const logoX = x - logoSize / 2
+          const logoY = y - logoSize / 2
 
-        ctx.save()
-        ctx.globalAlpha = 0.92
+          ctx.save()
+          ctx.globalAlpha = 0.92
 
-        if (r > 18) {
-          ctx.shadowColor = 'rgba(0,0,0,0.5)'
-          ctx.shadowBlur = 5
-          ctx.shadowOffsetX = 1
-          ctx.shadowOffsetY = 1
-        }
+          if (r > 18) {
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'
+            ctx.shadowBlur = 5
+            ctx.shadowOffsetX = 1
+            ctx.shadowOffsetY = 1
+          }
 
-        ctx.beginPath()
-        ctx.arc(x, y, r * 0.92, 0, Math.PI * 2)
-        ctx.clip()
-        ctx.drawImage(img, logoX, logoY, logoSize, logoSize)
-        ctx.restore()
-      } else if (coin.image && !imageCache.current.has(coin.id)) {
-        const newImg = new Image()
-        newImg.crossOrigin = 'anonymous'
-        newImg.src = coin.image
-        newImg.onload = () => {
+          ctx.beginPath()
+          ctx.arc(x, y, r * 0.92, 0, Math.PI * 2)
+          ctx.clip()
+          ctx.drawImage(img, logoX, logoY, logoSize, logoSize)
+          ctx.restore()
+        } else if (coin.image && !imageCache.current.has(coin.id)) {
+          const newImg = new Image()
+          newImg.crossOrigin = 'anonymous'
+          newImg.src = coin.image
+          newImg.onload = () => {
+            imageCache.current.set(coin.id, newImg)
+          }
           imageCache.current.set(coin.id, newImg)
         }
-        imageCache.current.set(coin.id, newImg)
       }
 
       // Specular highlight (shiny top-left) — skip during mobile drag
@@ -856,10 +858,20 @@ export function Visualization({
     let displayWidth = parent.clientWidth
     let displayHeight = parent.clientHeight
 
-    // Very important on mobile: respect dynamic viewport (address bar, keyboard, notch)
+    // Better mobile viewport handling (notch, dynamic island, address bar, keyboard)
     if ('visualViewport' in window && window.visualViewport) {
-      displayHeight = Math.min(displayHeight, window.visualViewport.height)
+      displayHeight = window.visualViewport.height
     }
+
+    // Rough safe-area handling for notched phones (iPhone X+ / Dynamic Island)
+    const safeAreaBottom = (typeof window !== 'undefined' && 'CSS' in window && CSS.supports?.('padding: env(safe-area-inset-bottom)'))
+      ? 0 // We'll rely on visualViewport + CSS padding for now
+      : 0
+
+    // Add extra bottom padding on iOS notched devices
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const extraBottom = isIOS ? 12 : 0
+    displayHeight -= extraBottom
 
     canvas.width = Math.floor(displayWidth * dpr)
     canvas.height = Math.floor(displayHeight * dpr)
@@ -956,12 +968,12 @@ export function Visualization({
     const rect = canvas.getBoundingClientRect()
     const scale = canvas.width / rect.width
 
-    const minTapRadiusWorld = isMobile ? 34 / scale : 18 / scale   // ~34px comfortable on phone
+    const minTapRadiusWorld = isMobile ? 38 / scale : 18 / scale   // Slightly larger tap target on mobile for better reliability
 
     for (let i = 0; i < currentBubbles.length; i++) {
       const b = currentBubbles[i]
       const dist = Math.hypot(b.x - wx, b.y - wy)
-      const effectiveRadius = Math.max(b.r * (isMobile ? 1.9 : 1.6), minTapRadiusWorld)
+      const effectiveRadius = Math.max(b.r * (isMobile ? 2.1 : 1.6), minTapRadiusWorld)
 
       if (dist < effectiveRadius && dist < minDist) {
         minDist = dist

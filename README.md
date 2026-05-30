@@ -18,7 +18,7 @@ Real-time market data from CoinGecko, beautiful canvas animations, and dedicated
 
 The best experience is on the deployed version:
 
-→ [cryptodust.vercel.app](https://cryptodust.vercel.app) *(update with your actual link)*
+https://www.cryptodust.xyz/
 
 ## ❤️ Support the Project
 

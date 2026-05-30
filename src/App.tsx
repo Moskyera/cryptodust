@@ -615,8 +615,8 @@ export default function App() {
               ))}
             </div>
 
-            {/* Pages */}
-            <div className="flex gap-1.5 overflow-x-auto pb-3 hide-scrollbar">
+            {/* Pages - better spacing and touch targets on mobile */}
+            <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-1">
               {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100;
                 const end = Math.min(start + 100, filteredTokens.length);
@@ -624,10 +624,10 @@ export default function App() {
                   <button
                     key={index}
                     onClick={() => setCurrentPage(index)}
-                    className={`text-xs px-3 py-1 rounded-xl border whitespace-nowrap ${
+                    className={`text-[11px] px-3.5 py-1.5 rounded-2xl border whitespace-nowrap min-w-[72px] ${
                       currentPage === index
-                        ? 'bg-[#67f6ff] text-black border-[#67f6ff]'
-                        : 'bg-white/5 border-white/10 text-white/70'
+                        ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
+                        : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
                     }`}
                   >
                     {start}–{end}
@@ -639,14 +639,29 @@ export default function App() {
             {/* Mobile List */}
             <div className="space-y-1">
               {currentPageTokens.map(coin => {
-                const isHighlighted = highlightUntil > Date.now() && Math.abs(coin.price_change_percentage_24h || 0) > 6;
+                const change = coin.price_change_percentage_24h || 0;
+                const isBigMover = Math.abs(change) > 6;
+                const isHighlightActive = highlightUntil > Date.now();
+
+                let highlightClass = '';
+
+                if (isHighlightActive && isBigMover) {
+                  if (change > 0) {
+                    // Positive big mover → green blink
+                    highlightClass = 'bg-emerald-500/15 border-emerald-500/40 animate-pulse';
+                  } else {
+                    // Negative big mover → red blink
+                    highlightClass = 'bg-red-500/15 border-red-500/40 animate-pulse';
+                  }
+                }
+
                 return (
                   <div 
                     key={coin.id}
                     onClick={() => handleSelect(coin.id)}
                     className={`flex items-center justify-between px-3 py-2.5 rounded-2xl border transition-all active:bg-white/5 ${
-                      isHighlighted 
-                        ? 'bg-orange-500/10 border-orange-500/30 animate-pulse' 
+                      highlightClass 
+                        ? highlightClass 
                         : selectedId === coin.id 
                           ? 'bg-white/5 border-[#67f6ff]' 
                           : 'bg-white/5 border-white/10'

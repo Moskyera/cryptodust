@@ -24,7 +24,7 @@ interface VisualizationProps {
   onSelect?: (id: string | null) => void
   favorites?: string[]
   highlightUntil?: number
-  sizeMetric?: 'market_cap' | 'volume' | 'price'
+  sizeMetric?: 'market_cap' | 'volume' | 'price' | 'change_24h'
   paused?: boolean
   onTogglePaused?: () => void
   planetScale?: number
@@ -37,7 +37,7 @@ export function Visualization({
   onSelect, 
   favorites = [], 
   highlightUntil = 0,
-  sizeMetric = 'market_cap',
+  sizeMetric = 'change_24h',
   paused = false,
   onTogglePaused,
   planetScale = 1,

@@ -113,6 +113,12 @@ const CURATED_PULSECHAIN_IDS = [
   'doubt'
 ]
 
+// Coins to explicitly exclude from PulseChain results
+const PULSECHAIN_EXCLUDED_IDS = [
+  'pulseium',
+  'go'
+]
+
 async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
   if (SPECIAL_PULSECHAIN_IDS.length === 0) return []
 
@@ -169,7 +175,7 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
 
     const data = await res.json();
 
-    const tokens = data.map((coin: any) => ({
+    let tokens = data.map((coin: any) => ({
       id: coin.id,
       symbol: coin.symbol.toUpperCase(),
       name: coin.name,
@@ -181,7 +187,10 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
       image: coin.image,
     }));
 
-    console.log(`[CryptoDUST] PulseChain Ecosystem category returned ${tokens.length} tokens.`);
+    // Remove explicitly excluded coins (e.g. pulseium, go)
+    tokens = tokens.filter(t => !PULSECHAIN_EXCLUDED_IDS.includes(t.id.toLowerCase()));
+
+    console.log(`[CryptoDUST] PulseChain Ecosystem category returned ${tokens.length} tokens (after exclusions).`);
     return tokens;
 
   } catch (error) {
@@ -217,7 +226,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 
     const data = await res.json();
 
-    const tokens = data.map((coin: any) => ({
+    let tokens = data.map((coin: any) => ({
       id: coin.id,
       symbol: coin.symbol.toUpperCase(),
       name: coin.name,
@@ -229,7 +238,10 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
       image: coin.image,
     }));
 
-    console.log(`[CryptoDUST] Successfully fetched ${tokens.length} curated PulseChain tokens.`);
+    // Remove explicitly excluded coins
+    tokens = tokens.filter(t => !PULSECHAIN_EXCLUDED_IDS.includes(t.id.toLowerCase()));
+
+    console.log(`[CryptoDUST] Successfully fetched ${tokens.length} curated PulseChain tokens (after exclusions).`);
     return tokens;
 
   } catch (error) {
@@ -258,6 +270,9 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
         all.push(token)
       }
     }
+
+    // Remove any excluded PulseChain coins that might have slipped in
+    all = all.filter(t => !PULSECHAIN_EXCLUDED_IDS.includes(t.id.toLowerCase()))
 
     // ============================================
     // User's Curated PulseChain tokens (highest priority)

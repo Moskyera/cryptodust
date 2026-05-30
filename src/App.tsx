@@ -85,6 +85,12 @@ const PULSECHAIN_IDS = new Set([
   'unity-3', 'coin-mafia', 't-i-m-e-dividendimpls-finance', 'teddy-bear', 'doubt'
 ])
 
+// Explicitly excluded PulseChain coins (removed from filter and data)
+const PULSECHAIN_EXCLUDED_IDS = new Set([
+  'pulseium',
+  'go'
+])
+
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -151,6 +157,9 @@ export default function App() {
         const id = t.id.toLowerCase()
         const symbol = t.symbol.toLowerCase()
         const name = t.name.toLowerCase()
+
+        // Exclude specific unwanted coins
+        if (PULSECHAIN_EXCLUDED_IDS.has(id)) return false
 
         return (
           PULSECHAIN_IDS.has(id) ||

@@ -451,7 +451,12 @@ export function Visualization({
     if (isHighlighting) {
       bubbles.forEach(b => {
         const ch = Math.abs(b.coin.price_change_percentage_24h || 0)
-        if (ch > 6) {
+        if (ch > 22) {
+          // Extra strong kick for extreme movers (>22%)
+          const k = (ch - 6) * 0.18
+          b.vx += (Math.random() - 0.5) * k
+          b.vy += (Math.random() - 0.5) * k
+        } else if (ch > 6) {
           const k = (ch - 6) * 0.075
           b.vx += (Math.random() - 0.5) * k
           b.vy += (Math.random() - 0.5) * k
@@ -472,6 +477,7 @@ export function Visualization({
       const isFavorite = favorites.includes(coin.id)
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
       const isCurrentlyHighlighted = isBigMover && isHighlighting
+      const isExtremeMover = Math.abs(coin.price_change_percentage_24h || 0) > 22
 
       // Favorite golden pulsing glow — skip during mobile drag for smoothness
       if (!simplifyForDrag && isFavorite && r > 18) {
@@ -503,6 +509,45 @@ export function Visualization({
         ctx.beginPath()
         ctx.arc(x, y, moverSize, 0, Math.PI * 2)
         ctx.fill()
+      }
+
+      // === SPECIAL VISUAL: Extreme movers (>22% 24h change) ===
+      if (!simplifyForDrag && isExtremeMover && isCurrentlyHighlighted && r > 14) {
+        const t = Date.now()
+
+        // Very bright, fast-pulsing golden aura (special for +22%+ moves)
+        const extremePulse = Math.sin(t / 90) * 0.35 + 1.4
+        const extremeSize = r * 4.0 * extremePulse
+        const extremeGlow = ctx.createRadialGradient(x, y, r * 0.5, x, y, extremeSize)
+        extremeGlow.addColorStop(0, '#fde047')
+        extremeGlow.addColorStop(0.3, '#fbbf24')
+        extremeGlow.addColorStop(0.7, 'transparent')
+        ctx.globalAlpha = 0.45
+        ctx.fillStyle = extremeGlow
+        ctx.beginPath()
+        ctx.arc(x, y, extremeSize, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Extra intense orbiting sparkles for extreme movers
+        ctx.globalAlpha = 0.95
+        const extremeSparkCount = isMobile ? 6 : 9
+        for (let s = 0; s < extremeSparkCount; s++) {
+          const angle = (t / 280) + (s * (Math.PI * 2 / extremeSparkCount))
+          const dist = r * (1.9 + Math.sin(t / 130 + s) * 0.25)
+          const sx = x + Math.cos(angle) * dist
+          const sy = y + Math.sin(angle) * dist * 0.9
+          const sparkSize = 2.2 + Math.sin(t / 80 + s) * 0.9
+
+          ctx.fillStyle = '#fde047'
+          ctx.beginPath()
+          ctx.arc(sx, sy, sparkSize, 0, Math.PI * 2)
+          ctx.fill()
+
+          ctx.fillStyle = '#ffffff'
+          ctx.beginPath()
+          ctx.arc(sx, sy, sparkSize * 0.4, 0, Math.PI * 2)
+          ctx.fill()
+        }
       }
 
       // Atmospheric outer glow — skip during mobile drag for performance

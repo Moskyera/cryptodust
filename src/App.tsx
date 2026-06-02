@@ -817,7 +817,8 @@ export default function App() {
                 </button>
                 <button 
                   onClick={() => {
-                    const url = `https://exchange.mercuryo.io/?widget_id=89960d1a-8db7-49e5-8823-4&crypto=${selectedCoin.symbol}`;
+                    const mercuryoBase = 'https://exchange.mercuryo.io/';
+                    const url = `${mercuryoBase}?widget_id=89960d1a-8db7-49e5-8823-4&crypto=${selectedCoin.symbol}`;
                     window.open(url, '_blank');
                   }}
                   className="flex-1 py-2.5 rounded-2xl bg-blue-500 text-white font-semibold active:bg-blue-400 text-sm"
@@ -926,7 +927,8 @@ export default function App() {
 
                 <button
                   onClick={() => {
-                    const url = `https://exchange.mercuryo.io/?widget_id=89960d1a-8db7-49e5-8823-4&crypto=${selectedCoin.symbol}`;
+                    const mercuryoBase = 'https://exchange.mercuryo.io/';
+                    const url = `${mercuryoBase}?widget_id=89960d1a-8db7-49e5-8823-4&crypto=${selectedCoin.symbol}`;
                     window.open(url, '_blank');
                   }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-semibold text-sm transition-all active:scale-[0.985]"

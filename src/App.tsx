@@ -382,7 +382,7 @@ export default function App() {
 
             {/* Telegram Bot */}
             <a 
-              href="https://t.me/iNFO_DUST_bot" 
+              href="https://t.me/iNFO_DUST" 
               target="_blank" 
               className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-blue-500/15 to-sky-500/15 hover:from-blue-500/25 hover:to-sky-500/25 border border-blue-500/30 hover:border-blue-500/50 text-blue-300 hover:text-blue-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-blue-500/10 text-xs md:text-sm"
             >
@@ -393,7 +393,7 @@ export default function App() {
                   className="h-full w-full object-contain" 
                 />
               </div>
-              <span className="font-semibold tracking-tight">Info Dust Bot</span>
+              <span className="font-semibold tracking-tight">iNFO DUST</span>
             </a>
 
             {/* SimpleX Channel */}
@@ -625,7 +625,7 @@ export default function App() {
                 { label: 'Favorites', key: 'favorites' },
                 { label: 'ProveX', url: 'https://app.provex.com' },
                 { label: 'LibertySwap', url: 'https://libertyswap.finance' },
-                { label: 'Info Dust Bot', url: 'https://t.me/iNFO_DUST_bot' },
+                { label: 'iNFO DUST', url: 'https://t.me/iNFO_DUST' },
                 { label: 'SimpleX', url: 'https://smp16.simplex.im/c#k7z6aPXx-XHUGQE85X8R3fixZ7HITSmqC_eKlYsX9Y4' },
               ].map((item, idx) => {
                 // External link (ProveX / LibertySwap)

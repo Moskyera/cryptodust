@@ -807,16 +807,27 @@ export default function App() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setShowRampModal(true)}
-                className="flex-1 py-2.5 rounded-2xl bg-emerald-500 text-black font-semibold active:bg-emerald-400"
-              >
-                Buy with RampNow
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setShowRampModal(true)}
+                  className="flex-1 py-2.5 rounded-2xl bg-emerald-500 text-black font-semibold active:bg-emerald-400 text-sm"
+                >
+                  Buy with RampNow
+                </button>
+                <button 
+                  onClick={() => {
+                    const url = `https://exchange.mercuryo.io/?widget_id=89960d1a-8db7-49e5-8823-4&crypto=${selectedCoin.symbol}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="flex-1 py-2.5 rounded-2xl bg-blue-500 text-white font-semibold active:bg-blue-400 text-sm"
+                >
+                  Buy with Mercuryo
+                </button>
+              </div>
               <button 
                 onClick={() => setSelectedId(null)}
-                className="px-5 py-2.5 rounded-2xl bg-white/5 border border-white/10 active:bg-white/10"
+                className="w-full py-2.5 rounded-2xl bg-white/5 border border-white/10 active:bg-white/10 text-sm"
               >
                 Close
               </button>
@@ -903,8 +914,8 @@ export default function App() {
                 )}
               </div>
 
-              {/* RampNow Buy Button - Desktop only */}
-              <div className="mt-4 pt-4 border-t border-white/10">
+              {/* Buy Buttons - Desktop only */}
+              <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
                 <button
                   onClick={() => setShowRampModal(true)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-semibold text-sm transition-all active:scale-[0.985]"
@@ -912,7 +923,19 @@ export default function App() {
                   <span>Buy with RampNow</span>
                   <span className="text-xs opacity-75">→</span>
                 </button>
-                <p className="text-[10px] text-center text-[#6b7280] mt-1.5">
+
+                <button
+                  onClick={() => {
+                    const url = `https://exchange.mercuryo.io/?widget_id=89960d1a-8db7-49e5-8823-4&crypto=${selectedCoin.symbol}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-semibold text-sm transition-all active:scale-[0.985]"
+                >
+                  <span>Buy with Mercuryo</span>
+                  <span className="text-xs opacity-75">→</span>
+                </button>
+
+                <p className="text-[10px] text-center text-[#6b7280]">
                   Card • Bank • Apple Pay • Low fees
                 </p>
               </div>

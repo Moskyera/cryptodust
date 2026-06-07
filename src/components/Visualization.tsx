@@ -75,7 +75,6 @@ export function Visualization({
     return Math.max(12, Math.min(maxSize, scaled))
   }
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const labelsContainerRef = useRef<HTMLDivElement>(null)
   const bubblesRef = useRef<Bubble[]>([])
   const animationRef = useRef<number>()
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
@@ -171,9 +170,8 @@ export function Visualization({
   // Physics + Render loop (fully self-contained, balanced braces)
   const tick = useCallback(() => {
     const canvas = canvasRef.current
-    const labelsContainer = labelsContainerRef.current
 
-    if (!canvas || !labelsContainer) {
+    if (!canvas) {
       animationRef.current = requestAnimationFrame(tick)
       return
     }
@@ -869,128 +867,14 @@ export function Visualization({
       }
     })
 
-    // Labels disabled: all text (ticker, price, %) is now drawn INSIDE the planet on canvas
-    // (as requested for both desktop and mobile readability)
-    // if (!isMobile) {
-    //   updateLabels(bubbles, labelsContainer)
-    // }
+    // Labels removed — all text is rendered directly inside each planet via canvas
+    // (ticker + price + 24h% are drawn inside the circle for a clean, integrated look)
 
     // Schedule next frame ONLY when physics is running
     if (!paused) {
       animationRef.current = requestAnimationFrame(tick)
     }
   }, [selectedId, paused, highlightUntil, favorites, sizeMetric, onTogglePaused])
-
-  // Highly optimized label sync — avoids innerHTML and repeated getBoundingClientRect per frame
-  const updateLabels = (bubbles: Bubble[], container: HTMLDivElement) => {
-    // Completely remove floating labels on mobile (user request: only show name/price when selected)
-    if (isMobile) return
-
-    // Compute scale ONCE outside the loop (very expensive otherwise)
-    const canvas = canvasRef.current
-    const rect = container.getBoundingClientRect()
-    const canvasW = canvas?.width || 1600
-    const canvasH = canvas?.height || 900
-    const scaleX = rect.width / canvasW
-    const scaleY = rect.height / canvasH
-
-    const existing = new Map<string, HTMLDivElement>()
-    container.childNodes.forEach((node) => {
-      const el = node as HTMLDivElement
-      if (el.dataset.id) existing.set(el.dataset.id, el)
-    })
-
-    const visibleIds = new Set<string>()
-
-    bubbles.forEach(b => {
-      if (b.r < 15) return
-      visibleIds.add(b.id)
-
-      let label = existing.get(b.id)
-      if (!label) {
-        // Create stable structure once — never use innerHTML again
-        label = document.createElement('div')
-        label.className = 'bubble-label'
-        label.dataset.id = b.id
-
-        const symbol = document.createElement('div')
-        symbol.className = 'symbol'
-        symbol.dataset.role = 'symbol'
-
-        const row = document.createElement('div')
-        row.style.display = 'flex'
-        row.style.alignItems = 'baseline'
-        row.style.gap = '4px'
-        row.style.justifyContent = 'center'
-        row.style.marginTop = '1px'
-
-        const priceEl = document.createElement('span')
-        priceEl.className = 'price'
-        priceEl.dataset.role = 'price'
-
-        const changeEl = document.createElement('span')
-        changeEl.className = 'change'
-        changeEl.dataset.role = 'change'
-
-        row.appendChild(priceEl)
-        row.appendChild(changeEl)
-
-        label.appendChild(symbol)
-        label.appendChild(row)
-        container.appendChild(label)
-      }
-
-      // Position (cheap style writes)
-      const screenX = b.x * scaleX
-      const screenY = b.y * scaleY + b.r * scaleY + 8
-      label.style.left = `${screenX}px`
-      label.style.top = `${screenY}px`
-
-      // Cheap textContent updates only — no HTML parsing, no reflow storm
-      const symbolEl = label.querySelector('[data-role="symbol"]') as HTMLDivElement | null
-      const priceEl = label.querySelector('[data-role="price"]') as HTMLSpanElement | null
-      const changeEl = label.querySelector('[data-role="change"]') as HTMLSpanElement | null
-
-      if (symbolEl && symbolEl.textContent !== b.coin.symbol) {
-        symbolEl.textContent = b.coin.symbol
-      }
-
-      const price = b.coin.current_price || 0
-      let priceStr: string
-      if (price >= 1000) {
-        priceStr = '$' + price.toLocaleString(undefined, { maximumFractionDigits: 0 })
-      } else if (price >= 1) {
-        priceStr = '$' + price.toFixed(2)
-      } else if (price >= 0.01) {
-        priceStr = '$' + price.toFixed(4)
-      } else if (price >= 0.0001) {
-        priceStr = '$' + price.toFixed(6)
-      } else if (price >= 0.000001) {
-        priceStr = '$' + price.toFixed(8)
-      } else {
-        priceStr = '$' + price.toExponential(2)
-      }
-
-      if (priceEl && priceEl.textContent !== priceStr) {
-        priceEl.textContent = priceStr
-      }
-
-      const chg = b.coin.price_change_percentage_24h || 0
-      const chgClass = chg >= 0 ? 'change-up' : 'change-down'
-      const chgStr = (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%'
-
-      if (changeEl) {
-        if (changeEl.textContent !== chgStr) changeEl.textContent = chgStr
-        if (!changeEl.classList.contains(chgClass)) {
-          changeEl.className = `change ${chgClass}`
-        }
-      }
-    })
-
-    existing.forEach((el, id) => {
-      if (!visibleIds.has(id)) el.remove()
-    })
-  }
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -1271,10 +1155,7 @@ export function Visualization({
         onPointerCancel={handlePointerLeave}
         className="cursor-grab active:cursor-grabbing touch-none"
       />
-      <div 
-        ref={labelsContainerRef} 
-        className="absolute inset-0 pointer-events-none z-20" 
-      />
+      {/* Floating labels removed — text is now rendered inside the planets via canvas */}
 
       <div className="absolute top-3 left-3 md:top-4 md:left-4 hud px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-[10px] md:text-xs flex items-center gap-x-2 md:gap-x-4 z-30">
         <div>Visible: <span className="font-semibold tabular-nums">{tokens.length}</span></div>

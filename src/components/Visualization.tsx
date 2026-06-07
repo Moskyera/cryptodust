@@ -680,7 +680,6 @@ export function Visualization({
       // Text in the bottom band — large bold futuristic with STRONG BLACK OUTLINE for max readability
       if (!simplifyForDrag && r > 16) {
         const price = coin.current_price || 0
-        const chg = coin.price_change_percentage_24h || 0
 
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'

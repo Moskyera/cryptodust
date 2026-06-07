@@ -617,37 +617,37 @@ export function Visualization({
         }
       }
 
-      // Sleek semi-transparent dark neon HUD band at bottom 15-20% of the planet
+      // Sleek semi-transparent dark neon HUD band at bottom 18-22% of the planet (futuristic HUD overlay)
       if (!simplifyForDrag && r > 12) {
         ctx.save()
 
-        // Clip to planet circle so the band follows the curve
+        // Clip to the planet so band is inside and curved
         ctx.beginPath()
         ctx.arc(x, y, r * 0.96, 0, Math.PI * 2)
         ctx.clip()
 
         const bandTop = y + r * 0.68
-        const bandH = r * 0.28
+        const bandH = r * 0.30  // ~20-22% height for good text space
 
-        // Dark neon base
-        ctx.fillStyle = 'rgba(6, 10, 24, 0.88)'
-        ctx.fillRect(x - r * 0.92, bandTop, r * 1.84, bandH)
+        // Dark semi-transparent base (dark neon HUD)
+        ctx.fillStyle = 'rgba(5, 8, 20, 0.85)'
+        ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
 
-        // Strong cyan neon glow
+        // Volumetric neon glow (cyan theme with multiple layers for depth)
         ctx.shadowColor = '#67f6ff'
-        ctx.shadowBlur = 18
-        ctx.fillStyle = 'rgba(103, 246, 255, 0.22)'
-        ctx.fillRect(x - r * 0.92, bandTop, r * 1.84, bandH)
+        ctx.shadowBlur = 20
+        ctx.fillStyle = 'rgba(103, 246, 255, 0.18)'
+        ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
 
-        ctx.shadowBlur = 9
-        ctx.fillStyle = 'rgba(103, 246, 255, 0.12)'
-        ctx.fillRect(x - r * 0.92, bandTop, r * 1.84, bandH)
+        ctx.shadowBlur = 10
+        ctx.fillStyle = 'rgba(103, 246, 255, 0.10)'
+        ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
 
         ctx.shadowBlur = 0
         ctx.restore()
       }
 
-      // Text inside the bottom band — large, bold, futuristic, neon outlined, highly legible
+      // Text in the bottom band — large bold futuristic with STRONG BLACK OUTLINE for max readability
       if (!simplifyForDrag && r > 16) {
         const price = coin.current_price || 0
         const chg = coin.price_change_percentage_24h || 0
@@ -655,41 +655,50 @@ export function Visualization({
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
 
-        const bandCenterY = y + r * 0.80
+        const bandCenterY = y + r * 0.82
 
-        // Ticker — very large
-        const tickerFs = Math.max(11, Math.min(24, r * 0.36))
+        // Ticker symbol - very large, bold
+        const tickerFs = Math.max(12, Math.min(26, r * 0.38))
         ctx.font = `900 ${tickerFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
         ctx.fillStyle = '#ffffff'
-        ctx.fillText(coin.symbol, x, bandCenterY - r * 0.10)
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = Math.max(2.5, r * 0.06)
+        ctx.strokeText(coin.symbol, x, bandCenterY - r * 0.11)
+        ctx.fillText(coin.symbol, x, bandCenterY - r * 0.11)
 
-        // Price
+        // Price + 24h% right next to it (price then % larger/bolder with arrow)
         const priceFs = Math.max(9, Math.min(18, r * 0.26))
+        const pctFs = Math.max(11, Math.min(22, r * 0.32))  // even larger and bolder for %
+
         ctx.font = `700 ${priceFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
         ctx.fillStyle = '#e0f2fe'
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = Math.max(2, r * 0.045)
 
         let priceStr
         if (price >= 10000) priceStr = '$' + price.toFixed(0)
         else if (price >= 1000) priceStr = '$' + price.toFixed(0)
         else if (price >= 10) priceStr = '$' + price.toFixed(1)
         else priceStr = '$' + price.toFixed(3)
-        ctx.fillText(priceStr, x, bandCenterY + r * 0.04)
 
-        // 24h % — bright neon + outline for pop and readability
-        const pctFs = Math.max(9, Math.min(17, r * 0.24))
-        ctx.font = `900 ${pctFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-
-        const pctStr = (chg > 0 ? '+' : '') + chg.toFixed(1) + '%'
+        const arrow = chg >= 0 ? '↑' : '↓'
+        const pctStr = arrow + ' ' + Math.abs(chg).toFixed(2) + '%'
         const neon = chg >= 0 ? '#39ff14' : '#ff3366'
 
-        // Neon outline
-        ctx.strokeStyle = neon
-        ctx.lineWidth = Math.max(2.2, r * 0.05)
-        ctx.strokeText(pctStr, x, bandCenterY + r * 0.16)
+        // Draw price leftish of center
+        const priceX = x - r * 0.22
+        ctx.strokeText(priceStr, priceX, bandCenterY + r * 0.05)
+        ctx.fillText(priceStr, priceX, bandCenterY + r * 0.05)
 
-        // Fill
+        // Draw % right next to price, larger, bolder, neon with black outline
+        ctx.font = `900 ${pctFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
         ctx.fillStyle = neon
-        ctx.fillText(pctStr, x, bandCenterY + r * 0.16)
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = Math.max(2.8, r * 0.065)  // stronger black outline
+
+        const pctX = x + r * 0.18
+        ctx.strokeText(pctStr, pctX, bandCenterY + r * 0.05)
+        ctx.fillText(pctStr, pctX, bandCenterY + r * 0.05)
       }
 
       // Specular highlight (shiny top-left) — skip during mobile drag

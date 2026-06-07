@@ -584,8 +584,8 @@ export function Visualization({
             drawW = maxLogoDiameter * imgAspect
           }
 
-          // Center logo in the upper portion of the planet
-          const logoCenterY = y - r * 0.08
+          // Center logo to occupy 80-85% dominant, positioned to leave top space for % text
+          const logoCenterY = y + r * 0.10
           const logoX = x - drawW / 2
           const logoY = logoCenterY - drawH / 2
 
@@ -601,7 +601,7 @@ export function Visualization({
 
           // Clip slightly inside the planet so logo stays dominant but contained
           ctx.beginPath()
-          ctx.arc(x, y, r * 0.93, 0, Math.PI * 2)
+          ctx.arc(x, y, r * 0.94, 0, Math.PI * 2)
           ctx.clip()
 
           ctx.drawImage(img, logoX, logoY, drawW, drawH)
@@ -626,8 +626,8 @@ export function Visualization({
         ctx.arc(x, y, r * 0.96, 0, Math.PI * 2)
         ctx.clip()
 
-        const bandTop = y + r * 0.68
-        const bandH = r * 0.30  // ~20-22% height for good text space
+        const bandTop = y + r * 0.65
+        const bandH = r * 0.35  // 18-22% of planet height (0.35r ~17.5% of 2r)
 
         // Dark semi-transparent base (dark neon HUD)
         ctx.fillStyle = 'rgba(5, 8, 20, 0.85)'

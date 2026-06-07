@@ -95,6 +95,7 @@ export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price' | 'change_24h'>('change_24h')
+  const [topLabel, setTopLabel] = useState<'price' | 'change_24h'>('price')
   const [isMobile, setIsMobile] = useState(false)
 
   // Simple mobile detection for planet sizing and UI
@@ -500,6 +501,20 @@ export default function App() {
               ))}
             </div>
 
+            {/* TOP LABEL tab - controls what is shown at top of planets */}
+            <div className="control-group flex items-center rounded-3xl p-1 ml-2">
+              <div className="px-3 text-xs font-medium text-[#6b7280] tracking-widest">TOP</div>
+              {(['price', 'change_24h'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setTopLabel(m)}
+                  className={`px-4 py-1.5 rounded-2xl text-sm font-medium ${topLabel === m ? 'bg-white text-black' : 'hover:bg-white/5 text-white/90'}`}
+                >
+                  {m === 'price' ? 'Price' : '% CHANGE'}
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={highlightBigMovers}
               className={`px-5 py-2 text-sm font-medium rounded-3xl flex items-center gap-x-2 transition-all border active:scale-[0.985] ${
@@ -606,6 +621,7 @@ export default function App() {
             favorites={favorites}
             highlightUntil={highlightUntil}
             sizeMetric={sizeMetric}
+            topLabel={topLabel}
             paused={physicsPaused}
             onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
             planetScale={isMobile ? 0.45 : 1}

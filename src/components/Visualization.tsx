@@ -25,6 +25,7 @@ interface VisualizationProps {
   favorites?: string[]
   highlightUntil?: number
   sizeMetric?: 'market_cap' | 'volume' | 'price' | 'change_24h'
+  topLabel?: 'price' | 'change_24h'
   paused?: boolean
   onTogglePaused?: () => void
   planetScale?: number
@@ -38,6 +39,7 @@ export function Visualization({
   favorites = [], 
   highlightUntil = 0,
   sizeMetric = 'change_24h',
+  topLabel = 'price',
   paused = false,
   onTogglePaused,
   planetScale = 1,
@@ -617,34 +619,50 @@ export function Visualization({
         }
       }
 
-      // 24h % change at the TOP part of the planet (inside, above the logo) — LARGE, BOLD, PERFECTLY CENTERED, prominent
+      // TOP label inside planet (above logo): conditional on topLabel
       if (!simplifyForDrag && r > 14) {
-        const chg = coin.price_change_percentage_24h || 0
-
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
 
-        // Position high in the top inside the planet, above the logo
-        const topPctY = y - r * 0.82
+        const topY = y - r * 0.82
 
-        const pctFs = Math.max(10, Math.min(22, r * 0.34))  // large and prominent
-        ctx.font = `900 ${pctFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+        if (topLabel === 'price') {
+          // PRICE mode: large price at top with black outline
+          const price = coin.current_price || 0
+          const priceFs = Math.max(10, Math.min(22, r * 0.34))
+          ctx.font = `900 ${priceFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+          ctx.fillStyle = '#ffffff'
+          ctx.strokeStyle = '#000000'
+          ctx.lineWidth = Math.max(3, r * 0.06)
 
-        const arrow = chg >= 0 ? '↑' : '↓'
-        const pctStr = arrow + Math.abs(chg).toFixed(2) + '%'
-        const neon = chg >= 0 ? '#39ff14' : '#ff3366'
+          let priceStr
+          if (price >= 10000) priceStr = '$' + price.toFixed(0)
+          else if (price >= 1000) priceStr = '$' + price.toFixed(0)
+          else if (price >= 10) priceStr = '$' + price.toFixed(1)
+          else priceStr = '$' + price.toFixed(3)
 
-        // Strong black outline/stroke for max readability
-        ctx.strokeStyle = '#000000'
-        ctx.lineWidth = Math.max(3, r * 0.07)
-        ctx.strokeText(pctStr, x, topPctY)
+          ctx.strokeText(priceStr, x, topY)
+          ctx.fillText(priceStr, x, topY)
+        } else {
+          // % CHANGE mode: large % with arrow at top, black outline + neon glow
+          const chg = coin.price_change_percentage_24h || 0
+          const pctFs = Math.max(10, Math.min(22, r * 0.34))
+          ctx.font = `900 ${pctFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
 
-        // Neon fill + glow for pop
-        ctx.shadowColor = neon
-        ctx.shadowBlur = 10
-        ctx.fillStyle = neon
-        ctx.fillText(pctStr, x, topPctY)
-        ctx.shadowBlur = 0
+          const arrow = chg >= 0 ? '↑' : '↓'
+          const pctStr = arrow + Math.abs(chg).toFixed(2) + '%'
+          const neon = chg >= 0 ? '#39ff14' : '#ff3366'
+
+          ctx.strokeStyle = '#000000'
+          ctx.lineWidth = Math.max(3, r * 0.07)
+          ctx.strokeText(pctStr, x, topY)
+
+          ctx.shadowColor = neon
+          ctx.shadowBlur = 10
+          ctx.fillStyle = neon
+          ctx.fillText(pctStr, x, topY)
+          ctx.shadowBlur = 0
+        }
       }
 
       // Sleek semi-transparent dark neon HUD band at bottom 18-22% of the planet (futuristic HUD overlay)
@@ -923,7 +941,7 @@ export function Visualization({
     if (!paused) {
       animationRef.current = requestAnimationFrame(tick)
     }
-  }, [selectedId, paused, highlightUntil, favorites, sizeMetric, onTogglePaused])
+  }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused])
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current

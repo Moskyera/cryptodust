@@ -574,7 +574,8 @@ export function Visualization({
         const img = imageCache.current.get(coin.id)
         if (img && img.complete && img.naturalWidth > 0) {
           // Preserve original image aspect ratio so logos don't look stretched/pressed
-          const maxLogoDiameter = r * 1.68
+          // Make logo smaller to leave space BELOW it INSIDE the planet for text
+          const maxLogoDiameter = r * 1.05
           const imgAspect = img.width / img.height
 
           let drawW, drawH
@@ -589,8 +590,10 @@ export function Visualization({
             drawW = maxLogoDiameter * imgAspect
           }
 
+          // Center logo higher inside the planet to leave room below for text
+          const logoCenterY = y - r * 0.20
           const logoX = x - drawW / 2
-          const logoY = y - drawH / 2
+          const logoY = logoCenterY - drawH / 2
 
           ctx.save()
           ctx.globalAlpha = 0.92
@@ -602,9 +605,9 @@ export function Visualization({
             ctx.shadowOffsetY = 1
           }
 
-          // Circular mask - slightly smaller than the planet for a nice border
+          // Circular mask - leave room for text below
           ctx.beginPath()
-          ctx.arc(x, y, r * 0.88, 0, Math.PI * 2)
+          ctx.arc(x, y, r * 0.82, 0, Math.PI * 2)
           ctx.clip()
 
           ctx.drawImage(img, logoX, logoY, drawW, drawH)
@@ -618,6 +621,48 @@ export function Visualization({
           }
           imageCache.current.set(coin.id, newImg)
         }
+      }
+
+      // === TEXT INSIDE THE PLANET (ticker, price, 24h%) ===
+      // Always draw for visibility, even during drag (small text ok)
+      // Positioned BELOW the logo, still inside the planet circle
+      if (r > 14) {  // only for reasonably sized planets to stay readable
+        const price = coin.current_price || 0;
+        const chg = coin.price_change_percentage_24h || 0;
+
+        ctx.globalAlpha = 1.0;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+
+        // Dynamic font sizes for readability on small & large planets
+        const tickerSize = Math.max(7, Math.min(16, r * 0.26));
+        const priceSize = Math.max(6, Math.min(13, r * 0.20));
+        const pctSize = Math.max(6, Math.min(12, r * 0.18));
+
+        // Positions inside the lower part of the planet
+        const textY1 = y + r * 0.38;  // ticker
+        const textY2 = y + r * 0.56;  // price
+        const textY3 = y + r * 0.72;  // percentage
+
+        // Ticker symbol (bold)
+        ctx.font = `bold ${tickerSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+        ctx.fillText(coin.symbol, x, textY1);
+
+        // Current price
+        let priceStr;
+        if (price >= 1000) priceStr = '$' + price.toFixed(0);
+        else if (price >= 1) priceStr = '$' + price.toFixed(2);
+        else if (price >= 0.01) priceStr = '$' + price.toFixed(4);
+        else priceStr = '$' + price.toFixed(6);
+        ctx.font = `${priceSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+        ctx.fillText(priceStr, x, textY2);
+
+        // 24h % with neon color
+        const pctStr = (chg > 0 ? '+' : '') + chg.toFixed(1) + '%';
+        ctx.font = `bold ${pctSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+        ctx.fillStyle = chg >= 0 ? '#39ff14' : '#ff3366';  // bright neon green / neon red
+        ctx.fillText(pctStr, x, textY3);
       }
 
       // Specular highlight (shiny top-left) — skip during mobile drag
@@ -824,10 +869,11 @@ export function Visualization({
       }
     })
 
-    // Labels are completely disabled on mobile (as per previous requirement)
-    if (!isMobile) {
-      updateLabels(bubbles, labelsContainer)
-    }
+    // Labels disabled: all text (ticker, price, %) is now drawn INSIDE the planet on canvas
+    // (as requested for both desktop and mobile readability)
+    // if (!isMobile) {
+    //   updateLabels(bubbles, labelsContainer)
+    // }
 
     // Schedule next frame ONLY when physics is running
     if (!paused) {

@@ -617,6 +617,36 @@ export function Visualization({
         }
       }
 
+      // 24h % change at the TOP part of the planet (inside, above the logo) — LARGE, BOLD, PERFECTLY CENTERED, prominent
+      if (!simplifyForDrag && r > 14) {
+        const chg = coin.price_change_percentage_24h || 0
+
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        // Position high in the top inside the planet, above the logo
+        const topPctY = y - r * 0.82
+
+        const pctFs = Math.max(10, Math.min(22, r * 0.34))  // large and prominent
+        ctx.font = `900 ${pctFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+
+        const arrow = chg >= 0 ? '↑' : '↓'
+        const pctStr = arrow + Math.abs(chg).toFixed(2) + '%'
+        const neon = chg >= 0 ? '#39ff14' : '#ff3366'
+
+        // Strong black outline/stroke for max readability
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = Math.max(3, r * 0.07)
+        ctx.strokeText(pctStr, x, topPctY)
+
+        // Neon fill + glow for pop
+        ctx.shadowColor = neon
+        ctx.shadowBlur = 10
+        ctx.fillStyle = neon
+        ctx.fillText(pctStr, x, topPctY)
+        ctx.shadowBlur = 0
+      }
+
       // Sleek semi-transparent dark neon HUD band at bottom 18-22% of the planet (futuristic HUD overlay)
       if (!simplifyForDrag && r > 12) {
         ctx.save()
@@ -666,10 +696,8 @@ export function Visualization({
         ctx.strokeText(coin.symbol, x, bandCenterY - r * 0.11)
         ctx.fillText(coin.symbol, x, bandCenterY - r * 0.11)
 
-        // Price + 24h% right next to it (price then % larger/bolder with arrow)
+        // Price (with strong black outline)
         const priceFs = Math.max(9, Math.min(18, r * 0.26))
-        const pctFs = Math.max(11, Math.min(22, r * 0.32))  // even larger and bolder for %
-
         ctx.font = `700 ${priceFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
         ctx.fillStyle = '#e0f2fe'
         ctx.strokeStyle = '#000000'
@@ -681,24 +709,8 @@ export function Visualization({
         else if (price >= 10) priceStr = '$' + price.toFixed(1)
         else priceStr = '$' + price.toFixed(3)
 
-        const arrow = chg >= 0 ? '↑' : '↓'
-        const pctStr = arrow + ' ' + Math.abs(chg).toFixed(2) + '%'
-        const neon = chg >= 0 ? '#39ff14' : '#ff3366'
-
-        // Draw price leftish of center
-        const priceX = x - r * 0.22
-        ctx.strokeText(priceStr, priceX, bandCenterY + r * 0.05)
-        ctx.fillText(priceStr, priceX, bandCenterY + r * 0.05)
-
-        // Draw % right next to price, larger, bolder, neon with black outline
-        ctx.font = `900 ${pctFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-        ctx.fillStyle = neon
-        ctx.strokeStyle = '#000000'
-        ctx.lineWidth = Math.max(2.8, r * 0.065)  // stronger black outline
-
-        const pctX = x + r * 0.18
-        ctx.strokeText(pctStr, pctX, bandCenterY + r * 0.05)
-        ctx.fillText(pctStr, pctX, bandCenterY + r * 0.05)
+        ctx.strokeText(priceStr, x, bandCenterY + r * 0.05)
+        ctx.fillText(priceStr, x, bandCenterY + r * 0.05)
       }
 
       // Specular highlight (shiny top-left) — skip during mobile drag

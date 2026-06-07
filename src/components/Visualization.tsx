@@ -695,10 +695,8 @@ export function Visualization({
         ctx.restore()
       }
 
-      // Text in the bottom band — large bold futuristic with STRONG BLACK OUTLINE for max readability
+      // Text in the bottom band — only the ticker symbol (large bold futuristic with STRONG BLACK OUTLINE)
       if (!simplifyForDrag && r > 16) {
-        const price = coin.current_price || 0
-
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
 
@@ -712,22 +710,6 @@ export function Visualization({
         ctx.lineWidth = Math.max(2.5, r * 0.06)
         ctx.strokeText(coin.symbol, x, bandCenterY - r * 0.11)
         ctx.fillText(coin.symbol, x, bandCenterY - r * 0.11)
-
-        // Price (with strong black outline)
-        const priceFs = Math.max(9, Math.min(18, r * 0.26))
-        ctx.font = `700 ${priceFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-        ctx.fillStyle = '#e0f2fe'
-        ctx.strokeStyle = '#000000'
-        ctx.lineWidth = Math.max(2, r * 0.045)
-
-        let priceStr
-        if (price >= 10000) priceStr = '$' + price.toFixed(0)
-        else if (price >= 1000) priceStr = '$' + price.toFixed(0)
-        else if (price >= 10) priceStr = '$' + price.toFixed(1)
-        else priceStr = '$' + price.toFixed(3)
-
-        ctx.strokeText(priceStr, x, bandCenterY + r * 0.05)
-        ctx.fillText(priceStr, x, bandCenterY + r * 0.05)
       }
 
       // Specular highlight (shiny top-left) — skip during mobile drag

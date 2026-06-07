@@ -567,45 +567,41 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Real coin logo — completely skip during mobile drag for max performance
+      // Real coin logo — VERY LARGE (80-85% of planet interior), perfectly centered and dominant
       if (!simplifyForDrag) {
         const img = imageCache.current.get(coin.id)
         if (img && img.complete && img.naturalWidth > 0) {
-          // Preserve original image aspect ratio so logos don't look stretched/pressed
-          // Make logo smaller to leave space BELOW it INSIDE the planet for text
-          const maxLogoDiameter = r * 1.05
+          // 82-85% of planet diameter for dominant logo
+          const maxLogoDiameter = r * 1.68
           const imgAspect = img.width / img.height
 
           let drawW, drawH
-
           if (imgAspect > 1) {
-            // image is wider
             drawW = maxLogoDiameter
             drawH = maxLogoDiameter / imgAspect
           } else {
-            // image is taller or square
             drawH = maxLogoDiameter
             drawW = maxLogoDiameter * imgAspect
           }
 
-          // Center logo higher inside the planet to leave room below for text
-          const logoCenterY = y - r * 0.20
+          // Center logo in the upper portion of the planet
+          const logoCenterY = y - r * 0.08
           const logoX = x - drawW / 2
           const logoY = logoCenterY - drawH / 2
 
           ctx.save()
-          ctx.globalAlpha = 0.92
+          ctx.globalAlpha = 0.96
 
           if (r > 18) {
-            ctx.shadowColor = 'rgba(0,0,0,0.5)'
-            ctx.shadowBlur = 5
+            ctx.shadowColor = 'rgba(0,0,0,0.55)'
+            ctx.shadowBlur = 6
             ctx.shadowOffsetX = 1
             ctx.shadowOffsetY = 1
           }
 
-          // Circular mask - leave room for text below
+          // Clip slightly inside the planet so logo stays dominant but contained
           ctx.beginPath()
-          ctx.arc(x, y, r * 0.82, 0, Math.PI * 2)
+          ctx.arc(x, y, r * 0.93, 0, Math.PI * 2)
           ctx.clip()
 
           ctx.drawImage(img, logoX, logoY, drawW, drawH)
@@ -621,46 +617,79 @@ export function Visualization({
         }
       }
 
-      // === TEXT INSIDE THE PLANET (ticker, price, 24h%) ===
-      // Always draw for visibility, even during drag (small text ok)
-      // Positioned BELOW the logo, still inside the planet circle
-      if (r > 14) {  // only for reasonably sized planets to stay readable
-        const price = coin.current_price || 0;
-        const chg = coin.price_change_percentage_24h || 0;
+      // Sleek semi-transparent dark neon HUD band at bottom 15-20% of the planet
+      if (!simplifyForDrag && r > 12) {
+        ctx.save()
 
-        ctx.globalAlpha = 1.0;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#ffffff';
+        // Clip to planet circle so the band follows the curve
+        ctx.beginPath()
+        ctx.arc(x, y, r * 0.96, 0, Math.PI * 2)
+        ctx.clip()
 
-        // Dynamic font sizes for readability on small & large planets
-        const tickerSize = Math.max(7, Math.min(16, r * 0.26));
-        const priceSize = Math.max(6, Math.min(13, r * 0.20));
-        const pctSize = Math.max(6, Math.min(12, r * 0.18));
+        const bandTop = y + r * 0.68
+        const bandH = r * 0.28
 
-        // Positions inside the lower part of the planet
-        const textY1 = y + r * 0.38;  // ticker
-        const textY2 = y + r * 0.56;  // price
-        const textY3 = y + r * 0.72;  // percentage
+        // Dark neon base
+        ctx.fillStyle = 'rgba(6, 10, 24, 0.88)'
+        ctx.fillRect(x - r * 0.92, bandTop, r * 1.84, bandH)
 
-        // Ticker symbol (bold)
-        ctx.font = `bold ${tickerSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
-        ctx.fillText(coin.symbol, x, textY1);
+        // Strong cyan neon glow
+        ctx.shadowColor = '#67f6ff'
+        ctx.shadowBlur = 18
+        ctx.fillStyle = 'rgba(103, 246, 255, 0.22)'
+        ctx.fillRect(x - r * 0.92, bandTop, r * 1.84, bandH)
 
-        // Current price
-        let priceStr;
-        if (price >= 1000) priceStr = '$' + price.toFixed(0);
-        else if (price >= 1) priceStr = '$' + price.toFixed(2);
-        else if (price >= 0.01) priceStr = '$' + price.toFixed(4);
-        else priceStr = '$' + price.toFixed(6);
-        ctx.font = `${priceSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
-        ctx.fillText(priceStr, x, textY2);
+        ctx.shadowBlur = 9
+        ctx.fillStyle = 'rgba(103, 246, 255, 0.12)'
+        ctx.fillRect(x - r * 0.92, bandTop, r * 1.84, bandH)
 
-        // 24h % with neon color
-        const pctStr = (chg > 0 ? '+' : '') + chg.toFixed(1) + '%';
-        ctx.font = `bold ${pctSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
-        ctx.fillStyle = chg >= 0 ? '#39ff14' : '#ff3366';  // bright neon green / neon red
-        ctx.fillText(pctStr, x, textY3);
+        ctx.shadowBlur = 0
+        ctx.restore()
+      }
+
+      // Text inside the bottom band — large, bold, futuristic, neon outlined, highly legible
+      if (!simplifyForDrag && r > 16) {
+        const price = coin.current_price || 0
+        const chg = coin.price_change_percentage_24h || 0
+
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        const bandCenterY = y + r * 0.80
+
+        // Ticker — very large
+        const tickerFs = Math.max(11, Math.min(24, r * 0.36))
+        ctx.font = `900 ${tickerFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(coin.symbol, x, bandCenterY - r * 0.10)
+
+        // Price
+        const priceFs = Math.max(9, Math.min(18, r * 0.26))
+        ctx.font = `700 ${priceFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+        ctx.fillStyle = '#e0f2fe'
+
+        let priceStr
+        if (price >= 10000) priceStr = '$' + price.toFixed(0)
+        else if (price >= 1000) priceStr = '$' + price.toFixed(0)
+        else if (price >= 10) priceStr = '$' + price.toFixed(1)
+        else priceStr = '$' + price.toFixed(3)
+        ctx.fillText(priceStr, x, bandCenterY + r * 0.04)
+
+        // 24h % — bright neon + outline for pop and readability
+        const pctFs = Math.max(9, Math.min(17, r * 0.24))
+        ctx.font = `900 ${pctFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+
+        const pctStr = (chg > 0 ? '+' : '') + chg.toFixed(1) + '%'
+        const neon = chg >= 0 ? '#39ff14' : '#ff3366'
+
+        // Neon outline
+        ctx.strokeStyle = neon
+        ctx.lineWidth = Math.max(2.2, r * 0.05)
+        ctx.strokeText(pctStr, x, bandCenterY + r * 0.16)
+
+        // Fill
+        ctx.fillStyle = neon
+        ctx.fillText(pctStr, x, bandCenterY + r * 0.16)
       }
 
       // Specular highlight (shiny top-left) — skip during mobile drag

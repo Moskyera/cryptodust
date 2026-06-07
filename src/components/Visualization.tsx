@@ -460,6 +460,7 @@ export function Visualization({
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
       const isCurrentlyHighlighted = isBigMover && isHighlighting
       const isExtremeMover = Math.abs(coin.price_change_percentage_24h || 0) > 22
+      const isElectricityMover = change > 56  // >56% up for electric effect during highlight
 
       // Favorite golden pulsing glow — skip during mobile drag for smoothness
       if (!simplifyForDrag && isFavorite && r > 18) {
@@ -888,6 +889,152 @@ export function Visualization({
         ctx.fillStyle = badgeChg >= 0 ? '#4ade80' : '#f87171'
         ctx.fillText(chgLabel, pillX + pillW - 9 - ctx.measureText(chgLabel).width, pillY + 13.5)
 
+        ctx.globalAlpha = 1.0
+      }
+
+      // === ELECTRICITY EFFECT: >56% up movers while "Highlight Big Movers" is active ===
+      // Jagged branching lightning + rapid crackle flicker + bright discharge particles.
+      // Drawn late so bolts & particles render over the logo and labels (surface surge).
+      // Only for strong positive surges (change > 56). Desktop canvas only.
+      if (!simplifyForDrag && isElectricityMover && isCurrentlyHighlighted && r > 18) {
+        const t = Date.now()
+
+        // Intense fast crackle flicker (very rapid, electricity-like)
+        const baseFlicker = 0.55 + Math.sin(t / 28) * 0.38 + Math.sin(t / 9) * 0.18
+        const elecAlpha = Math.max(0.42, Math.min(0.98, baseFlicker))
+
+        ctx.globalAlpha = elecAlpha
+        ctx.shadowColor = '#67f6ff'
+        ctx.shadowBlur = 11
+        ctx.lineJoin = 'round'
+        ctx.lineCap = 'round'
+
+        const boltCore = '#e0f2fe'
+        const boltBright = '#f8fafc'
+        const boltAccent = '#67f6ff'
+
+        // 2-3 main electric bolts (more on larger planets)
+        const boltCount = r > 32 ? 3 : 2
+        for (let b = 0; b < boltCount; b++) {
+          const seed = b * 2.3
+          const startA = (t / 210) * 0.7 + seed + b * 0.8
+          const endA = startA + 2.1 + Math.sin(t / 310 + b) * 0.9
+
+          // Jagged points (surface crackle, stays mostly over the planet face)
+          const segs = r > 30 ? 5 : 4
+          const pts: Array<{ x: number; y: number }> = []
+          for (let s = 0; s <= segs; s++) {
+            const u = s / segs
+            let ang = startA + (endA - startA) * u
+            // Base radius biased inward so bolts travel across the logo/face
+            const rad = r * (0.48 + 0.42 * u + Math.sin(t / 65 + s * 2.1 + seed) * 0.07)
+            let px = x + Math.cos(ang) * rad
+            let py = y + Math.sin(ang) * rad * 0.95
+            // Sharp perpendicular zig-zag for classic lightning look
+            const zigAmp = r * (0.11 - Math.abs(u - 0.5) * 0.04)
+            const zig = Math.sin(t / 38 + s * 5.7 + seed * 1.3) * zigAmp
+            const pa = ang + Math.PI / 2
+            px += Math.cos(pa) * zig
+            py += Math.sin(pa) * zig
+            pts.push({ x: px, y: py })
+          }
+
+          // Wide soft electric halo (glow)
+          ctx.strokeStyle = boltAccent
+          ctx.lineWidth = 4.2 + Math.sin(t / 44 + b) * 1.1
+          ctx.shadowBlur = 16
+          ctx.beginPath()
+          ctx.moveTo(pts[0].x, pts[0].y)
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+          ctx.stroke()
+
+          // Main bright core
+          ctx.shadowBlur = 6
+          ctx.strokeStyle = boltCore
+          ctx.lineWidth = 1.9 + Math.sin(t / 31 + b) * 0.6
+          ctx.beginPath()
+          ctx.moveTo(pts[0].x, pts[0].y)
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+          ctx.stroke()
+
+          // Razor thin super-bright centerline (flickers hard)
+          ctx.shadowBlur = 0
+          ctx.globalAlpha = Math.max(0.6, elecAlpha * 1.15)
+          ctx.strokeStyle = boltBright
+          ctx.lineWidth = 0.65
+          ctx.beginPath()
+          ctx.moveTo(pts[0].x, pts[0].y)
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+          ctx.stroke()
+          ctx.globalAlpha = elecAlpha
+
+          // Side branches (classic electricity forking) — 1-2 short offshoots per bolt
+          const branchFrom = 1 + (b % 2)
+          if (pts.length > branchFrom + 1) {
+            for (let bf = branchFrom; bf < pts.length - 1; bf += 2) {
+              const bx = pts[bf].x
+              const by = pts[bf].y
+              const ba = startA + (endA - startA) * (bf / segs) + (b - 1) * 0.6
+              const blen = r * (0.18 + Math.random() * 0.07) // small random-ish length (stable enough via time)
+              const bend = ba + (b % 2 === 0 ? 1.1 : -1.35) + Math.sin(t / 55 + bf) * 0.4
+              const bx2 = bx + Math.cos(bend) * blen
+              const by2 = by + Math.sin(bend) * blen * 0.9
+
+              ctx.strokeStyle = boltAccent
+              ctx.lineWidth = 1.6
+              ctx.shadowBlur = 8
+              ctx.beginPath()
+              ctx.moveTo(bx, by)
+              ctx.lineTo(bx2, by2)
+              ctx.stroke()
+
+              ctx.shadowBlur = 2
+              ctx.strokeStyle = boltCore
+              ctx.lineWidth = 0.9
+              ctx.beginPath()
+              ctx.moveTo(bx, by)
+              ctx.lineTo(bx2, by2)
+              ctx.stroke()
+            }
+          }
+          ctx.shadowBlur = 11
+        }
+
+        // Fast crackling electric particles / discharge dots across the surface
+        ctx.shadowBlur = 4
+        const pCount = r > 34 ? 7 : 4
+        for (let i = 0; i < pCount; i++) {
+          const pa = (t / 75) + i * 1.65 + (i % 3) * 0.4
+          const pd = r * (0.42 + ((i + 1) % 3) * 0.16 + Math.sin(t / 47 + i * 2) * 0.07)
+          const px = x + Math.cos(pa) * pd
+          const py = y + Math.sin(pa) * pd * 0.94
+          const ps = 0.9 + Math.sin(t / 19 + i * 4) * 0.85
+
+          ctx.fillStyle = i % 3 === 0 ? '#ffffff' : boltAccent
+          ctx.beginPath()
+          ctx.arc(px, py, Math.max(0.6, ps), 0, Math.PI * 2)
+          ctx.fill()
+
+          // tiny extra white core on some
+          if (i % 2 === 0) {
+            ctx.fillStyle = '#f8fafc'
+            ctx.beginPath()
+            ctx.arc(px, py, Math.max(0.3, ps * 0.38), 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }
+
+        // Subtle electric corona ring (pulsing field)
+        const ringPulse = 0.7 + Math.sin(t / 55) * 0.32
+        ctx.globalAlpha = 0.28 * ringPulse
+        ctx.strokeStyle = boltAccent
+        ctx.lineWidth = 2.0
+        ctx.shadowBlur = 18
+        ctx.beginPath()
+        ctx.arc(x, y, r * 1.18, 0, Math.PI * 2)
+        ctx.stroke()
+
+        ctx.shadowBlur = 0
         ctx.globalAlpha = 1.0
       }
 

@@ -30,6 +30,7 @@ interface VisualizationProps {
   onTogglePaused?: () => void
   planetScale?: number
   isMobile?: boolean   // explicit for aggressive mobile perf paths
+  isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger + sun support
 }
 
 export function Visualization({ 
@@ -43,7 +44,8 @@ export function Visualization({
   paused = false,
   onTogglePaused,
   planetScale = 1,
-  isMobile: explicitIsMobile
+  isMobile: explicitIsMobile,
+  isPulsechain = false
 }: VisualizationProps) {
   const isMobile = explicitIsMobile ?? (planetScale < 0.7)
 
@@ -74,7 +76,22 @@ export function Visualization({
 
     // Desktop planets a little bigger
     const maxSize = planetScale < 0.7 ? 46 : 85
-    return Math.max(12, Math.min(maxSize, scaled))
+    let finalR = Math.max(12, Math.min(maxSize, scaled))
+
+    // PulseChain tab: ALL planets significantly larger for better visibility and impact (user request)
+    if (isPulsechain) {
+      finalR *= 1.52   // ~52% radius = substantial visual mass increase (area ~2.3x)
+      finalR = Math.min(finalR, 118)
+    }
+
+    // The one noticeably bigger radiant SUN-LIKE planet (Whales on Pulse).
+    // Force it huge even among the already-boosted pulse planets.
+    if (coin.id === 'whales-on-pulse-sun') {
+      finalR = Math.max(finalR, 155 * planetScale)
+      finalR = Math.min(finalR, 195) // still reasonable on screen
+    }
+
+    return finalR
   }
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const bubblesRef = useRef<Bubble[]>([])
@@ -455,12 +472,15 @@ export function Visualization({
 
       const change = coin.price_change_percentage_24h || 0
       const isGainer = change > 0
-      const baseColor = isGainer ? '#22c55e' : '#f43f5e'
+      let baseColor = isGainer ? '#22c55e' : '#f43f5e'
+      if (isSun) baseColor = '#f59e0b' // radiant sun (amber/gold) — ignore gainer/loser
       const isFavorite = favorites.includes(coin.id)
+
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
       const isCurrentlyHighlighted = isBigMover && isHighlighting
       const isExtremeMover = Math.abs(coin.price_change_percentage_24h || 0) > 22
       const isElectricityMover = change > 56  // >56% up for electric effect during highlight
+      const isSun = coin.id === 'whales-on-pulse-sun'
 
       // Favorite golden pulsing glow — skip during mobile drag for smoothness
       if (!simplifyForDrag && isFavorite && r > 18) {
@@ -476,6 +496,64 @@ export function Visualization({
         ctx.beginPath()
         ctx.arc(x, y, favSize, 0, Math.PI * 2)
         ctx.fill()
+      }
+
+      // === RADIANT SUN (Whales on Pulse) — noticeably bigger + always-on solar glows + rays ===
+      // Drawn for the special synthetic sun planet only when PulseChain tab is active.
+      if (!simplifyForDrag && isSun && r > 20) {
+        const t = Date.now()
+
+        // Large soft outer solar halo (yellow)
+        const sunPulse1 = 0.9 + Math.sin(t / 420) * 0.12
+        const halo1 = r * 3.6 * sunPulse1
+        const g1 = ctx.createRadialGradient(x, y, r * 0.9, x, y, halo1)
+        g1.addColorStop(0, 'rgba(253, 224, 71, 0.55)')
+        g1.addColorStop(0.4, 'rgba(251, 191, 36, 0.35)')
+        g1.addColorStop(1, 'transparent')
+        ctx.globalAlpha = 0.65
+        ctx.fillStyle = g1
+        ctx.beginPath()
+        ctx.arc(x, y, halo1, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Tighter hotter core glow (orange-white)
+        const sunPulse2 = 0.85 + Math.sin(t / 260) * 0.18
+        const halo2 = r * 2.15 * sunPulse2
+        const g2 = ctx.createRadialGradient(x, y, r * 0.6, x, y, halo2)
+        g2.addColorStop(0, '#fef08c')
+        g2.addColorStop(0.35, '#fcd34d')
+        g2.addColorStop(0.7, 'transparent')
+        ctx.globalAlpha = 0.5
+        ctx.fillStyle = g2
+        ctx.beginPath()
+        ctx.arc(x, y, halo2, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Fast subtle inner radiance
+        const innerPulse = 0.95 + Math.sin(t / 140) * 0.08
+        ctx.globalAlpha = 0.35
+        ctx.fillStyle = '#fffbeb'
+        ctx.beginPath()
+        ctx.arc(x, y, r * 1.35 * innerPulse, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Solar flare / ray lines (slowly rotating, animated length for "radiant" feel)
+        ctx.globalAlpha = 0.55
+        ctx.strokeStyle = '#fde047'
+        ctx.lineWidth = Math.max(2.5, r * 0.035)
+        const rayCount = 14
+        for (let i = 0; i < rayCount; i++) {
+          const rot = (t / 5200) * (i % 2 === 0 ? 1 : -1)
+          const ang = rot + (i * (Math.PI * 2 / rayCount))
+          const len = r * (1.55 + Math.sin(t / 380 + i * 1.7) * 0.28)
+          const rx = x + Math.cos(ang) * len
+          const ry = y + Math.sin(ang) * len * 0.96
+          ctx.beginPath()
+          ctx.moveTo(x + Math.cos(ang) * (r * 0.92), y + Math.sin(ang) * (r * 0.92))
+          ctx.lineTo(rx, ry)
+          ctx.stroke()
+        }
+        ctx.lineWidth = 1
       }
 
       // Big Mover intense layered glow — skip during mobile drag
@@ -627,7 +705,16 @@ export function Visualization({
 
         const topY = y - r * 0.82
 
-        if (topLabel === 'price') {
+        if (isSun) {
+          // Special SUN top label — large, radiant gold with black outline (thematic, overrides price/% tab)
+          const sunFs = Math.max(12, Math.min(26, r * 0.36))
+          ctx.font = `900 ${sunFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+          ctx.strokeStyle = '#000000'
+          ctx.lineWidth = Math.max(3.5, r * 0.065)
+          ctx.strokeText('SUN', x, topY)
+          ctx.fillStyle = '#fef08c'
+          ctx.fillText('SUN', x, topY)
+        } else if (topLabel === 'price') {
           // PRICE mode: large price at top with black outline
           const price = coin.current_price || 0
           const priceFs = Math.max(10, Math.min(22, r * 0.34))

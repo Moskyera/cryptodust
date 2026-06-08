@@ -85,8 +85,8 @@ export function Visualization({
     }
 
     // The one noticeably bigger radiant SUN-LIKE planet (Whales on Pulse).
-    // Force it huge even among the already-boosted pulse planets.
-    if (coin.id === 'whales-on-pulse-sun') {
+    // Only ever present (and thus sized) when on the PulseChain tab.
+    if (isPulsechain && coin.id === 'whales-on-pulse-sun') {
       finalR = Math.max(finalR, 155 * planetScale)
       finalR = Math.min(finalR, 195) // still reasonable on screen
     }
@@ -470,6 +470,8 @@ export function Visualization({
       const x = b.x
       const y = b.y
 
+      const isSun = coin.id === 'whales-on-pulse-sun'
+
       const change = coin.price_change_percentage_24h || 0
       const isGainer = change > 0
       let baseColor = isGainer ? '#22c55e' : '#f43f5e'
@@ -480,7 +482,6 @@ export function Visualization({
       const isCurrentlyHighlighted = isBigMover && isHighlighting
       const isExtremeMover = Math.abs(coin.price_change_percentage_24h || 0) > 22
       const isElectricityMover = change > 56  // >56% up for electric effect during highlight
-      const isSun = coin.id === 'whales-on-pulse-sun'
 
       // Favorite golden pulsing glow — skip during mobile drag for smoothness
       if (!simplifyForDrag && isFavorite && r > 18) {

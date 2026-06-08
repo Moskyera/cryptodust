@@ -883,7 +883,9 @@ export default function App() {
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-2">
-              {isWhalesSun ? (
+              {/* Whales link ONLY for the SUN planet details (never for regular planets, even on PulseChain tab).
+                  The sun entry itself is only injected when the PulseChain tab is active. */}
+              {(isWhalesSun && selectedCoin && selectedCoin.id === 'whales-on-pulse-sun') ? (
                 <a
                   href="https://whalesonpulse.com/?sort=change&dir=desc&chain=all"
                   target="_blank"
@@ -1014,7 +1016,10 @@ export default function App() {
 
               {/* Buy Buttons - Desktop only (hidden for the special sun) */}
               <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
-                {isWhalesSun ? (
+                {/* Whales on Pulse link button ONLY appears in the special SUN planet's details.
+                    Regular planets (even in PulseChain tab) always get the normal Ramp/Mercuryo buttons.
+                    The sun synthetic only exists when activePreset === 'pulsechain'. */}
+                {(isWhalesSun && selectedCoin && selectedCoin.id === 'whales-on-pulse-sun') ? (
                   <a
                     href="https://whalesonpulse.com/?sort=change&dir=desc&chain=all"
                     target="_blank"

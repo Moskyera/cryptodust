@@ -98,7 +98,7 @@ const WHALES_ON_PULSE: TokenPrice = {
   id: 'whales-on-pulse',
   symbol: 'WOP',
   name: 'Whales on Pulse',
-  image: 'https://whalesonpulse.com/assets/whalesonpulse-TgsaGwZj.png',
+  image: '/wop.png',
   current_price: 0,
   price_change_percentage_24h: 0,
   market_cap: 0,

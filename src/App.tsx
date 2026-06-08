@@ -91,11 +91,12 @@ const PULSECHAIN_EXCLUDED_IDS = new Set([
   'go'
 ])
 
-// Special featured "sun" planet shown ONLY in the PulseChain tab.
-// Large radiant sun-like visual + links out to the whales leaderboard (per user request).
-const WHALES_SUN: TokenPrice = {
-  id: 'whales-on-pulse-sun',
-  symbol: 'SUN',
+// Special featured planet shown ONLY in the PulseChain tab.
+// Uses the original logo from whalesonpulse.com and links out to the whales leaderboard.
+// Rendered larger than other planets with special radiant visuals (per user request).
+const WHALES_ON_PULSE: TokenPrice = {
+  id: 'whales-on-pulse',
+  symbol: 'WOP',
   name: 'Whales on Pulse',
   image: 'https://whalesonpulse.com/assets/whalesonpulse-TgsaGwZj.png',
   current_price: 0,
@@ -141,9 +142,9 @@ export default function App() {
   })
 
   const selectedCoin = selectedId 
-    ? (tokens.find(t => t.id === selectedId) || (selectedId === 'whales-on-pulse-sun' ? WHALES_SUN : null))
+    ? (tokens.find(t => t.id === selectedId) || (selectedId === 'whales-on-pulse' ? WHALES_ON_PULSE : null))
     : null
-  const isWhalesSun = selectedId === 'whales-on-pulse-sun'
+  const isWhales = selectedId === 'whales-on-pulse'
 
   // Simple filter logic + search + pagination (500 coins total, 100 per page)
   const filteredTokens = React.useMemo(() => {
@@ -188,13 +189,13 @@ export default function App() {
       })
     }
 
-    // Inject the special radiant SUN (Whales on Pulse logo) exclusively for the PulseChain tab.
+    // Inject the special "Whales on Pulse" planet (using original site logo) exclusively for the PulseChain tab.
     // Always placed first for visual impact. Survives search (featured entry).
     // All other pulse planets also get a size boost (see Visualization + planetScale usage).
     if (activePreset === 'pulsechain') {
-      const sunId = 'whales-on-pulse-sun'
-      const others = result.filter(t => t.id !== sunId)
-      result = [WHALES_SUN, ...others]
+      const whalesId = 'whales-on-pulse'
+      const others = result.filter(t => t.id !== whalesId)
+      result = [WHALES_ON_PULSE, ...others]
     }
 
     return result.slice(0, 500) // keep max 500 coins
@@ -738,7 +739,7 @@ export default function App() {
                 const change = coin.price_change_percentage_24h || 0;
                 const isBigMover = Math.abs(change) > 6;
                 const isHighlightActive = highlightUntil > Date.now();
-                const rowIsSun = coin.id === 'whales-on-pulse-sun';
+                const rowIsWhales = coin.id === 'whales-on-pulse';
 
                 let highlightClass = '';
 
@@ -752,8 +753,8 @@ export default function App() {
                   }
                 }
 
-                if (rowIsSun) {
-                  // Special prominent row for the radiant SUN (PulseChain tab only)
+                if (rowIsWhales) {
+                  // Special prominent row for "Whales on Pulse" (PulseChain tab only)
                   return (
                     <div
                       key={coin.id}
@@ -763,7 +764,7 @@ export default function App() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">🌞</span>
+                        <span className="text-lg">🌊</span>
                         <div>
                           <div className="font-semibold tracking-tight">Whales on Pulse</div>
                           <div className="text-[10px] text-amber-400/80">Tap to open whale leaderboard</div>
@@ -826,7 +827,7 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
-                {!isWhalesSun && (
+                {!isWhales && (
                   <button 
                     onClick={() => toggleFavorite(selectedCoin.id)} 
                     className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
@@ -843,8 +844,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* Price + 24h% (hidden for the special sun planet) */}
-            {!isWhalesSun && (
+            {/* Price + 24h% (hidden for the special Whales on Pulse planet) */}
+            {!isWhales && (
               <div className="flex items-baseline justify-between mb-3">
                 <div className="text-2xl font-semibold tabular-nums">
                   {formatPrice(selectedCoin.current_price)}
@@ -855,8 +856,8 @@ export default function App() {
               </div>
             )}
 
-            {/* Stats Grid (hidden for sun) */}
-            {!isWhalesSun && (
+            {/* Stats Grid (hidden for Whales on Pulse) */}
+            {!isWhales && (
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
                 <div className="flex justify-between border-b border-white/10 pb-1">
                   <span className="text-[#6b7280]">Market Cap</span>
@@ -877,22 +878,22 @@ export default function App() {
               </div>
             )}
 
-            {isWhalesSun && (
+            {isWhales && (
               <div className="text-sm text-[#9ca3af] mb-4">Featured PulseChain whale + dry powder tracker.</div>
             )}
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-2">
-              {/* Whales link ONLY for the SUN planet details (never for regular planets, even on PulseChain tab).
-                  The sun entry itself is only injected when the PulseChain tab is active. */}
-              {(isWhalesSun && selectedCoin && selectedCoin.id === 'whales-on-pulse-sun') ? (
+              {/* Whales link ONLY for the "Whales on Pulse" planet details (never for regular planets, even on PulseChain tab).
+                  The entry itself is only injected when the PulseChain tab is active. */}
+              {(isWhales && selectedCoin && selectedCoin.id === 'whales-on-pulse') ? (
                 <a
                   href="https://whalesonpulse.com/?sort=change&dir=desc&chain=all"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-400 text-black font-semibold text-center active:bg-yellow-300 text-sm"
                 >
-                  🌞 Open Whales on Pulse Leaderboard →
+                  🌊 Open Whales on Pulse Leaderboard →
                 </a>
               ) : (
                 <div className="flex gap-2">
@@ -946,7 +947,7 @@ export default function App() {
                   <div className="font-semibold text-2xl tracking-tight">{selectedCoin.symbol}</div>
                   <div className="text-sm text-[#9ca3af] truncate">{selectedCoin.name}</div>
                 </div>
-                {!isWhalesSun && (
+                {!isWhales && (
                   <button 
                     onClick={() => toggleFavorite(selectedCoin.id)}
                     className="text-3xl leading-none transition-transform active:scale-90 ml-2"
@@ -958,7 +959,7 @@ export default function App() {
               </div>
 
               <div className="space-y-3 text-sm">
-                {!isWhalesSun && (
+                {!isWhales && (
                   <>
                     <div className="flex justify-between items-baseline">
                       <span className="text-[#6b7280]">Price</span>
@@ -1001,32 +1002,32 @@ export default function App() {
                   </>
                 )}
 
-                {isWhalesSun && (
+                {isWhales && (
                   <div className="text-sm text-[#9ca3af] py-1 border-t border-white/10">
                     Featured PulseChain ecosystem link. Track the biggest dry powder holders and whale movements.
                   </div>
                 )}
 
-                {activePreset === 'pulsechain' && !isWhalesSun && (
+                {activePreset === 'pulsechain' && !isWhales && (
                   <div className="text-[10px] text-violet-400/60 pt-1">
                     Note: Many PulseChain tokens have limited market data on CoinGecko
                   </div>
                 )}
               </div>
 
-              {/* Buy Buttons - Desktop only (hidden for the special sun) */}
+              {/* Buy Buttons - Desktop only (hidden for the special Whales on Pulse planet) */}
               <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
-                {/* Whales on Pulse link button ONLY appears in the special SUN planet's details.
+                {/* Whales on Pulse link button ONLY appears in the "Whales on Pulse" planet's details.
                     Regular planets (even in PulseChain tab) always get the normal Ramp/Mercuryo buttons.
-                    The sun synthetic only exists when activePreset === 'pulsechain'. */}
-                {(isWhalesSun && selectedCoin && selectedCoin.id === 'whales-on-pulse-sun') ? (
+                    The entry only exists when activePreset === 'pulsechain'. */}
+                {(isWhales && selectedCoin && selectedCoin.id === 'whales-on-pulse') ? (
                   <a
                     href="https://whalesonpulse.com/?sort=change&dir=desc&chain=all"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300 hover:from-yellow-300 hover:to-amber-200 text-black font-semibold text-sm text-center active:scale-[0.985] transition-all shadow-[0_0_18px_rgba(251,191,36,0.35)]"
                   >
-                    🌞 View Whales Leaderboard on WhalesOnPulse →
+                    🌊 View Whales Leaderboard on WhalesOnPulse →
                   </a>
                 ) : (
                   <>

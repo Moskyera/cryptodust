@@ -84,11 +84,12 @@ export function Visualization({
       finalR = Math.min(finalR, 118)
     }
 
-    // The one noticeably bigger radiant SUN-LIKE planet (Whales on Pulse).
+    // The featured "Whales on Pulse" planet (larger than others for impact).
     // Only ever present (and thus sized) when on the PulseChain tab.
-    if (isPulsechain && coin.id === 'whales-on-pulse-sun') {
-      finalR = Math.max(finalR, 155 * planetScale)
-      finalR = Math.min(finalR, 195) // still reasonable on screen
+    // Made a little smaller per user request while still being the biggest.
+    if (isPulsechain && coin.id === 'whales-on-pulse') {
+      finalR = Math.max(finalR, 125 * planetScale)
+      finalR = Math.min(finalR, 160) // still noticeably bigger but a bit smaller than before
     }
 
     return finalR
@@ -470,12 +471,12 @@ export function Visualization({
       const x = b.x
       const y = b.y
 
-      const isSun = coin.id === 'whales-on-pulse-sun'
+      const isWhales = coin.id === 'whales-on-pulse'
 
       const change = coin.price_change_percentage_24h || 0
       const isGainer = change > 0
       let baseColor = isGainer ? '#22c55e' : '#f43f5e'
-      if (isSun) baseColor = '#f59e0b' // radiant sun (amber/gold) — ignore gainer/loser
+      if (isWhales) baseColor = '#f59e0b' // special amber/gold for Whales on Pulse — ignore gainer/loser
       const isFavorite = favorites.includes(coin.id)
 
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
@@ -499,9 +500,9 @@ export function Visualization({
         ctx.fill()
       }
 
-      // === RADIANT SUN (Whales on Pulse) — noticeably bigger + always-on solar glows + rays ===
-      // Drawn for the special synthetic sun planet only when PulseChain tab is active.
-      if (!simplifyForDrag && isSun && r > 20) {
+      // === WHALES ON PULSE special planet — larger + radiant amber/gold glows + rays ===
+      // Drawn for the special featured planet (original logo from site) only when PulseChain tab is active.
+      if (!simplifyForDrag && isWhales && r > 20) {
         const t = Date.now()
 
         // Large soft outer solar halo (yellow)
@@ -706,15 +707,16 @@ export function Visualization({
 
         const topY = y - r * 0.82
 
-        if (isSun) {
-          // Special SUN top label — large, radiant gold with black outline (thematic, overrides price/% tab)
-          const sunFs = Math.max(12, Math.min(26, r * 0.36))
-          ctx.font = `900 ${sunFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+        if (isWhales) {
+          // Special "Whales on Pulse" top label — large gold with black outline (thematic, overrides price/% tab)
+          // Uses short ticker 'WOP' to fit nicely (symbol from original site branding)
+          const whalesFs = Math.max(12, Math.min(24, r * 0.34))
+          ctx.font = `900 ${whalesFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
           ctx.strokeStyle = '#000000'
           ctx.lineWidth = Math.max(3.5, r * 0.065)
-          ctx.strokeText('SUN', x, topY)
+          ctx.strokeText('WOP', x, topY)
           ctx.fillStyle = '#fef08c'
-          ctx.fillText('SUN', x, topY)
+          ctx.fillText('WOP', x, topY)
         } else if (topLabel === 'price') {
           // PRICE mode: large price at top with black outline
           const price = coin.current_price || 0

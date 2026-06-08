@@ -86,10 +86,10 @@ export function Visualization({
 
     // The featured "Whales on Pulse" planet (larger than others for impact).
     // Only ever present (and thus sized) when on the PulseChain tab.
-    // Made a little smaller per user request while still being the biggest.
+    // Made a little bit smaller per user request. Only for this planet.
     if (isPulsechain && coin.id === 'whales-on-pulse') {
-      finalR = Math.max(finalR, 125 * planetScale)
-      finalR = Math.min(finalR, 160) // still noticeably bigger but a bit smaller than before
+      finalR = Math.max(finalR, 110 * planetScale)
+      finalR = Math.min(finalR, 145)
     }
 
     return finalR
@@ -669,10 +669,7 @@ export function Visualization({
           }
 
           // Center logo to occupy 80-85% dominant, positioned to leave top space for % text
-          let logoCenterY = y + r * 0.10
-          if (isWhales) {
-            logoCenterY = y - r * 0.25  // shift logo up for this planet to make room for centered full name text
-          }
+          const logoCenterY = y + r * 0.10
           const logoX = x - drawW / 2
           const logoY = logoCenterY - drawH / 2
 
@@ -800,25 +797,6 @@ export function Visualization({
         ctx.fillText(coin.symbol, x, bandCenterY - r * 0.11)
       }
 
-      // For the special "Whales on Pulse" planet only: draw the full name "Whales on Pulse" centered
-      // (no top WOP, no bottom ticker/band — full name in center as requested)
-      if (isWhales && !simplifyForDrag && r > 18) {
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-
-        const centerText = 'Whales on Pulse'
-        const centerFs = Math.max(11, Math.min(20, r * 0.26))
-        ctx.font = `900 ${centerFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-        ctx.strokeStyle = '#000000'
-        ctx.lineWidth = Math.max(3, r * 0.05)
-
-        // Centered below the (upward-shifted) logo for good balance
-        const textY = y + r * 0.18
-        ctx.strokeText(centerText, x, textY)
-        ctx.fillStyle = '#ffffff'
-        ctx.fillText(centerText, x, textY)
-      }
-
       // Specular highlight (shiny top-left) — skip during mobile drag
       if (!simplifyForDrag && r > 15) {
         ctx.globalAlpha = 0.6
@@ -829,7 +807,8 @@ export function Visualization({
       }
 
       // Attractive rings (especially visible on larger planets) — skip during drag
-      if (!simplifyForDrag && r > 26) {
+      // Skip for the special Whales on Pulse planet (remove the ring only for this planet)
+      if (!simplifyForDrag && r > 26 && !isWhales) {
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
         ctx.lineWidth = r * 0.09

@@ -91,6 +91,19 @@ const PULSECHAIN_EXCLUDED_IDS = new Set([
   'go'
 ])
 
+// Special featured "sun" planet shown ONLY in the PulseChain tab.
+// Large radiant sun-like visual + links out to the whales leaderboard (per user request).
+const WHALES_SUN: TokenPrice = {
+  id: 'whales-on-pulse-sun',
+  symbol: 'SUN',
+  name: 'Whales on Pulse',
+  image: 'https://whalesonpulse.com/assets/whalesonpulse-TgsaGwZj.png',
+  current_price: 0,
+  price_change_percentage_24h: 0,
+  market_cap: 0,
+  total_volume: 0,
+}
+
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -127,7 +140,10 @@ export default function App() {
     }
   })
 
-  const selectedCoin = selectedId ? tokens.find(t => t.id === selectedId) : null
+  const selectedCoin = selectedId 
+    ? (tokens.find(t => t.id === selectedId) || (selectedId === 'whales-on-pulse-sun' ? WHALES_SUN : null))
+    : null
+  const isWhalesSun = selectedId === 'whales-on-pulse-sun'
 
   // Simple filter logic + search + pagination (500 coins total, 100 per page)
   const filteredTokens = React.useMemo(() => {
@@ -170,6 +186,15 @@ export default function App() {
           name.includes('pulse')
         )
       })
+    }
+
+    // Inject the special radiant SUN (Whales on Pulse logo) exclusively for the PulseChain tab.
+    // Always placed first for visual impact. Survives search (featured entry).
+    // All other pulse planets also get a size boost (see Visualization + planetScale usage).
+    if (activePreset === 'pulsechain') {
+      const sunId = 'whales-on-pulse-sun'
+      const others = result.filter(t => t.id !== sunId)
+      result = [WHALES_SUN, ...others]
     }
 
     return result.slice(0, 500) // keep max 500 coins
@@ -626,6 +651,7 @@ export default function App() {
             onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
             planetScale={isMobile ? 0.45 : 1}
             isMobile={isMobile}
+            isPulsechain={activePreset === 'pulsechain'}
           />
         )}
 
@@ -712,10 +738,11 @@ export default function App() {
                 const change = coin.price_change_percentage_24h || 0;
                 const isBigMover = Math.abs(change) > 6;
                 const isHighlightActive = highlightUntil > Date.now();
+                const rowIsSun = coin.id === 'whales-on-pulse-sun';
 
                 let highlightClass = '';
 
-                if (isHighlightActive && isBigMover) {
+                if (!rowIsSun && isHighlightActive && isBigMover) {
                   if (change > 0) {
                     // Positive big mover → green blink
                     highlightClass = 'bg-emerald-500/15 border-emerald-500/40 animate-pulse';
@@ -723,6 +750,28 @@ export default function App() {
                     // Negative big mover → red blink
                     highlightClass = 'bg-red-500/15 border-red-500/40 animate-pulse';
                   }
+                }
+
+                if (rowIsSun) {
+                  // Special prominent row for the radiant SUN (PulseChain tab only)
+                  return (
+                    <div
+                      key={coin.id}
+                      onClick={() => handleSelect(coin.id)}
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-2xl border border-amber-400/70 bg-gradient-to-r from-amber-500/15 to-yellow-500/10 text-amber-200 active:brightness-110 transition-all ${
+                        selectedId === coin.id ? 'ring-1 ring-amber-300' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">🌞</span>
+                        <div>
+                          <div className="font-semibold tracking-tight">Whales on Pulse</div>
+                          <div className="text-[10px] text-amber-400/80">Tap to open whale leaderboard</div>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs font-medium text-amber-300">View →</div>
+                    </div>
+                  );
                 }
 
                 return (
@@ -777,12 +826,14 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => toggleFavorite(selectedCoin.id)} 
-                  className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
-                >
-                  {favorites.includes(selectedCoin.id) ? '★ Favorited' : '☆ Favorite'}
-                </button>
+                {!isWhalesSun && (
+                  <button 
+                    onClick={() => toggleFavorite(selectedCoin.id)} 
+                    className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
+                  >
+                    {favorites.includes(selectedCoin.id) ? '★ Favorited' : '☆ Favorite'}
+                  </button>
+                )}
                 <button 
                   onClick={() => setSelectedId(null)} 
                   className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
@@ -792,55 +843,74 @@ export default function App() {
               </div>
             </div>
 
-            {/* Price + 24h% */}
-            <div className="flex items-baseline justify-between mb-3">
-              <div className="text-2xl font-semibold tabular-nums">
-                {formatPrice(selectedCoin.current_price)}
-              </div>
-              <div className={`text-base font-medium ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }`}>
-                {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
-              </div>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
-              <div className="flex justify-between border-b border-white/10 pb-1">
-                <span className="text-[#6b7280]">Market Cap</span>
-                <span className="font-medium">{formatMarketValue(selectedCoin.market_cap)}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/10 pb-1">
-                <span className="text-[#6b7280]">24h Volume</span>
-                <span className="font-medium">{formatMarketValue(selectedCoin.total_volume)}</span>
-              </div>
-              {selectedCoin.price_change_percentage_1h !== undefined && (
-                <div className="flex justify-between border-b border-white/10 pb-1 col-span-2">
-                  <span className="text-[#6b7280]">1h Change</span>
-                  <span className={`font-medium ${ (selectedCoin.price_change_percentage_1h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }`}>
-                    {(selectedCoin.price_change_percentage_1h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_1h || 0).toFixed(2)}%
-                  </span>
+            {/* Price + 24h% (hidden for the special sun planet) */}
+            {!isWhalesSun && (
+              <div className="flex items-baseline justify-between mb-3">
+                <div className="text-2xl font-semibold tabular-nums">
+                  {formatPrice(selectedCoin.current_price)}
                 </div>
-              )}
-            </div>
+                <div className={`text-base font-medium ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }`}>
+                  {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
+                </div>
+              </div>
+            )}
+
+            {/* Stats Grid (hidden for sun) */}
+            {!isWhalesSun && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
+                <div className="flex justify-between border-b border-white/10 pb-1">
+                  <span className="text-[#6b7280]">Market Cap</span>
+                  <span className="font-medium">{formatMarketValue(selectedCoin.market_cap)}</span>
+                </div>
+                <div className="flex justify-between border-b border-white/10 pb-1">
+                  <span className="text-[#6b7280]">24h Volume</span>
+                  <span className="font-medium">{formatMarketValue(selectedCoin.total_volume)}</span>
+                </div>
+                {selectedCoin.price_change_percentage_1h !== undefined && (
+                  <div className="flex justify-between border-b border-white/10 pb-1 col-span-2">
+                    <span className="text-[#6b7280]">1h Change</span>
+                    <span className={`font-medium ${ (selectedCoin.price_change_percentage_1h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }`}>
+                      {(selectedCoin.price_change_percentage_1h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_1h || 0).toFixed(2)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isWhalesSun && (
+              <div className="text-sm text-[#9ca3af] mb-4">Featured PulseChain whale + dry powder tracker.</div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setShowRampModal(true)}
-                  className="flex-1 py-2.5 rounded-2xl bg-emerald-500 text-black font-semibold active:bg-emerald-400 text-sm"
+              {isWhalesSun ? (
+                <a
+                  href="https://whalesonpulse.com/?sort=change&dir=desc&chain=all"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-400 text-black font-semibold text-center active:bg-yellow-300 text-sm"
                 >
-                  Buy with RampNow
-                </button>
-                <button 
-                  onClick={() => {
-                    const url = 'https://exchange.mercuryo.io/';
-                    window.open(url, '_blank');
-                  }}
-                  className="flex-1 py-2.5 rounded-2xl bg-blue-500 text-white font-semibold active:bg-blue-400 text-sm"
-                >
-                  Buy with Mercuryo
-                </button>
-              </div>
+                  🌞 Open Whales on Pulse Leaderboard →
+                </a>
+              ) : (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setShowRampModal(true)}
+                    className="flex-1 py-2.5 rounded-2xl bg-emerald-500 text-black font-semibold active:bg-emerald-400 text-sm"
+                  >
+                    Buy with RampNow
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const url = 'https://exchange.mercuryo.io/';
+                      window.open(url, '_blank');
+                    }}
+                    className="flex-1 py-2.5 rounded-2xl bg-blue-500 text-white font-semibold active:bg-blue-400 text-sm"
+                  >
+                    Buy with Mercuryo
+                  </button>
+                </div>
+              )}
               <button 
                 onClick={() => setSelectedId(null)}
                 className="w-full py-2.5 rounded-2xl bg-white/5 border border-white/10 active:bg-white/10 text-sm"
@@ -874,86 +944,111 @@ export default function App() {
                   <div className="font-semibold text-2xl tracking-tight">{selectedCoin.symbol}</div>
                   <div className="text-sm text-[#9ca3af] truncate">{selectedCoin.name}</div>
                 </div>
-                <button 
-                  onClick={() => toggleFavorite(selectedCoin.id)}
-                  className="text-3xl leading-none transition-transform active:scale-90 ml-2"
-                  title={favorites.includes(selectedCoin.id) ? "Remove from favorites" : "Add to favorites"}
-                >
-                  {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/40">☆</span>}
-                </button>
+                {!isWhalesSun && (
+                  <button 
+                    onClick={() => toggleFavorite(selectedCoin.id)}
+                    className="text-3xl leading-none transition-transform active:scale-90 ml-2"
+                    title={favorites.includes(selectedCoin.id) ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/40">☆</span>}
+                  </button>
+                )}
               </div>
 
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-baseline">
-                  <span className="text-[#6b7280]">Price</span>
-                  <span className="font-semibold tabular-nums text-2xl tracking-tighter">
-                    {formatPrice(selectedCoin.current_price)}
-                  </span>
-                </div>
+                {!isWhalesSun && (
+                  <>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-[#6b7280]">Price</span>
+                      <span className="font-semibold tabular-nums text-2xl tracking-tighter">
+                        {formatPrice(selectedCoin.current_price)}
+                      </span>
+                    </div>
 
-                <div className="flex justify-between items-baseline">
-                  <span className="text-[#6b7280]">24h Change</span>
-                  <span className={`font-semibold ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
-                  </span>
-                </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-[#6b7280]">24h Change</span>
+                      <span className={`font-semibold ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
+                      </span>
+                    </div>
 
-                {/* Mini Sparkline — desktop visual polish (idea 4) */}
-                <div className="pt-1 pb-2 border-t border-white/10">
-                  <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-0.5">
-                    <span>24h TREND</span>
-                    <span className="tabular-nums">{selectedCoin.price_change_percentage_24h > 0 ? '↑' : '↓'} simulated</span>
+                    {/* Mini Sparkline — desktop visual polish (idea 4) */}
+                    <div className="pt-1 pb-2 border-t border-white/10">
+                      <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-0.5">
+                        <span>24h TREND</span>
+                        <span className="tabular-nums">{selectedCoin.price_change_percentage_24h > 0 ? '↑' : '↓'} simulated</span>
+                      </div>
+                      <MiniSparkline coin={selectedCoin} />
+                    </div>
+
+                    {/* Market Cap */}
+                    <div className="flex justify-between items-baseline pt-2 border-t border-white/10">
+                      <span className="text-[#6b7280]">Market Cap</span>
+                      <span className="font-medium">
+                        {formatMarketValue(selectedCoin.market_cap)}
+                      </span>
+                    </div>
+
+                    {/* 24h Volume */}
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-[#6b7280]">24h Volume</span>
+                      <span className="font-medium">
+                        {formatMarketValue(selectedCoin.total_volume)}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {isWhalesSun && (
+                  <div className="text-sm text-[#9ca3af] py-1 border-t border-white/10">
+                    Featured PulseChain ecosystem link. Track the biggest dry powder holders and whale movements.
                   </div>
-                  <MiniSparkline coin={selectedCoin} />
-                </div>
+                )}
 
-                {/* Market Cap */}
-                <div className="flex justify-between items-baseline pt-2 border-t border-white/10">
-                  <span className="text-[#6b7280]">Market Cap</span>
-                  <span className="font-medium">
-                    {formatMarketValue(selectedCoin.market_cap)}
-                  </span>
-                </div>
-
-                {/* 24h Volume */}
-                <div className="flex justify-between items-baseline">
-                  <span className="text-[#6b7280]">24h Volume</span>
-                  <span className="font-medium">
-                    {formatMarketValue(selectedCoin.total_volume)}
-                  </span>
-                </div>
-
-                {activePreset === 'pulsechain' && (
+                {activePreset === 'pulsechain' && !isWhalesSun && (
                   <div className="text-[10px] text-violet-400/60 pt-1">
                     Note: Many PulseChain tokens have limited market data on CoinGecko
                   </div>
                 )}
               </div>
 
-              {/* Buy Buttons - Desktop only */}
+              {/* Buy Buttons - Desktop only (hidden for the special sun) */}
               <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
-                <button
-                  onClick={() => setShowRampModal(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-semibold text-sm transition-all active:scale-[0.985]"
-                >
-                  <span>Buy with RampNow</span>
-                  <span className="text-xs opacity-75">→</span>
-                </button>
+                {isWhalesSun ? (
+                  <a
+                    href="https://whalesonpulse.com/?sort=change&dir=desc&chain=all"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300 hover:from-yellow-300 hover:to-amber-200 text-black font-semibold text-sm text-center active:scale-[0.985] transition-all shadow-[0_0_18px_rgba(251,191,36,0.35)]"
+                  >
+                    🌞 View Whales Leaderboard on WhalesOnPulse →
+                  </a>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setShowRampModal(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-semibold text-sm transition-all active:scale-[0.985]"
+                    >
+                      <span>Buy with RampNow</span>
+                      <span className="text-xs opacity-75">→</span>
+                    </button>
 
-                <button
-                  onClick={() => {
-                    const url = 'https://exchange.mercuryo.io/';
-                    window.open(url, '_blank');
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-semibold text-sm transition-all active:scale-[0.985]"
-                >
-                  <span>Buy with Mercuryo</span>
-                  <span className="text-xs opacity-75">→</span>
-                </button>
+                    <button
+                      onClick={() => {
+                        const url = 'https://exchange.mercuryo.io/';
+                        window.open(url, '_blank');
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-semibold text-sm transition-all active:scale-[0.985]"
+                    >
+                      <span>Buy with Mercuryo</span>
+                      <span className="text-xs opacity-75">→</span>
+                    </button>
 
-                <p className="text-[10px] text-center text-[#6b7280]">
-                  Card • Bank • Apple Pay • Low fees
-                </p>
+                    <p className="text-[10px] text-center text-[#6b7280]">
+                      Card • Bank • Apple Pay • Low fees
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 

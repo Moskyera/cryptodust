@@ -30,7 +30,7 @@ interface VisualizationProps {
   onTogglePaused?: () => void
   planetScale?: number
   isMobile?: boolean   // explicit for aggressive mobile perf paths
-  isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger + sun support
+  isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger + special water planet support (Whales on Pulse)
 }
 
 export function Visualization({ 
@@ -476,7 +476,7 @@ export function Visualization({
       const change = coin.price_change_percentage_24h || 0
       const isGainer = change > 0
       let baseColor = isGainer ? '#22c55e' : '#f43f5e'
-      if (isWhales) baseColor = '#f59e0b' // special amber/gold for Whales on Pulse — ignore gainer/loser
+      if (isWhales) baseColor = '#0ea5e9' // water planet (ocean blue) for Whales on Pulse — ignore gainer/loser
       const isFavorite = favorites.includes(coin.id)
 
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
@@ -500,17 +500,18 @@ export function Visualization({
         ctx.fill()
       }
 
-      // === WHALES ON PULSE special planet — larger + radiant amber/gold glows + rays ===
+      // === WHALES ON PULSE special planet — larger + radiant water/ocean glows + rays ===
       // Drawn for the special featured planet (original logo from site) only when PulseChain tab is active.
+      // Water theme for accuracy with "whales" (blue/cyan ocean planet instead of sun).
       if (!simplifyForDrag && isWhales && r > 20) {
         const t = Date.now()
 
-        // Large soft outer solar halo (yellow)
-        const sunPulse1 = 0.9 + Math.sin(t / 420) * 0.12
-        const halo1 = r * 3.6 * sunPulse1
+        // Large soft outer water halo (cyan/blue)
+        const waterPulse1 = 0.9 + Math.sin(t / 420) * 0.12
+        const halo1 = r * 3.6 * waterPulse1
         const g1 = ctx.createRadialGradient(x, y, r * 0.9, x, y, halo1)
-        g1.addColorStop(0, 'rgba(253, 224, 71, 0.55)')
-        g1.addColorStop(0.4, 'rgba(251, 191, 36, 0.35)')
+        g1.addColorStop(0, 'rgba(103, 232, 249, 0.55)')
+        g1.addColorStop(0.4, 'rgba(103, 246, 255, 0.35)')
         g1.addColorStop(1, 'transparent')
         ctx.globalAlpha = 0.65
         ctx.fillStyle = g1
@@ -518,12 +519,12 @@ export function Visualization({
         ctx.arc(x, y, halo1, 0, Math.PI * 2)
         ctx.fill()
 
-        // Tighter hotter core glow (orange-white)
-        const sunPulse2 = 0.85 + Math.sin(t / 260) * 0.18
-        const halo2 = r * 2.15 * sunPulse2
+        // Tighter core glow (bright cyan / ocean)
+        const waterPulse2 = 0.85 + Math.sin(t / 260) * 0.18
+        const halo2 = r * 2.15 * waterPulse2
         const g2 = ctx.createRadialGradient(x, y, r * 0.6, x, y, halo2)
-        g2.addColorStop(0, '#fef08c')
-        g2.addColorStop(0.35, '#fcd34d')
+        g2.addColorStop(0, '#67f6ff')
+        g2.addColorStop(0.35, '#22d3ee')
         g2.addColorStop(0.7, 'transparent')
         ctx.globalAlpha = 0.5
         ctx.fillStyle = g2
@@ -531,17 +532,17 @@ export function Visualization({
         ctx.arc(x, y, halo2, 0, Math.PI * 2)
         ctx.fill()
 
-        // Fast subtle inner radiance
+        // Fast subtle inner radiance (light blue)
         const innerPulse = 0.95 + Math.sin(t / 140) * 0.08
         ctx.globalAlpha = 0.35
-        ctx.fillStyle = '#fffbeb'
+        ctx.fillStyle = '#e0f2fe'
         ctx.beginPath()
         ctx.arc(x, y, r * 1.35 * innerPulse, 0, Math.PI * 2)
         ctx.fill()
 
-        // Solar flare / ray lines (slowly rotating, animated length for "radiant" feel)
+        // Water ray lines (slowly rotating, animated length for "radiant" feel)
         ctx.globalAlpha = 0.55
-        ctx.strokeStyle = '#fde047'
+        ctx.strokeStyle = '#67f6ff'
         ctx.lineWidth = Math.max(2.5, r * 0.035)
         const rayCount = 14
         for (let i = 0; i < rayCount; i++) {

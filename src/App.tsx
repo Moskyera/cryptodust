@@ -743,7 +743,7 @@ export default function App() {
 
                 let highlightClass = '';
 
-                if (!rowIsSun && isHighlightActive && isBigMover) {
+                if (!rowIsWhales && isHighlightActive && isBigMover) {
                   if (change > 0) {
                     // Positive big mover → green blink
                     highlightClass = 'bg-emerald-500/15 border-emerald-500/40 animate-pulse';
@@ -759,18 +759,18 @@ export default function App() {
                     <div
                       key={coin.id}
                       onClick={() => handleSelect(coin.id)}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-2xl border border-amber-400/70 bg-gradient-to-r from-amber-500/15 to-yellow-500/10 text-amber-200 active:brightness-110 transition-all ${
-                        selectedId === coin.id ? 'ring-1 ring-amber-300' : ''
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-2xl border border-cyan-400/70 bg-gradient-to-r from-cyan-500/15 to-blue-500/10 text-cyan-200 active:brightness-110 transition-all ${
+                        selectedId === coin.id ? 'ring-1 ring-cyan-300' : ''
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-lg">🌊</span>
                         <div>
                           <div className="font-semibold tracking-tight">Whales on Pulse</div>
-                          <div className="text-[10px] text-amber-400/80">Tap to open whale leaderboard</div>
+                          <div className="text-[10px] text-cyan-400/80">Tap to open whale leaderboard</div>
                         </div>
                       </div>
-                      <div className="text-right text-xs font-medium text-amber-300">View →</div>
+                      <div className="text-right text-xs font-medium text-cyan-300">View →</div>
                     </div>
                   );
                 }
@@ -891,7 +891,7 @@ export default function App() {
                   href="https://whalesonpulse.com/?sort=change&dir=desc&chain=all"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-400 text-black font-semibold text-center active:bg-yellow-300 text-sm"
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-cyan-300 hover:from-sky-300 hover:to-cyan-200 text-black font-semibold text-center active:scale-[0.985] transition-all text-sm"
                 >
                   🌊 Open Whales on Pulse Leaderboard →
                 </a>
@@ -1025,7 +1025,7 @@ export default function App() {
                     href="https://whalesonpulse.com/?sort=change&dir=desc&chain=all"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300 hover:from-yellow-300 hover:to-amber-200 text-black font-semibold text-sm text-center active:scale-[0.985] transition-all shadow-[0_0_18px_rgba(251,191,36,0.35)]"
+                    className="block w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 via-sky-400 to-cyan-300 hover:from-sky-300 hover:to-cyan-200 text-black font-semibold text-sm text-center active:scale-[0.985] transition-all shadow-[0_0_18px_rgba(103,232,249,0.35)]"
                   >
                     🌊 View Whales Leaderboard on WhalesOnPulse →
                   </a>

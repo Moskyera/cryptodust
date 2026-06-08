@@ -669,7 +669,10 @@ export function Visualization({
           }
 
           // Center logo to occupy 80-85% dominant, positioned to leave top space for % text
-          const logoCenterY = y + r * 0.10
+          let logoCenterY = y + r * 0.10
+          if (isWhales) {
+            logoCenterY = y - r * 0.25  // shift logo up for this planet to make room for centered full name text
+          }
           const logoX = x - drawW / 2
           const logoY = logoCenterY - drawH / 2
 
@@ -702,23 +705,14 @@ export function Visualization({
       }
 
       // TOP label inside planet (above logo): conditional on topLabel
-      if (!simplifyForDrag && r > 14) {
+      // For the special Whales on Pulse planet, skip top label entirely (full name drawn centered instead)
+      if (!simplifyForDrag && r > 14 && !isWhales) {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
 
         const topY = y - r * 0.82
 
-        if (isWhales) {
-          // Special "Whales on Pulse" top label — large gold with black outline (thematic, overrides price/% tab)
-          // Uses short ticker 'WOP' to fit nicely (symbol from original site branding)
-          const whalesFs = Math.max(12, Math.min(24, r * 0.34))
-          ctx.font = `900 ${whalesFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-          ctx.strokeStyle = '#000000'
-          ctx.lineWidth = Math.max(3.5, r * 0.065)
-          ctx.strokeText('WOP', x, topY)
-          ctx.fillStyle = '#fef08c'
-          ctx.fillText('WOP', x, topY)
-        } else if (topLabel === 'price') {
+        if (topLabel === 'price') {
           // PRICE mode: large price at top with black outline
           const price = coin.current_price || 0
           const priceFs = Math.max(10, Math.min(22, r * 0.34))
@@ -758,7 +752,8 @@ export function Visualization({
       }
 
       // Sleek semi-transparent dark neon HUD band at bottom 18-22% of the planet (futuristic HUD overlay)
-      if (!simplifyForDrag && r > 12) {
+      // Skip for Whales on Pulse planet (we use centered full name instead of ticker band)
+      if (!simplifyForDrag && r > 12 && !isWhales) {
         ctx.save()
 
         // Clip to the planet so band is inside and curved
@@ -788,7 +783,8 @@ export function Visualization({
       }
 
       // Text in the bottom band — only the ticker symbol (large bold futuristic with STRONG BLACK OUTLINE)
-      if (!simplifyForDrag && r > 16) {
+      // Skip for Whales on Pulse planet
+      if (!simplifyForDrag && r > 16 && !isWhales) {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
 
@@ -802,6 +798,25 @@ export function Visualization({
         ctx.lineWidth = Math.max(2.5, r * 0.06)
         ctx.strokeText(coin.symbol, x, bandCenterY - r * 0.11)
         ctx.fillText(coin.symbol, x, bandCenterY - r * 0.11)
+      }
+
+      // For the special "Whales on Pulse" planet only: draw the full name "Whales on Pulse" centered
+      // (no top WOP, no bottom ticker/band — full name in center as requested)
+      if (isWhales && !simplifyForDrag && r > 18) {
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        const centerText = 'Whales on Pulse'
+        const centerFs = Math.max(11, Math.min(20, r * 0.26))
+        ctx.font = `900 ${centerFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = Math.max(3, r * 0.05)
+
+        // Centered below the (upward-shifted) logo for good balance
+        const textY = y + r * 0.18
+        ctx.strokeText(centerText, x, textY)
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(centerText, x, textY)
       }
 
       // Specular highlight (shiny top-left) — skip during mobile drag

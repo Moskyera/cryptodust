@@ -290,7 +290,8 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
   }
 }
 
-// Fetch top ~500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. We keep a generous cap (600) so appended low-cap tokens (curated Pulse + hacash etc.) are not dropped.
+// Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. 
+// To put hacash/hacash-diamond in the 400-500 tab, we take top 498 + force the two new at the end.
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
@@ -302,7 +303,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       fetchSpecialCoins()
     ])
 
-    let all = mainPages.flat().slice(0, 500)
+    let all = mainPages.flat().slice(0, 498)  // leave room for the two new coins at the end of the 500
 
     // Merge special tokens (PLS, pHEX etc.)
     const existingIds = new Set(all.map(t => t.id))
@@ -358,21 +359,14 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     // ============================================
     // User-requested coins for the 400-500 page/tab
     // hacash and hacash-diamond from CoinGecko (with original logos)
-    // Appended at the end. The list may slightly exceed 500; the UI cap
-    // will be increased to keep them visible in the last page.
+    // We force them as the last two in the 500 list so they appear in the 400-500 tab.
     // ============================================
     const requestedIds = ['hacash', 'hacash-diamond']
-    const finalExistingIds = new Set(all.map(t => t.id))
+    all = all.filter(t => !requestedIds.includes(t.id))
+    const requestedTokens = specialCoins.filter(t => requestedIds.includes(t.id))
+    all = all.slice(0, 498).concat(requestedTokens)
 
-    for (const token of specialCoins) {
-      if (requestedIds.includes(token.id) && !finalExistingIds.has(token.id)) {
-        all.push(token)
-      }
-    }
-
-    // Return a generous cap so appended low-cap specials (including the user-requested
-    // hacash ones at the very end) are not dropped before the UI pagination.
-    return all.slice(0, 600)
+    return all.slice(0, 500)
   } catch (error) {
     console.error('Failed to fetch coins', error)
     return []

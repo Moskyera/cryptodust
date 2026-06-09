@@ -146,7 +146,7 @@ export default function App() {
     : null
   const isWhales = selectedId === 'whales-on-pulse'
 
-  // Simple filter logic + search + pagination (~600 coins total, 100 per page)
+  // Simple filter logic + search + pagination (500 coins total, 100 per page)
   const filteredTokens = React.useMemo(() => {
     let result = [...tokens]
 
@@ -198,7 +198,7 @@ export default function App() {
       result = [WHALES_ON_PULSE, ...others]
     }
 
-    return result.slice(0, 600) // keep max ~600 coins (top 500 + Pulse curated/ecosystem + user specials like hacash)
+    return result.slice(0, 500) // keep max 500 coins (top 498 + hacash + hacash-diamond forced at end for 400-500 tab)
   }, [tokens, activePreset, searchTerm, favorites])
 
   // Smart formatter for market cap and volume (handles K / M / B)
@@ -261,7 +261,7 @@ export default function App() {
     // (the kick is handled inside Visualization)
   }
 
-  // Pagination: 100 coins per page, up to ~6 pages (up to ~600 coins to include top + Pulse curated/ecosystem + user specials)
+  // Pagination: 100 coins per page, max 5 pages (500 coins). The last two in 400-500 are the forced hacash ones.
   const PAGE_SIZE = 100
   const totalPages = Math.max(1, Math.ceil(filteredTokens.length / PAGE_SIZE))
   const currentPageTokens = filteredTokens.slice(
@@ -357,7 +357,7 @@ export default function App() {
             <div className="relative group">
               <input
                 type="text"
-                placeholder="Search ~600 coins..."
+                placeholder="Search 500 coins..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value)
@@ -498,7 +498,7 @@ export default function App() {
               { label: "TOTAL MARKET CAP", value: `$${(filteredTokens.reduce((sum, t) => sum + (t.market_cap || 0), 0) / 1e12).toFixed(2)}T` },
               { label: "24H VOLUME", value: `$${(filteredTokens.reduce((sum, t) => sum + (t.total_volume || 0), 0) / 1e9).toFixed(1)}B` },
               { label: "BTC DOMINANCE", value: "~52%" },
-              { label: "COINS VISIBLE", value: `${filteredTokens.length} / 600` },
+              { label: "COINS VISIBLE", value: `${filteredTokens.length} / 500` },
             ].map((stat) => (
               <div key={stat.label} className="stat-card rounded-2xl px-4 py-3">
                 <div className="text-[#6b7280] text-[10px] tracking-[0.5px] mb-1">{stat.label}</div>
@@ -611,9 +611,9 @@ export default function App() {
             })}
           </div>
 
-          {/* Page Tabs - Show again every 100 coins for the first ~600 coins */}
+          {/* Page Tabs - Show again every 100 coins for the first 500 coins */}
           <div className="flex items-center gap-x-1.5 flex-wrap mt-2">
-            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2">PAGES (~600 coins)</div>
+            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2">PAGES (500 coins)</div>
             {Array.from({ length: totalPages }).map((_, index) => {
               const start = index * 100
               const end = Math.min(start + 100, filteredTokens.length)
@@ -1247,7 +1247,7 @@ export default function App() {
       )}
       {isLoading && tokens.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a12]/80 text-sm">
-          Loading ~600 coins from CoinGecko...
+          Loading 500 coins from CoinGecko...
         </div>
       )}
 

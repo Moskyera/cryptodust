@@ -629,7 +629,7 @@ export default function App() {
             {Array.from({ length: totalPages }).map((_, index) => {
               const start = index * 100
               const end = Math.min(start + 100, MAX_DISPLAY_COINS)
-              const label = index === totalPages - 1 ? 'Pulse + custom' : `${start}–{end}`
+              const label = index === totalPages - 1 ? 'Pulse + custom' : `${start}–${end}`
               return (
                 <button
                   key={start}
@@ -739,7 +739,7 @@ export default function App() {
               {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100;
                 const end = Math.min(start + 100, MAX_DISPLAY_COINS);
-                const label = index === totalPages - 1 ? 'Pulse + custom' : `${start}–{end}`;
+                const label = index === totalPages - 1 ? 'Pulse + custom' : `${start}–${end}`;
                 return (
                   <button
                     key={index}

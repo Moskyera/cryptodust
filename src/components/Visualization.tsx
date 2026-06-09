@@ -473,20 +473,13 @@ export function Visualization({
       const isExtremeMover = Math.abs(coin.price_change_percentage_24h || 0) > 22
       const isElectricityMover = change > 56  // >56% up for electric effect during highlight
 
-      // Favorite golden pulsing glow — skip during mobile drag for smoothness
+      // Simple orange perimeter for favorites (so they are clearly marked)
       if (!simplifyForDrag && isFavorite && r > 18) {
-        const favPulse = Math.sin(Date.now() / 380) * 0.14 + 1.03
-        const favSize = r * 2.35 * favPulse
-        const favGlow = ctx.createRadialGradient(x - r * 0.2, y - r * 0.3, r * 0.4, x, y, favSize)
-        favGlow.addColorStop(0, '#fde047')
-        favGlow.addColorStop(0.35, '#facc15')
-        favGlow.addColorStop(0.7, '#ca8a04')
-        favGlow.addColorStop(1, 'transparent')
-        ctx.globalAlpha = 0.7
-        ctx.fillStyle = favGlow
+        ctx.strokeStyle = '#f97316' // orange-500
+        ctx.lineWidth = 3
         ctx.beginPath()
-        ctx.arc(x, y, favSize, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.arc(x, y, r + 3, 0, Math.PI * 2)
+        ctx.stroke()
       }
 
       // Big Mover intense layered glow — skip during mobile drag

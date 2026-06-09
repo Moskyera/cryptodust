@@ -290,7 +290,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
   }
 }
 
-// Fetch top ~500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko category
+// Fetch top ~500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. We keep a generous cap (600) so appended low-cap tokens (curated Pulse + hacash etc.) are not dropped.
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
@@ -362,15 +362,17 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     // will be increased to keep them visible in the last page.
     // ============================================
     const requestedIds = ['hacash', 'hacash-diamond']
-    const existingIds = new Set(all.map(t => t.id))
+    const finalExistingIds = new Set(all.map(t => t.id))
 
     for (const token of specialCoins) {
-      if (requestedIds.includes(token.id) && !existingIds.has(token.id)) {
+      if (requestedIds.includes(token.id) && !finalExistingIds.has(token.id)) {
         all.push(token)
       }
     }
 
-    return all
+    // Return a generous cap so appended low-cap specials (including the user-requested
+    // hacash ones at the very end) are not dropped before the UI pagination.
+    return all.slice(0, 600)
   } catch (error) {
     console.error('Failed to fetch coins', error)
     return []

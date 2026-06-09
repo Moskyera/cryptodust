@@ -189,15 +189,6 @@ export default function App() {
       })
     }
 
-    // Inject the special "Whales on Pulse" planet (using original site logo) exclusively for the PulseChain tab.
-    // Always placed first for visual impact. Survives search (featured entry).
-    // All other pulse planets also get a size boost (see Visualization + planetScale usage).
-    if (activePreset === 'pulsechain') {
-      const whalesId = 'whales-on-pulse'
-      const others = result.filter(t => t.id !== whalesId)
-      result = [WHALES_ON_PULSE, ...others]
-    }
-
     return result.slice(0, 600) // keep max ~600 coins (top 500 + all Pulse curated/ecosystem + user specials like hacash at the end)
   }, [tokens, activePreset, searchTerm, favorites])
 
@@ -599,10 +590,8 @@ export default function App() {
               { label: 'Big Losers', key: 'losers' },
               { label: 'High Volume', key: 'volume' },
               { label: 'Favorites', key: 'favorites' },
-              { label: 'PulseChain', key: 'pulsechain' },
               { label: 'Clear', key: null },
             ].map(f => {
-              const isPulse = f.key === 'pulsechain'
               const isActive = activePreset === f.key
 
               return (
@@ -614,18 +603,24 @@ export default function App() {
                   }}
                   className={`filter-chip px-4 py-1.5 text-xs rounded-3xl border font-medium transition-all ${
                     isActive 
-                      ? isPulse 
-                        ? 'bg-violet-500 text-white border-violet-400 shadow-sm' 
-                        : 'bg-white text-black border-white shadow-sm'
-                      : isPulse
-                        ? 'bg-violet-500/10 hover:bg-violet-500/20 border-violet-500/30 text-violet-300 hover:text-violet-200'
-                        : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80 hover:text-white'
+                      ? 'bg-white text-black border-white shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80 hover:text-white'
                   }`}
                 >
                   {f.label}
                 </button>
               )
             })}
+
+            {/* Round button for Whales on Pulse, in the empty space to the right of filters */}
+            <button
+              onClick={() => setSelectedId('whales-on-pulse')}
+              className="ml-2 w-11 h-11 rounded-full border-2 border-cyan-400 bg-[#050814] overflow-hidden flex flex-col items-center justify-center hover:scale-105 active:scale-95 transition shadow"
+              title="Whales on Pulse"
+            >
+              <img src="/wop.png" alt="" className="w-6 h-6 object-contain" />
+              <div className="text-[5px] leading-none text-cyan-300 font-bold -mt-0.5">Whales on Pulse</div>
+            </button>
           </div>
 
           {/* Page Tabs - Show again every 100 coins for the first ~600 coins */}
@@ -634,6 +629,7 @@ export default function App() {
             {Array.from({ length: totalPages }).map((_, index) => {
               const start = index * 100
               const end = Math.min(start + 100, MAX_DISPLAY_COINS)
+              const label = index === totalPages - 1 ? 'Pulse + custom' : `${start}–{end}`
               return (
                 <button
                   key={start}
@@ -644,7 +640,7 @@ export default function App() {
                       : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
                   }`}
                 >
-                  {start}–{end}
+                  {label}
                 </button>
               )
             })}
@@ -681,7 +677,6 @@ export default function App() {
               {[
                 { label: 'All', key: null },
                 { label: 'Big Movers', key: 'gainers' },
-                { label: 'PulseChain', key: 'pulsechain' },
                 { label: 'Favorites', key: 'favorites' },
                 { label: 'ProveX', url: 'https://app.provex.com' },
                 { label: 'LibertySwap', url: 'https://libertyswap.finance' },
@@ -727,6 +722,16 @@ export default function App() {
                   </button>
                 );
               })}
+
+              {/* Round button for Whales on Pulse on mobile, at end of filters */}
+              <button
+                onClick={() => setSelectedId('whales-on-pulse')}
+                className="w-8 h-8 rounded-full border border-cyan-400 bg-[#050814] overflow-hidden flex flex-col items-center justify-center flex-shrink-0"
+                title="Whales on Pulse"
+              >
+                <img src="/wop.png" alt="" className="w-4 h-4 object-contain" />
+                <div className="text-[4px] leading-none text-cyan-300 font-bold -mt-0.5">Whales</div>
+              </button>
             </div>
 
             {/* Pages - better spacing and touch targets on mobile */}
@@ -734,6 +739,7 @@ export default function App() {
               {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100;
                 const end = Math.min(start + 100, MAX_DISPLAY_COINS);
+                const label = index === totalPages - 1 ? 'Pulse + custom' : `${start}–{end}`;
                 return (
                   <button
                     key={index}
@@ -744,7 +750,7 @@ export default function App() {
                         : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
                     }`}
                   >
-                    {start}–{end}
+                    {label}
                   </button>
                 );
               })}
@@ -756,11 +762,10 @@ export default function App() {
                 const change = coin.price_change_percentage_24h || 0;
                 const isBigMover = Math.abs(change) > 6;
                 const isHighlightActive = highlightUntil > Date.now();
-                const rowIsWhales = coin.id === 'whales-on-pulse';
 
                 let highlightClass = '';
 
-                if (!rowIsWhales && isHighlightActive && isBigMover) {
+                if (isHighlightActive && isBigMover) {
                   if (change > 0) {
                     // Positive big mover → green blink
                     highlightClass = 'bg-emerald-500/15 border-emerald-500/40 animate-pulse';
@@ -768,28 +773,6 @@ export default function App() {
                     // Negative big mover → red blink
                     highlightClass = 'bg-red-500/15 border-red-500/40 animate-pulse';
                   }
-                }
-
-                if (rowIsWhales) {
-                  // Special prominent row for "Whales on Pulse" (PulseChain tab only)
-                  return (
-                    <div
-                      key={coin.id}
-                      onClick={() => handleSelect(coin.id)}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-2xl border border-cyan-400/70 bg-gradient-to-r from-cyan-500/15 to-blue-500/10 text-cyan-200 active:brightness-110 transition-all ${
-                        selectedId === coin.id ? 'ring-1 ring-cyan-300' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">🌊</span>
-                        <div>
-                          <div className="font-semibold tracking-tight">Whales on Pulse</div>
-                          <div className="text-[10px] text-cyan-400/80">Tap to open whale leaderboard</div>
-                        </div>
-                      </div>
-                      <div className="text-right text-xs font-medium text-cyan-300">View →</div>
-                    </div>
-                  );
                 }
 
                 return (

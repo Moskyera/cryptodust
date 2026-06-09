@@ -615,12 +615,12 @@ export default function App() {
             {/* Round button for Whales on Pulse - far right of the filters panel, larger, logo clearly visible */}
             <button
               onClick={() => setSelectedId('whales-on-pulse')}
-              className="ml-auto w-48 h-48 rounded-full border-2 border-cyan-400 bg-sky-300 overflow-hidden relative hover:scale-105 active:scale-95 transition shadow flex-shrink-0"
+              className="ml-auto w-16 h-16 rounded-full border-2 border-cyan-400 bg-sky-300 overflow-hidden relative hover:scale-105 active:scale-95 transition shadow flex-shrink-0"
               title="Whales on Pulse"
             >
               <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.85]" />
-              <div className="absolute bottom-0 left-0 right-0 h-8 bg-[#050814]/80 flex items-center justify-center">
-                <span className="text-[10px] text-white font-bold tracking-tight">Whales on Pulse</span>
+              <div className="absolute bottom-0 left-0 right-0 h-4 bg-[#050814]/80 flex items-center justify-center">
+                <span className="text-[6px] text-white font-bold tracking-tight">Whales on Pulse</span>
               </div>
             </button>
           </div>
@@ -728,12 +728,12 @@ export default function App() {
               {/* Round button for Whales on Pulse on mobile - larger, logo clear */}
               <button
                 onClick={() => setSelectedId('whales-on-pulse')}
-                className="w-28 h-28 rounded-full border border-cyan-400 bg-sky-300 overflow-hidden relative flex-shrink-0"
+                className="w-10 h-10 rounded-full border border-cyan-400 bg-sky-300 overflow-hidden relative flex-shrink-0"
                 title="Whales on Pulse"
               >
-                <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.8]" />
-                <div className="absolute bottom-0 left-0 right-0 h-6 bg-[#050814]/80 flex items-center justify-center">
-                  <span className="text-[8px] text-white font-bold tracking-tight">Whales on Pulse</span>
+                <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.85]" />
+                <div className="absolute bottom-0 left-0 right-0 h-3 bg-[#050814]/80 flex items-center justify-center">
+                  <span className="text-[5px] text-white font-bold tracking-tight">Whales on Pulse</span>
                 </div>
               </button>
             </div>
@@ -789,7 +789,7 @@ export default function App() {
                         : selectedId === coin.id 
                           ? 'bg-white/5 border-[#67f6ff]' 
                           : 'bg-white/5 border-white/10'
-                    } ${favorites.includes(coin.id) ? 'border-orange-400 border-2' : ''}`}
+                    } ${favorites.includes(coin.id) ? 'border-blue-500 border-2' : ''}`}
                   >
                     <div>
                       <div className="font-semibold">{coin.symbol}</div>

@@ -263,17 +263,28 @@ export default function App() {
 
   // Pagination: 100 coins per page, up to 6 pages (~600 coins to include top + all Pulse + the two new at the end)
   const PAGE_SIZE = 100
-  const totalPages = Math.max(1, Math.ceil(filteredTokens.length / PAGE_SIZE))
+  const MAX_DISPLAY_COINS = 600
+  // Always generate 6 pages (0-100 ... 500-600) for consistent tab labels,
+  // even if actual coins <600 (e.g. last shows 500-528 on mobile if length=528).
+  // The slice will only show available coins.
+  const totalPages = Math.ceil(MAX_DISPLAY_COINS / PAGE_SIZE)
   const currentPageTokens = filteredTokens.slice(
     currentPage * PAGE_SIZE,
     (currentPage + 1) * PAGE_SIZE
   )
 
-  // Bigger planets for the 500-600 tab (last page of main list, includes the special low-cap coins like hacash)
-  // for better visibility even on small monitors. 1.65x scale boost only for this range.
-  const isHighPage = currentPage * PAGE_SIZE >= 500
+  // Planet scale boosts for specific pages:
+  // - 500-600 tab: 1.65x (existing, for visibility of special low-cap coins)
+  // - 0-100,100-200,200-300,400-500 tabs: 1.28x (0.28x bigger) for better visibility
+  // Note: 300-400 tab gets no extra boost.
+  const pageStart = currentPage * PAGE_SIZE
   const baseScale = isMobile ? 0.45 : 1
-  const planetScale = isHighPage ? baseScale * 1.65 : baseScale
+  let planetScale = baseScale
+  if (pageStart >= 500) {
+    planetScale = baseScale * 1.65
+  } else if (pageStart === 0 || pageStart === 100 || pageStart === 200 || pageStart === 400) {
+    planetScale = baseScale * 1.28
+  }
 
   // Keep refs up to date so the keyboard handler (below) always sees fresh data
   currentPageTokensRef.current = currentPageTokens
@@ -622,7 +633,7 @@ export default function App() {
             <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2">PAGES (~600 coins)</div>
             {Array.from({ length: totalPages }).map((_, index) => {
               const start = index * 100
-              const end = Math.min(start + 100, filteredTokens.length)
+              const end = Math.min(start + 100, MAX_DISPLAY_COINS)
               return (
                 <button
                   key={start}
@@ -722,7 +733,7 @@ export default function App() {
             <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
               {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100;
-                const end = Math.min(start + 100, filteredTokens.length);
+                const end = Math.min(start + 100, MAX_DISPLAY_COINS);
                 return (
                   <button
                     key={index}

@@ -269,6 +269,12 @@ export default function App() {
     (currentPage + 1) * PAGE_SIZE
   )
 
+  // Bigger planets for the 500-600 tab (last page of main list, includes the special low-cap coins like hacash)
+  // for better visibility even on small monitors. 1.65x scale boost only for this range.
+  const isHighPage = currentPage * PAGE_SIZE >= 500
+  const baseScale = isMobile ? 0.45 : 1
+  const planetScale = isHighPage ? baseScale * 1.65 : baseScale
+
   // Keep refs up to date so the keyboard handler (below) always sees fresh data
   currentPageTokensRef.current = currentPageTokens
   selectedIdRef.current = selectedId
@@ -650,7 +656,7 @@ export default function App() {
             topLabel={topLabel}
             paused={physicsPaused}
             onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
-            planetScale={isMobile ? 0.45 : 1}
+            planetScale={planetScale}
             isMobile={isMobile}
             isPulsechain={activePreset === 'pulsechain'}
           />

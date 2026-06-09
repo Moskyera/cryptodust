@@ -31,6 +31,7 @@ interface VisualizationProps {
   planetScale?: number
   isMobile?: boolean   // explicit for aggressive mobile perf paths
   isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger for better visibility and impact
+  topOffset?: number  // desktop collapsible tabs panel height reserve so planets don't overlap it; used for top clamps + push on expand
 }
 
 export function Visualization({ 
@@ -45,9 +46,11 @@ export function Visualization({
   onTogglePaused,
   planetScale = 1,
   isMobile: explicitIsMobile,
-  isPulsechain = false
+  isPulsechain = false,
+  topOffset: topOffsetProp = 0
 }: VisualizationProps) {
   const isMobile = explicitIsMobile ?? (planetScale < 0.7)
+  const topOffset = topOffsetProp || 0
 
   // Centralized size calculation function (used in multiple effects)
   const getBaseRadius = (coin: TokenPrice) => {
@@ -179,6 +182,22 @@ export function Visualization({
     })
   }, [tokens, sizeMetric, planetScale])  // tokens update on every data refresh
 
+  // When topOffset increases (user expands the tabs panel on desktop), immediately push any planets
+  // that are now overlapping the panel area downward. This fulfills "the panel will push the planets if contact when it opens".
+  // Force happens regardless of paused state so the action is visible right away.
+  useEffect(() => {
+    if (!bubblesRef.current.length || topOffset <= 0) return
+    bubblesRef.current.forEach(b => {
+      const minY = b.r + 10 + topOffset
+      if (b.y < minY) {
+        b.y = minY
+        // downward kick + slight damping so they visibly "get shoved" by the opening panel
+        b.vy = Math.max(Math.abs(b.vy || 0) * 0.65 + 0.35, 0.6)
+        b.vx *= 0.85
+      }
+    })
+  }, [topOffset])
+
   // Physics + Render loop (fully self-contained, balanced braces)
   const tick = useCallback(() => {
     const canvas = canvasRef.current
@@ -234,10 +253,12 @@ export function Visualization({
           db.vy = 0
 
           // Keep it inside the visible safe area while dragging (especially important on mobile)
-          const m = db.r + (isMobile ? 45 : 8)
+          // Respect topOffset (tabs panel) on desktop so dragged planet doesn't go under expanded panel.
+          const side = db.r + (isMobile ? 45 : 8)
+          const topM = db.r + (isMobile ? 45 : 8) + topOffset
           const dragBottomReserve = isMobile ? 110 : 0
-          db.x = Math.max(m, Math.min(w - m, db.x))
-          db.y = Math.max(m, Math.min(h - m - dragBottomReserve, db.y))
+          db.x = Math.max(side, Math.min(w - side, db.x))
+          db.y = Math.max(topM, Math.min(h - side - dragBottomReserve, db.y))
         }
       }
 
@@ -345,6 +366,7 @@ export function Visualization({
         // 5) Soft edge forces + strict bounds (gentler to avoid constant small pushes)
         // On mobile we want planets to stay comfortably inside the visible screen area,
         // accounting for the bottom info panel and market tab that overlay/cover the lower part.
+        // On desktop: topOffset reserves space for the (optionally minimized) pages tabs panel at top of viz.
         const hard = isMobile ? 42 : 12
         const soft = isMobile ? 100 : 55
         const edgeStrength = isMobile ? 0.09 : 0.065
@@ -364,8 +386,8 @@ export function Visualization({
             const p = (soft - (w - b.r - b.x)) / soft
             b.vx -= edgeStrength * p * 1.7
           }
-          if (b.y < b.r + soft) {
-            const p = (soft - (b.y - b.r)) / soft
+          if (b.y < b.r + soft + topOffset) {
+            const p = (soft - (b.y - b.r - topOffset)) / soft
             b.vy += edgeStrength * p * 1.7
           }
           if (b.y > h - b.r - soft - mobileBottomReserve) {
@@ -378,7 +400,7 @@ export function Visualization({
           const extraMobileMargin = isMobile ? 32 : 0
           const left = b.r + hard
           const right = w - b.r - hard - extraMobileMargin
-          const top = b.r + hard
+          const top = b.r + hard + topOffset
           const bottom = h - b.r - hard - extraMobileMargin - mobileBottomReserve
 
           if (b.x < left) {
@@ -426,7 +448,7 @@ export function Visualization({
             const b = bubbles[i]
             const minX = b.r + finalHard
             const maxX = w - b.r - finalHard - 35
-            const minY = b.r + finalHard
+            const minY = b.r + finalHard + topOffset
             const maxY = h - b.r - finalHard - finalBottomReserve - 35
 
             if (b.x < minX) { b.x = minX; b.vx = Math.abs(b.vx) * 0.55 }
@@ -1127,7 +1149,7 @@ export function Visualization({
 
       bubbles.forEach(b => {
         b.x = Math.max(b.r + hard, Math.min(w - b.r - hard, b.x))
-        b.y = Math.max(b.r + hard, Math.min(h - b.r - hard - mobileBottomReserve, b.y))
+        b.y = Math.max(b.r + hard + topOffset, Math.min(h - b.r - hard - mobileBottomReserve, b.y))
       })
     }
   }, [isMobile])
@@ -1357,7 +1379,10 @@ export function Visualization({
       />
       {/* Floating labels removed — text is now rendered inside the planets via canvas */}
 
-      <div className="absolute top-3 left-3 md:top-4 md:left-4 hud px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-[10px] md:text-xs flex items-center gap-x-2 md:gap-x-4 z-30">
+      <div 
+        className="absolute left-3 md:left-4 hud px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-[10px] md:text-xs flex items-center gap-x-2 md:gap-x-4 z-30"
+        style={{ top: `${Math.max(12, topOffset + 6)}px` }}
+      >
         <div>Visible: <span className="font-semibold tabular-nums">{tokens.length}</span></div>
         <div className="w-px h-3 bg-white/20 hidden md:block" />
         <div 

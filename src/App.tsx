@@ -131,6 +131,7 @@ export default function App() {
   const [highlightUntil, setHighlightUntil] = useState(0)
   const [physicsPaused, setPhysicsPaused] = useState(false)
   const [isMarketOpen, setIsMarketOpen] = useState(false)
+  const [pagesPanelExpanded, setPagesPanelExpanded] = useState(true)
   const [showRampModal, setShowRampModal] = useState(false)
   const [showDonateModal, setShowDonateModal] = useState(false)
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -276,6 +277,10 @@ export default function App() {
   } else if (pageStart === 0 || pageStart === 100 || pageStart === 200 || pageStart === 400) {
     planetScale = baseScale * 1.28
   }
+
+  // Top offset for the collapsible pages/tabs panel on desktop only.
+  // Expanded: ~46px (tabs bar) so planets stay below it. Minimized: tiny 7px bar for max planet surface.
+  const desktopTopOffset = !isMobile ? (pagesPanelExpanded ? 46 : 7) : 0
 
   // Keep refs up to date so the keyboard handler (below) always sees fresh data
   currentPageTokensRef.current = currentPageTokens
@@ -625,29 +630,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Page Tabs - Show again every 100 coins for the first ~600 coins */}
-          <div className="flex items-center gap-x-1.5 flex-wrap mt-2">
-            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2">PAGES (~600 coins)</div>
-            {Array.from({ length: totalPages }).map((_, index) => {
-              const start = index * 100
-              const end = Math.min(start + 100, MAX_DISPLAY_COINS)
-              const label = index === totalPages - 1 ? 'Pulse + custom' : `${start}–${end}`
-              return (
-                <button
-                  key={start}
-                  onClick={() => setCurrentPage(index)}
-                  className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
-                    currentPage === index
-                      ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
-                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
-                  } ${label === 'Pulse + custom' ? 'border-2 border-purple-400 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse' : ''}`}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-
         </div>
       </div>
 
@@ -668,7 +650,63 @@ export default function App() {
             planetScale={planetScale}
             isMobile={isMobile}
             isPulsechain={activePreset === 'pulsechain'}
+            topOffset={desktopTopOffset}
           />
+        )}
+
+        {/* Desktop-only collapsible Pages/Tabs panel (absolute overlay on viz for max planet space).
+            Centered ▲/▼ arrow to toggle. When minimized: thin bar + larger canvas area for planets.
+            When expanding: planets in the way get pushed down via topOffset in physics. */}
+        {!isMobile && (
+          <div className="absolute top-0 left-0 right-0 z-[45] pointer-events-auto select-none">
+            {pagesPanelExpanded ? (
+              // Expanded: full tabs row with page selectors + centered collapse arrow
+              <div className="relative flex items-center justify-center gap-x-1.5 bg-[#111118]/95 backdrop-blur-xl border-b border-[#25252f] px-3 py-1.5">
+                {Array.from({ length: totalPages }).map((_, index) => {
+                  const start = index * 100
+                  const end = Math.min(start + 100, filteredTokens.length)
+                  const isLastPage = index === totalPages - 1
+                  const label = isLastPage ? 'Pulse + custom' : `${start}–${end}`
+                  const isActive = currentPage === index
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentPage(index)}
+                      className={`text-[10px] md:text-[11px] px-2.5 md:px-3 py-0.5 md:py-1 rounded-2xl border whitespace-nowrap transition-all ${isLastPage ? 'min-w-[108px] px-3' : 'min-w-[52px]'} ${
+                        isActive
+                          ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white hover:bg-white/10'
+                      } ${isLastPage ? 'border-2 border-purple-400 shadow-[0_0_8px_#ff0000,0_0_16px_#00ff00,0_0_24px_#0000ff,0_0_32px_#ff00ff] animate-pulse' : ''}`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+                {/* Centered arrow (in the center of the panel) to minimize */}
+                <button
+                  onClick={() => setPagesPanelExpanded(false)}
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-5 h-5 flex items-center justify-center rounded-full bg-[#0a0a12] border border-white/30 text-[9px] leading-none text-white/70 hover:text-white hover:border-white/50 active:scale-95"
+                  title="Minimize tabs (more space for planets)"
+                >
+                  ▲
+                </button>
+              </div>
+            ) : (
+              // Minimized: very thin bar so planets have maximum surface. Click anywhere on bar or the centered arrow to reopen.
+              <div 
+                className="h-[7px] bg-[#111118]/80 border-b border-[#25252f]/70 cursor-pointer"
+                onClick={() => setPagesPanelExpanded(true)}
+                title="Show tabs panel"
+              >
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPagesPanelExpanded(true); }}
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-5 h-5 flex items-center justify-center rounded-full bg-[#111118] border border-white/30 text-[9px] leading-none text-white/70 hover:text-white hover:border-white/50 active:scale-95"
+                >
+                  ▼
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Mobile: Simple list view instead of planets (due to touch issues) */}

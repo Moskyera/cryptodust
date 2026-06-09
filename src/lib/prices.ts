@@ -82,6 +82,13 @@ const SPECIAL_PULSECHAIN_IDS = [
   'pcock'                 // PCOCK
 ]
 
+// User-requested coins to appear in the 400-500 page/tab
+// Fetched directly from CoinGecko with original logos
+const SPECIAL_COINS_IDS = [
+  'hacash',
+  'hacash-diamond'
+]
+
 // Curated list of PulseChain tokens the user specifically wants to show
 // These are fetched efficiently using one ids= call (very API friendly)
 const CURATED_PULSECHAIN_IDS = [
@@ -125,6 +132,39 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h`
     const res = await fetch(url)
+    if (!res.ok) return []
+
+    const data = await res.json()
+    return data.map((coin: any) => ({
+      id: coin.id,
+      symbol: coin.symbol.toUpperCase(),
+      name: coin.name,
+      current_price: coin.current_price || 0,
+      price_change_percentage_24h: coin.price_change_percentage_24h || 0,
+      price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      market_cap: coin.market_cap,
+      total_volume: coin.total_volume,
+      image: coin.image,
+    }))
+  } catch {
+    return []
+  }
+}
+
+// Fetch additional special coins requested by user (e.g. for specific pages like 400-500)
+// Uses ids= for efficiency and gets original CoinGecko logos
+async function fetchSpecialCoins(): Promise<TokenPrice[]> {
+  if (SPECIAL_COINS_IDS.length === 0) return []
+
+  try {
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h`
+
+    const headers: HeadersInit = {}
+    if (COINGECKO_API_KEY) {
+      headers['x-cg-demo-api-key'] = COINGECKO_API_KEY
+    }
+
+    const res = await fetch(url, { headers })
     if (!res.ok) return []
 
     const data = await res.json()
@@ -253,15 +293,16 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 // Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem via CoinGecko category
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
-    const [mainPages, coinGeckoSpecial] = await Promise.all([
+    const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
       Promise.all([
         fetchCoinGeckoPage(1),
         fetchCoinGeckoPage(2),
       ]),
-      fetchSpecialPulseChainTokens()
+      fetchSpecialPulseChainTokens(),
+      fetchSpecialCoins()
     ])
 
-    let all = mainPages.flat().slice(0, 500)
+    let all = mainPages.flat().slice(0, 498)  // leave room for user-requested coins in the last page
 
     // Merge special tokens (PLS, pHEX etc.)
     const existingIds = new Set(all.map(t => t.id))
@@ -313,6 +354,23 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     } catch (e) {
       console.warn('[CryptoDUST] PulseChain Ecosystem category fetch failed', e)
     }
+
+    // ============================================
+    // User-requested coins for the 400-500 page/tab
+    // hacash and hacash-diamond from CoinGecko (with original logos)
+    // Placed at the very end so they appear in the 400-500 tab.
+    // ============================================
+    const requestedIds = ['hacash', 'hacash-diamond']
+    all = all.filter(t => !requestedIds.includes(t.id))
+
+    for (const token of specialCoins) {
+      if (requestedIds.includes(token.id)) {
+        all.push(token)
+      }
+    }
+
+    // Final trim to 500 — the last two will be the requested coins (in 400-500)
+    all = all.slice(0, 500)
 
     return all
   } catch (error) {

@@ -615,12 +615,12 @@ export default function App() {
             {/* Round button for Whales on Pulse - far right of the filters panel, larger, logo clearly visible */}
             <button
               onClick={() => setSelectedId('whales-on-pulse')}
-              className="ml-auto w-16 h-16 rounded-full border-2 border-cyan-400 bg-[#050814] overflow-hidden relative hover:scale-105 active:scale-95 transition shadow flex-shrink-0"
+              className="ml-auto w-24 h-24 rounded-full border-2 border-cyan-400 bg-[#050814] overflow-hidden relative hover:scale-105 active:scale-95 transition shadow flex-shrink-0"
               title="Whales on Pulse"
             >
-              <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.82]" />
-              <div className="absolute bottom-0 left-0 right-0 h-5 bg-[#050814]/90 flex items-center justify-center">
-                <span className="text-[7px] text-white font-bold tracking-tight">Whales on Pulse</span>
+              <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.9]" />
+              <div className="absolute bottom-0 left-0 right-0 h-6 bg-[#050814]/90 flex items-center justify-center">
+                <span className="text-[9px] text-white font-bold tracking-tight">Whales on Pulse</span>
               </div>
             </button>
           </div>
@@ -640,7 +640,7 @@ export default function App() {
                     currentPage === index
                       ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
                       : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
-                  } ${label === 'Pulse + custom' ? 'border-2 border-purple-400 shadow-[0_0_8px_rgba(167,139,250,0.4)]' : ''}`}
+                  } ${label === 'Pulse + custom' ? 'border-2 border-purple-400 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse' : ''}`}
                 >
                   {label}
                 </button>
@@ -728,12 +728,12 @@ export default function App() {
               {/* Round button for Whales on Pulse on mobile - larger, logo clear */}
               <button
                 onClick={() => setSelectedId('whales-on-pulse')}
-                className="w-10 h-10 rounded-full border border-cyan-400 bg-[#050814] overflow-hidden relative flex-shrink-0"
+                className="w-14 h-14 rounded-full border border-cyan-400 bg-[#050814] overflow-hidden relative flex-shrink-0"
                 title="Whales on Pulse"
               >
-                <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.8]" />
-                <div className="absolute bottom-0 left-0 right-0 h-3 bg-[#050814]/90 flex items-center justify-center">
-                  <span className="text-[5px] text-white font-bold tracking-tight">Whales on Pulse</span>
+                <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.85]" />
+                <div className="absolute bottom-0 left-0 right-0 h-4 bg-[#050814]/90 flex items-center justify-center">
+                  <span className="text-[6px] text-white font-bold tracking-tight">Whales on Pulse</span>
                 </div>
               </button>
             </div>
@@ -752,7 +752,7 @@ export default function App() {
                       currentPage === index
                         ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
                         : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
-                    } ${label === 'Pulse + custom' ? 'border-2 border-purple-400 shadow-[0_0_6px_rgba(167,139,250,0.4)]' : ''}`}
+                    } ${label === 'Pulse + custom' ? 'border-2 border-purple-400 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse' : ''}`}
                   >
                     {label}
                   </button>

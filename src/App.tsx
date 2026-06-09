@@ -615,7 +615,7 @@ export default function App() {
             {/* Round button for Whales on Pulse - far right of the filters panel, larger, logo clearly visible */}
             <button
               onClick={() => setSelectedId('whales-on-pulse')}
-              className="ml-auto w-16 h-16 rounded-full border-2 border-cyan-400 bg-sky-300 overflow-hidden relative hover:scale-105 active:scale-95 transition shadow flex-shrink-0"
+              className="ml-auto w-16 h-16 rounded-full border-2 border-purple-400 bg-sky-300 overflow-hidden relative hover:scale-105 active:scale-95 transition shadow flex-shrink-0 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse"
               title="Whales on Pulse"
             >
               <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.85]" />
@@ -728,7 +728,7 @@ export default function App() {
               {/* Round button for Whales on Pulse on mobile - larger, logo clear */}
               <button
                 onClick={() => setSelectedId('whales-on-pulse')}
-                className="w-10 h-10 rounded-full border border-cyan-400 bg-sky-300 overflow-hidden relative flex-shrink-0"
+                className="w-10 h-10 rounded-full border-2 border-purple-400 bg-sky-300 overflow-hidden relative flex-shrink-0 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse"
                 title="Whales on Pulse"
               >
                 <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.85]" />

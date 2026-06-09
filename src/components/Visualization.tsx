@@ -30,7 +30,7 @@ interface VisualizationProps {
   onTogglePaused?: () => void
   planetScale?: number
   isMobile?: boolean   // explicit for aggressive mobile perf paths
-  isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger + special water planet support (Whales on Pulse)
+  isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger for better visibility and impact
 }
 
 export function Visualization({ 
@@ -82,14 +82,6 @@ export function Visualization({
     if (isPulsechain) {
       finalR *= 1.52   // ~52% radius = substantial visual mass increase (area ~2.3x)
       finalR = Math.min(finalR, 118)
-    }
-
-    // The featured "Whales on Pulse" planet (larger than others for impact).
-    // Only ever present (and thus sized) when on the PulseChain tab.
-    // Made a little bit smaller per user request. Only for this planet.
-    if (isPulsechain && coin.id === 'whales-on-pulse') {
-      finalR = Math.max(finalR, 110 * planetScale)
-      finalR = Math.min(finalR, 145)
     }
 
     return finalR
@@ -471,12 +463,9 @@ export function Visualization({
       const x = b.x
       const y = b.y
 
-      const isWhales = coin.id === 'whales-on-pulse'
-
       const change = coin.price_change_percentage_24h || 0
       const isGainer = change > 0
-      let baseColor = isGainer ? '#22c55e' : '#f43f5e'
-      if (isWhales) baseColor = '#0ea5e9' // water planet (ocean blue) for Whales on Pulse — ignore gainer/loser
+      const baseColor = isGainer ? '#22c55e' : '#f43f5e'
       const isFavorite = favorites.includes(coin.id)
 
       const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
@@ -498,65 +487,6 @@ export function Visualization({
         ctx.beginPath()
         ctx.arc(x, y, favSize, 0, Math.PI * 2)
         ctx.fill()
-      }
-
-      // === WHALES ON PULSE special planet — larger + radiant water/ocean glows + rays ===
-      // Drawn for the special featured planet (original logo from site) only when PulseChain tab is active.
-      // Water theme for accuracy with "whales" (blue/cyan ocean planet instead of sun).
-      if (!simplifyForDrag && isWhales && r > 20) {
-        const t = Date.now()
-
-        // Large soft outer water halo (cyan/blue)
-        const waterPulse1 = 0.9 + Math.sin(t / 420) * 0.12
-        const halo1 = r * 3.6 * waterPulse1
-        const g1 = ctx.createRadialGradient(x, y, r * 0.9, x, y, halo1)
-        g1.addColorStop(0, 'rgba(103, 232, 249, 0.55)')
-        g1.addColorStop(0.4, 'rgba(103, 246, 255, 0.35)')
-        g1.addColorStop(1, 'transparent')
-        ctx.globalAlpha = 0.65
-        ctx.fillStyle = g1
-        ctx.beginPath()
-        ctx.arc(x, y, halo1, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Tighter core glow (bright cyan / ocean)
-        const waterPulse2 = 0.85 + Math.sin(t / 260) * 0.18
-        const halo2 = r * 2.15 * waterPulse2
-        const g2 = ctx.createRadialGradient(x, y, r * 0.6, x, y, halo2)
-        g2.addColorStop(0, '#67f6ff')
-        g2.addColorStop(0.35, '#22d3ee')
-        g2.addColorStop(0.7, 'transparent')
-        ctx.globalAlpha = 0.5
-        ctx.fillStyle = g2
-        ctx.beginPath()
-        ctx.arc(x, y, halo2, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Fast subtle inner radiance (light blue)
-        const innerPulse = 0.95 + Math.sin(t / 140) * 0.08
-        ctx.globalAlpha = 0.35
-        ctx.fillStyle = '#e0f2fe'
-        ctx.beginPath()
-        ctx.arc(x, y, r * 1.35 * innerPulse, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Water ray lines (slowly rotating, animated length for "radiant" feel)
-        ctx.globalAlpha = 0.55
-        ctx.strokeStyle = '#67f6ff'
-        ctx.lineWidth = Math.max(2.5, r * 0.035)
-        const rayCount = 14
-        for (let i = 0; i < rayCount; i++) {
-          const rot = (t / 5200) * (i % 2 === 0 ? 1 : -1)
-          const ang = rot + (i * (Math.PI * 2 / rayCount))
-          const len = r * (1.55 + Math.sin(t / 380 + i * 1.7) * 0.28)
-          const rx = x + Math.cos(ang) * len
-          const ry = y + Math.sin(ang) * len * 0.96
-          ctx.beginPath()
-          ctx.moveTo(x + Math.cos(ang) * (r * 0.92), y + Math.sin(ang) * (r * 0.92))
-          ctx.lineTo(rx, ry)
-          ctx.stroke()
-        }
-        ctx.lineWidth = 1
       }
 
       // Big Mover intense layered glow — skip during mobile drag
@@ -702,8 +632,7 @@ export function Visualization({
       }
 
       // TOP label inside planet (above logo): conditional on topLabel
-      // For the special Whales on Pulse planet, skip top label entirely (full name drawn centered instead)
-      if (!simplifyForDrag && r > 14 && !isWhales) {
+      if (!simplifyForDrag && r > 14) {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
 
@@ -749,8 +678,7 @@ export function Visualization({
       }
 
       // Sleek semi-transparent dark neon HUD band at bottom 18-22% of the planet (futuristic HUD overlay)
-      // Skip for Whales on Pulse planet (we use centered full name instead of ticker band)
-      if (!simplifyForDrag && r > 12 && !isWhales) {
+      if (!simplifyForDrag && r > 12) {
         ctx.save()
 
         // Clip to the planet so band is inside and curved
@@ -780,8 +708,7 @@ export function Visualization({
       }
 
       // Text in the bottom band — only the ticker symbol (large bold futuristic with STRONG BLACK OUTLINE)
-      // Skip for Whales on Pulse planet
-      if (!simplifyForDrag && r > 16 && !isWhales) {
+      if (!simplifyForDrag && r > 16) {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
 
@@ -807,8 +734,7 @@ export function Visualization({
       }
 
       // Attractive rings (especially visible on larger planets) — skip during drag
-      // Skip for the special Whales on Pulse planet (remove the ring only for this planet)
-      if (!simplifyForDrag && r > 26 && !isWhales) {
+      if (!simplifyForDrag && r > 26) {
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
         ctx.lineWidth = r * 0.09

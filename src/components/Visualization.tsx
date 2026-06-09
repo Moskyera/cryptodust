@@ -473,9 +473,9 @@ export function Visualization({
       const isExtremeMover = Math.abs(coin.price_change_percentage_24h || 0) > 22
       const isElectricityMover = change > 56  // >56% up for electric effect during highlight
 
-      // Simple orange perimeter for favorites (so they are clearly marked)
+      // Simple blue perimeter for favorites (so they are clearly marked)
       if (!simplifyForDrag && isFavorite && r > 18) {
-        ctx.strokeStyle = '#f97316' // orange-500
+        ctx.strokeStyle = '#3b82f6' // blue-500
         ctx.lineWidth = 3
         ctx.beginPath()
         ctx.arc(x, y, r + 3, 0, Math.PI * 2)

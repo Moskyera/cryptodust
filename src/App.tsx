@@ -753,7 +753,7 @@ export default function App() {
                   <button
                     key={index}
                     onClick={() => setCurrentPage(index)}
-                    className={`text-[11px] px-3.5 py-1.5 rounded-2xl border whitespace-nowrap min-w-[72px] ${
+                    className={`text-[11px] px-3.5 py-1.5 rounded-2xl border whitespace-nowrap ${isLastPage ? 'min-w-[160px] px-4' : 'min-w-[72px]'} ${
                       currentPage === index
                         ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
                         : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'

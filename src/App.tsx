@@ -366,6 +366,19 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-x-2 text-sm">
+            {/* HIGHLIGHT BIG MOVERS - moved next to the left of the search input (top nav) */}
+            <button
+              onClick={highlightBigMovers}
+              className={`px-4 md:px-5 py-1.5 md:py-2 text-sm font-medium rounded-3xl flex items-center gap-x-2 transition-all border active:scale-[0.985] h-8 md:h-9 ${
+                highlightUntil > Date.now() 
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-400 shadow-[0_0_20px_rgb(249,115,22,0.4)]' 
+                  : 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border-orange-500/20'
+              }`}
+            >
+              <Zap className="w-4 h-4" /> 
+              {highlightUntil > Date.now() ? 'HIGHLIGHTING MOVERS' : 'HIGHLIGHT BIG MOVERS'}
+            </button>
+
             {/* Search - beautiful and prominent */}
             <div className="relative group">
               <input
@@ -556,18 +569,6 @@ export default function App() {
                 </button>
               ))}
             </div>
-
-            <button
-              onClick={highlightBigMovers}
-              className={`px-5 py-2 text-sm font-medium rounded-3xl flex items-center gap-x-2 transition-all border active:scale-[0.985] ${
-                highlightUntil > Date.now() 
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-400 shadow-[0_0_20px_rgb(249,115,22,0.4)]' 
-                  : 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border-orange-500/20'
-              }`}
-            >
-              <Zap className="w-4 h-4" /> 
-              {highlightUntil > Date.now() ? 'HIGHLIGHTING MOVERS' : 'HIGHLIGHT BIG MOVERS'}
-            </button>
 
             {/* Prominent Physics pause/resume button (big and obvious like user requested) */}
             <button

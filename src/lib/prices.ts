@@ -1,7 +1,7 @@
 /**
  * Price Service for CryptoDUST
  *
- * - Normal coins (top ~500) → CoinGecko (use VITE_COINGECKO_API_KEY)
+ * - Normal coins (top ~500 + specials) → CoinGecko (use VITE_COINGECKO_API_KEY)
  * - PulseChain ecosystem tokens → CoinGecko Demo/Free (use VITE_COINGECKO_PULSE_DEMO_KEY)
  *   Now using the official "pulsechain-ecosystem" category for best coverage + logos
  *   https://www.coingecko.com/en/categories/pulsechain-ecosystem
@@ -290,7 +290,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
   }
 }
 
-// Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem via CoinGecko category
+// Fetch top ~500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko category
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
@@ -302,7 +302,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       fetchSpecialCoins()
     ])
 
-    let all = mainPages.flat().slice(0, 498)  // leave room for user-requested coins in the last page
+    let all = mainPages.flat().slice(0, 500)
 
     // Merge special tokens (PLS, pHEX etc.)
     const existingIds = new Set(all.map(t => t.id))
@@ -358,19 +358,17 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     // ============================================
     // User-requested coins for the 400-500 page/tab
     // hacash and hacash-diamond from CoinGecko (with original logos)
-    // Placed at the very end so they appear in the 400-500 tab.
+    // Appended at the end. The list may slightly exceed 500; the UI cap
+    // will be increased to keep them visible in the last page.
     // ============================================
     const requestedIds = ['hacash', 'hacash-diamond']
-    all = all.filter(t => !requestedIds.includes(t.id))
+    const existingIds = new Set(all.map(t => t.id))
 
     for (const token of specialCoins) {
-      if (requestedIds.includes(token.id)) {
+      if (requestedIds.includes(token.id) && !existingIds.has(token.id)) {
         all.push(token)
       }
     }
-
-    // Final trim to 500 — the last two will be the requested coins (in 400-500)
-    all = all.slice(0, 500)
 
     return all
   } catch (error) {

@@ -291,7 +291,8 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 }
 
 // Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. 
-// To put hacash/hacash-diamond in the 400-500 tab, we take top 498 + force the two new at the end.
+// We append the user specials (hacash etc.) at the very end after all Pulse tokens.
+// With the 600 cap, everything (Pulse + the two new) stays in the list for the main view and PulseChain tab.
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
@@ -303,7 +304,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       fetchSpecialCoins()
     ])
 
-    let all = mainPages.flat().slice(0, 498)  // leave room for the two new coins at the end of the 500
+    let all = mainPages.flat().slice(0, 500)
 
     // Merge special tokens (PLS, pHEX etc.)
     const existingIds = new Set(all.map(t => t.id))
@@ -359,14 +360,20 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     // ============================================
     // User-requested coins for the 400-500 page/tab
     // hacash and hacash-diamond from CoinGecko (with original logos)
-    // We force them as the last two in the 500 list so they appear in the 400-500 tab.
+    // Appended at the end (after Pulse tokens). With generous cap, they (and the
+    // Pulse curated) will be visible in the later pages / PulseChain tab.
     // ============================================
     const requestedIds = ['hacash', 'hacash-diamond']
-    all = all.filter(t => !requestedIds.includes(t.id))
-    const requestedTokens = specialCoins.filter(t => requestedIds.includes(t.id))
-    all = all.slice(0, 498).concat(requestedTokens)
+    const finalExistingIds = new Set(all.map(t => t.id))
 
-    return all.slice(0, 500)
+    for (const token of specialCoins) {
+      if (requestedIds.includes(token.id) && !finalExistingIds.has(token.id)) {
+        all.push(token)
+      }
+    }
+
+    // Generous cap to include all appended Pulse + the two new at the very end.
+    return all.slice(0, 600)
   } catch (error) {
     console.error('Failed to fetch coins', error)
     return []

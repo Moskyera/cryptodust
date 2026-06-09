@@ -680,6 +680,7 @@ export default function App() {
                 { label: 'All', key: null },
                 { label: 'Big Movers', key: 'gainers' },
                 { label: 'Favorites', key: 'favorites' },
+                { label: 'Whales on Pulse', key: 'whales' },
                 { label: 'ProveX', url: 'https://app.provex.com' },
                 { label: 'LibertySwap', url: 'https://libertyswap.finance' },
                 { label: 'iNFO DUST', url: 'https://t.me/iNFO_DUST' },
@@ -697,6 +698,21 @@ export default function App() {
                     >
                       {item.label}
                     </a>
+                  );
+                }
+
+                if (item.key === 'whales') {
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setSelectedId('whales-on-pulse');
+                        setCurrentPage(0);
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap bg-gradient-to-r from-orange-500/10 to-amber-500/10 border-orange-500/30 text-orange-300 active:from-orange-500/20 active:to-amber-500/20"
+                    >
+                      {item.label}
+                    </button>
                   );
                 }
 
@@ -724,26 +740,15 @@ export default function App() {
                   </button>
                 );
               })}
-
-              {/* Round button for Whales on Pulse on mobile - larger, logo clear */}
-              <button
-                onClick={() => setSelectedId('whales-on-pulse')}
-                className="w-10 h-10 rounded-full border-2 border-purple-400 bg-sky-300 overflow-hidden relative flex-shrink-0 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse"
-                title="Whales on Pulse"
-              >
-                <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.85]" />
-                <div className="absolute bottom-0 left-0 right-0 h-3 bg-[#050814]/80 flex items-center justify-center">
-                  <span className="text-[5px] text-white font-bold tracking-tight">Whales on Pulse</span>
-                </div>
-              </button>
             </div>
 
             {/* Pages - better spacing and touch targets on mobile */}
             <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
-              {Array.from({ length: totalPages }).map((_, index) => {
+              {Array.from({ length: Math.max(1, Math.ceil(filteredTokens.length / PAGE_SIZE)) }).map((_, index) => {
                 const start = index * 100;
-                const end = Math.min(start + 100, MAX_DISPLAY_COINS);
-                const label = index === totalPages - 1 ? 'Pulse + custom' : `${start}–${end}`;
+                const end = Math.min(start + 100, filteredTokens.length);
+                const isLastPage = index === Math.max(1, Math.ceil(filteredTokens.length / PAGE_SIZE)) - 1;
+                const label = isLastPage ? 'Pulse + custom' : `${start}–${end}`;
                 return (
                   <button
                     key={index}
@@ -752,7 +757,7 @@ export default function App() {
                       currentPage === index
                         ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
                         : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
-                    } ${label === 'Pulse + custom' ? 'border-2 border-purple-400 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse' : ''}`}
+                    } ${isLastPage ? 'border-2 border-purple-400 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse' : ''}`}
                   >
                     {label}
                   </button>

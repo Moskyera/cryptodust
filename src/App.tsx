@@ -522,9 +522,12 @@ export default function App() {
         </div>
       </div>
 
-      {/* Controls - Hidden on mobile for super clean experience. Only planets + Highlight button visible on phones. */}
-      <div className="border-b border-[#25252f] bg-[#111118] flex-shrink-0 hidden md:block">
-        <div className="w-full px-5 py-3.5">
+      {/* Controls (Size by + TOP + Highlight + Pause + Quick Filters + Whales button).
+          Hidden on mobile. On desktop: visibility is tied to the minimizable pages tabs panel state.
+          When you minimize the pages panel (center arrow), these controls also hide to give maximum planet surface. */}
+      {pagesPanelExpanded && (
+        <div className="border-b border-[#25252f] bg-[#111118] flex-shrink-0 hidden md:block">
+          <div className="w-full px-5 py-3.5">
           {/* Timeframe & Metrics */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
             <div className="control-group flex items-center rounded-3xl p-1">
@@ -632,6 +635,7 @@ export default function App() {
 
         </div>
       </div>
+      )}
 
       {/* Main Area */}
       <div className="flex-1 relative overflow-hidden bg-black">
@@ -655,13 +659,15 @@ export default function App() {
         )}
 
         {/* Desktop-only collapsible Pages/Tabs panel (absolute overlay on viz for max planet space).
-            Centered ▲/▼ arrow to toggle. When minimized: thin bar + larger canvas area for planets.
-            When expanding: planets in the way get pushed down via topOffset in physics. */}
+            Left-aligned tabs (old position) + centered ▲/▼ arrow to toggle.
+            When minimized: thin bar + larger canvas area for planets.
+            When expanding: planets in the way get pushed down via topOffset in physics.
+            This state also controls visibility of the upper "Size by" + Quick Filters bar. */}
         {!isMobile && (
           <div className="absolute top-0 left-0 right-0 z-[45] pointer-events-auto select-none">
             {pagesPanelExpanded ? (
-              // Expanded: full tabs row with page selectors + centered collapse arrow
-              <div className="relative flex items-center justify-center gap-x-1.5 bg-[#111118]/95 backdrop-blur-xl border-b border-[#25252f] px-3 py-1.5">
+              // Expanded: tabs row (left aligned) with page selectors + centered collapse arrow
+              <div className="relative flex items-center justify-start gap-x-1.5 bg-[#111118]/95 backdrop-blur-xl border-b border-[#25252f] px-4 py-1.5">
                 {Array.from({ length: totalPages }).map((_, index) => {
                   const start = index * 100
                   const end = Math.min(start + 100, filteredTokens.length)
@@ -686,7 +692,7 @@ export default function App() {
                 <button
                   onClick={() => setPagesPanelExpanded(false)}
                   className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-5 h-5 flex items-center justify-center rounded-full bg-[#0a0a12] border border-white/30 text-[9px] leading-none text-white/70 hover:text-white hover:border-white/50 active:scale-95"
-                  title="Minimize tabs (more space for planets)"
+                  title="Minimize tabs + Quick filters + Size by (more space for planets)"
                 >
                   ▲
                 </button>
@@ -696,7 +702,7 @@ export default function App() {
               <div 
                 className="h-[7px] bg-[#111118]/80 border-b border-[#25252f]/70 cursor-pointer"
                 onClick={() => setPagesPanelExpanded(true)}
-                title="Show tabs panel"
+                title="Show tabs panel (also shows Quick filters and Size by)"
               >
                 <button
                   onClick={(e) => { e.stopPropagation(); setPagesPanelExpanded(true); }}

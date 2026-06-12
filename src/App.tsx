@@ -285,10 +285,10 @@ export default function App() {
   // Helper to determine blockchain for a coin.
   // Uses existing PULSECHAIN_IDS + static map for common chains.
   // No additional API calls as requested.
-  const getBlockchain = (coin) => {
-    const id = (coin.id || '').toLowerCase();
-    const symbol = (coin.symbol || '').toLowerCase();
-    const name = (coin.name || '').toLowerCase();
+  const getBlockchain = (coin: TokenPrice) => {
+    const id = coin.id.toLowerCase();
+    const symbol = coin.symbol.toLowerCase();
+    const name = coin.name.toLowerCase();
 
     if (
       PULSECHAIN_IDS.has(id) ||
@@ -301,7 +301,7 @@ export default function App() {
     }
 
     // Static mapping for major blockchains (top coins mostly)
-    const chainMap = {
+    const chainMap: Record<string, string> = {
       'bitcoin': 'Bitcoin',
       'ethereum': 'Ethereum',
       'solana': 'Solana',

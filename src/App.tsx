@@ -1269,7 +1269,14 @@ export default function App() {
                     className={`market-row cursor-pointer border-b border-white/5 last:border-none ${selectedId === coin.id ? 'selected bg-white/5' : ''}`}
                   >
                     <td className="py-2.5 font-medium text-white/90">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
+                        {coin.image && (
+                          <img 
+                            src={coin.image} 
+                            alt="" 
+                            className="w-5 h-5 rounded-full flex-shrink-0" 
+                          />
+                        )}
                         <span>{coin.symbol}</span>
                         <a
                           href={`https://www.coingecko.com/en/coins/${coin.id}`}
@@ -1286,20 +1293,20 @@ export default function App() {
                     <td className="py-2.5 text-right font-medium tabular-nums text-white/90">
                       {formatPrice(coin.current_price)}
                     </td>
-                    <td className={`py-2.5 text-right font-medium text-[10px] ${(coin.price_change_percentage_1h||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(coin.price_change_percentage_1h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_1h || 0).toFixed(1)}%
+                    <td className={`py-2.5 text-right font-medium text-[10px] ${coin.price_change_percentage_1h != null ? (coin.price_change_percentage_1h >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-[#6b7280]'}`}>
+                      {coin.price_change_percentage_1h != null ? ((coin.price_change_percentage_1h > 0 ? '+' : '') + coin.price_change_percentage_1h.toFixed(1) + '%') : '—'}
                     </td>
                     <td className={`py-2.5 text-right font-medium ${(coin.price_change_percentage_24h||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
                     </td>
-                    <td className={`py-2.5 text-right font-medium text-[10px] ${(coin.price_change_percentage_7d||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(coin.price_change_percentage_7d || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_7d || 0).toFixed(1)}%
+                    <td className={`py-2.5 text-right font-medium text-[10px] ${coin.price_change_percentage_7d != null ? (coin.price_change_percentage_7d >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-[#6b7280]'}`}>
+                      {coin.price_change_percentage_7d != null ? ((coin.price_change_percentage_7d > 0 ? '+' : '') + coin.price_change_percentage_7d.toFixed(1) + '%') : '—'}
                     </td>
-                    <td className={`py-2.5 text-right font-medium text-[10px] ${(coin.price_change_percentage_30d||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(coin.price_change_percentage_30d || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_30d || 0).toFixed(1)}%
+                    <td className={`py-2.5 text-right font-medium text-[10px] ${coin.price_change_percentage_30d != null ? (coin.price_change_percentage_30d >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-[#6b7280]'}`}>
+                      {coin.price_change_percentage_30d != null ? ((coin.price_change_percentage_30d > 0 ? '+' : '') + coin.price_change_percentage_30d.toFixed(1) + '%') : '—'}
                     </td>
-                    <td className={`py-2.5 text-right font-medium text-[10px] ${(coin.price_change_percentage_1y||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(coin.price_change_percentage_1y || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_1y || 0).toFixed(1)}%
+                    <td className={`py-2.5 text-right font-medium text-[10px] ${coin.price_change_percentage_1y != null ? (coin.price_change_percentage_1y >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-[#6b7280]'}`}>
+                      {coin.price_change_percentage_1y != null ? ((coin.price_change_percentage_1y > 0 ? '+' : '') + coin.price_change_percentage_1y.toFixed(1) + '%') : '—'}
                     </td>
                     <td className="py-2.5 text-right hidden md:table-cell text-[#9ca3af] tabular-nums">
                       {formatMarketValue(coin.total_volume)}

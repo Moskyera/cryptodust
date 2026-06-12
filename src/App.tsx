@@ -854,6 +854,7 @@ export default function App() {
                 const change = coin.price_change_percentage_24h || 0;
                 const isBigMover = Math.abs(change) > 6;
                 const isHighlightActive = highlightUntil > Date.now();
+                const isExtremeGainer = change > 60;
 
                 let highlightClass = '';
 
@@ -877,7 +878,7 @@ export default function App() {
                         : selectedId === coin.id 
                           ? 'bg-white/5 border-[#67f6ff]' 
                           : 'bg-white/5 border-white/10'
-                    } ${favorites.includes(coin.id) ? 'border-blue-500 border-2' : ''}`}
+                    } ${favorites.includes(coin.id) ? 'border-blue-500 border-2' : ''} ${isExtremeGainer ? 'shadow-[0_0_12px_#4ade80] border-emerald-400' : ''}`}
                   >
                     <div className="flex items-center gap-3">
                       {coin.image && (
@@ -893,7 +894,7 @@ export default function App() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-sm font-medium ${(coin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <div className={`text-sm font-medium ${(coin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'} ${isExtremeGainer ? 'text-emerald-300 drop-shadow-[0_0_3px_#4ade80]' : ''}`}>
                         {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
                       </div>
                       <div className="text-xs text-[#9ca3af]">
@@ -912,7 +913,7 @@ export default function App() {
         {/* Mobile Bottom Sheet - Richer info panel (only shown in mobile list view) */}
         {isMobile && selectedCoin && (
           <div 
-            className="fixed bottom-0 left-0 right-0 z-[70] bg-[#0f0f16] border-t border-[#25252f] rounded-t-3xl px-4 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.5)]"
+            className={`fixed bottom-0 left-0 right-0 z-[70] bg-[#0f0f16] border-t border-[#25252f] rounded-t-3xl px-4 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] ${ (selectedCoin.price_change_percentage_24h || 0) > 60 ? 'shadow-[0_-8px_18px_#4ade80,0_-8px_30px_rgba(0,0,0,0.5)] border-t-emerald-400/60' : '' }`}
             style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
           >
             {/* Header */}
@@ -922,7 +923,7 @@ export default function App() {
                   <img src={selectedCoin.image} alt="" className="w-10 h-10 rounded-full ring-1 ring-white/10" />
                 )}
                 <div>
-                  <div className="font-semibold text-lg">{selectedCoin.symbol}</div>
+                  <div className={`font-semibold text-lg ${(selectedCoin.price_change_percentage_24h || 0) > 60 ? 'text-emerald-300 drop-shadow-[0_0_4px_#4ade80]' : ''}`}>{selectedCoin.symbol}</div>
                   <div className="text-sm text-[#9ca3af]">{selectedCoin.name}</div>
                 </div>
               </div>

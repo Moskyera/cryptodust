@@ -888,12 +888,7 @@ export default function App() {
                         />
                       )}
                       <div>
-                        <div className="font-semibold flex items-center gap-1">
-                          {coin.symbol}
-                          <span className={`text-[7px] px-1 py-px rounded font-medium ${getBlockchain(coin) === 'PulseChain' ? 'bg-violet-500/20 text-violet-300' : 'bg-white/10 text-[#9ca3af]'}`}>
-                            {getBlockchain(coin)}
-                          </span>
-                        </div>
+                        <div className="font-semibold">{coin.symbol}</div>
                         <div className="text-xs text-[#9ca3af]">{formatPrice(coin.current_price)}</div>
                       </div>
                     </div>
@@ -1329,10 +1324,11 @@ export default function App() {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-[#6b7280] hover:text-[#67f6ff] text-[9px] leading-none"
+                            className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[7px] rounded bg-[#67f6ff]/10 hover:bg-[#67f6ff]/20 text-[#67f6ff] font-medium"
                             title="View on CoinGecko"
                           >
-                            ↗
+                            View
+                            <span className="text-[9px]">↗</span>
                           </a>
                         </div>
                       </td>

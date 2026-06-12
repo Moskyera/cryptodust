@@ -282,6 +282,44 @@ export default function App() {
   // Expanded: ~46px (tabs bar) so planets stay below it. Minimized: tiny 7px bar for max planet surface.
   const desktopTopOffset = !isMobile ? (pagesPanelExpanded ? 46 : 7) : 0
 
+  // Helper to determine blockchain for a coin.
+  // Uses existing PULSECHAIN_IDS + static map for common chains.
+  // No additional API calls as requested.
+  const getBlockchain = (coin) => {
+    const id = (coin.id || '').toLowerCase();
+    const symbol = (coin.symbol || '').toLowerCase();
+    const name = (coin.name || '').toLowerCase();
+
+    if (
+      PULSECHAIN_IDS.has(id) ||
+      PULSECHAIN_IDS.has(symbol) ||
+      id.includes('pulse') ||
+      symbol.includes('pulse') ||
+      name.includes('pulse')
+    ) {
+      return 'PulseChain';
+    }
+
+    // Static mapping for major blockchains (top coins mostly)
+    const chainMap = {
+      'bitcoin': 'Bitcoin',
+      'ethereum': 'Ethereum',
+      'solana': 'Solana',
+      'binancecoin': 'BNB Chain',
+      'ripple': 'XRP Ledger',
+      'cardano': 'Cardano',
+      'dogecoin': 'Dogecoin',
+      'avalanche-2': 'Avalanche',
+      'tron': 'Tron',
+      'the-open-network': 'TON',
+      'polkadot': 'Polkadot',
+      'chainlink': 'Ethereum',
+      'polygon-ecosystem-token': 'Polygon',
+    };
+
+    return chainMap[id] || 'Ethereum'; // fallback for most ERC-20 and other tokens
+  };
+
   // Keep refs up to date so the keyboard handler (below) always sees fresh data
   currentPageTokensRef.current = currentPageTokens
   selectedIdRef.current = selectedId
@@ -850,7 +888,12 @@ export default function App() {
                         />
                       )}
                       <div>
-                        <div className="font-semibold">{coin.symbol}</div>
+                        <div className="font-semibold flex items-center gap-1">
+                          {coin.symbol}
+                          <span className={`text-[7px] px-1 py-px rounded font-medium ${getBlockchain(coin) === 'PulseChain' ? 'bg-violet-500/20 text-violet-300' : 'bg-white/10 text-[#9ca3af]'}`}>
+                            {getBlockchain(coin)}
+                          </span>
+                        </div>
                         <div className="text-xs text-[#9ca3af]">{formatPrice(coin.current_price)}</div>
                       </div>
                     </div>
@@ -1259,11 +1302,8 @@ export default function App() {
               </thead>
               <tbody>
                 {currentPageTokens.map(coin => {
-                  const id = coin.id.toLowerCase();
-                  const symbol = coin.symbol.toLowerCase();
-                  const name = coin.name.toLowerCase();
-                  const isPulseChain = PULSECHAIN_IDS.has(id) || PULSECHAIN_IDS.has(symbol) ||
-                    id.includes('pulse') || symbol.includes('pulse') || name.includes('pulse');
+                  const chain = getBlockchain(coin);
+                  const isPulseChain = chain === 'PulseChain';
 
                   return (
                     <tr 
@@ -1281,9 +1321,9 @@ export default function App() {
                             />
                           )}
                           <span>{coin.symbol}</span>
-                          {isPulseChain && (
-                            <span className="text-[7px] px-1 py-px rounded bg-violet-500/20 text-violet-300 font-medium">PulseChain</span>
-                          )}
+                          <span className={`text-[7px] px-1 py-px rounded font-medium ${isPulseChain ? 'bg-violet-500/20 text-violet-300' : 'bg-white/10 text-[#9ca3af]'}`}>
+                            {chain}
+                          </span>
                           <a
                             href={`https://www.coingecko.com/en/coins/${coin.id}`}
                             target="_blank"

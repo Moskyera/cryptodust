@@ -1252,7 +1252,11 @@ export default function App() {
                 <tr className="text-[#6b7280] border-b border-[#25252f] sticky top-0 bg-[#0a0a12]">
                   <th className="text-left pb-2 font-normal">Coin</th>
                   <th className="text-right pb-2 font-normal">Price</th>
-                  <th className="text-right pb-2 font-normal">24h %</th>
+                  <th className="text-right pb-2 font-normal">1H %</th>
+                  <th className="text-right pb-2 font-normal">24H %</th>
+                  <th className="text-right pb-2 font-normal">1W %</th>
+                  <th className="text-right pb-2 font-normal">1M %</th>
+                  <th className="text-right pb-2 font-normal">1Y %</th>
                   <th className="text-right pb-2 font-normal hidden md:table-cell">Volume</th>
                   <th className="text-center pb-2 font-normal w-10">★</th>
                 </tr>
@@ -1264,12 +1268,38 @@ export default function App() {
                     onClick={() => handleSelect(coin.id)}
                     className={`market-row cursor-pointer border-b border-white/5 last:border-none ${selectedId === coin.id ? 'selected bg-white/5' : ''}`}
                   >
-                    <td className="py-2.5 font-medium text-white/90">{coin.symbol}</td>
+                    <td className="py-2.5 font-medium text-white/90">
+                      <div className="flex items-center gap-1">
+                        <span>{coin.symbol}</span>
+                        <a
+                          href={`https://www.coingecko.com/en/coins/${coin.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[#6b7280] hover:text-[#67f6ff] text-[9px] leading-none"
+                          title="View on CoinGecko"
+                        >
+                          ↗
+                        </a>
+                      </div>
+                    </td>
                     <td className="py-2.5 text-right font-medium tabular-nums text-white/90">
                       {formatPrice(coin.current_price)}
                     </td>
+                    <td className={`py-2.5 text-right font-medium text-[10px] ${(coin.price_change_percentage_1h||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {(coin.price_change_percentage_1h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_1h || 0).toFixed(1)}%
+                    </td>
                     <td className={`py-2.5 text-right font-medium ${(coin.price_change_percentage_24h||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
+                    </td>
+                    <td className={`py-2.5 text-right font-medium text-[10px] ${(coin.price_change_percentage_7d||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {(coin.price_change_percentage_7d || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_7d || 0).toFixed(1)}%
+                    </td>
+                    <td className={`py-2.5 text-right font-medium text-[10px] ${(coin.price_change_percentage_30d||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {(coin.price_change_percentage_30d || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_30d || 0).toFixed(1)}%
+                    </td>
+                    <td className={`py-2.5 text-right font-medium text-[10px] ${(coin.price_change_percentage_1y||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {(coin.price_change_percentage_1y || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_1y || 0).toFixed(1)}%
                     </td>
                     <td className="py-2.5 text-right hidden md:table-cell text-[#9ca3af] tabular-nums">
                       {formatMarketValue(coin.total_volume)}

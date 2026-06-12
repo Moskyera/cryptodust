@@ -31,6 +31,9 @@ export interface TokenPrice {
   current_price: number
   price_change_percentage_24h: number
   price_change_percentage_1h?: number
+  price_change_percentage_7d?: number
+  price_change_percentage_30d?: number
+  price_change_percentage_1y?: number
   market_cap?: number
   total_volume?: number
   image?: string
@@ -38,7 +41,7 @@ export interface TokenPrice {
 
 // ==================== COINGECKO FETCH ====================
 async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPrice[]> {
-  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=1h,24h`
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
 
   try {
     const headers: HeadersInit = {}
@@ -62,6 +65,9 @@ async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPri
       current_price: coin.current_price || 0,
       price_change_percentage_24h: coin.price_change_percentage_24h || 0,
       price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      price_change_percentage_7d: coin.price_change_percentage_7d || 0,
+      price_change_percentage_30d: coin.price_change_percentage_30d || 0,
+      price_change_percentage_1y: coin.price_change_percentage_1y || 0,
       market_cap: coin.market_cap,
       total_volume: coin.total_volume,
       image: coin.image,
@@ -130,7 +136,7 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
   if (SPECIAL_PULSECHAIN_IDS.length === 0) return []
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h`
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
     const res = await fetch(url)
     if (!res.ok) return []
 
@@ -142,6 +148,9 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
       current_price: coin.current_price || 0,
       price_change_percentage_24h: coin.price_change_percentage_24h || 0,
       price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      price_change_percentage_7d: coin.price_change_percentage_7d || 0,
+      price_change_percentage_30d: coin.price_change_percentage_30d || 0,
+      price_change_percentage_1y: coin.price_change_percentage_1y || 0,
       market_cap: coin.market_cap,
       total_volume: coin.total_volume,
       image: coin.image,
@@ -157,7 +166,7 @@ async function fetchSpecialCoins(): Promise<TokenPrice[]> {
   if (SPECIAL_COINS_IDS.length === 0) return []
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h`
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
 
     const headers: HeadersInit = {}
     if (COINGECKO_API_KEY) {
@@ -175,6 +184,9 @@ async function fetchSpecialCoins(): Promise<TokenPrice[]> {
       current_price: coin.current_price || 0,
       price_change_percentage_24h: coin.price_change_percentage_24h || 0,
       price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      price_change_percentage_7d: coin.price_change_percentage_7d || 0,
+      price_change_percentage_30d: coin.price_change_percentage_30d || 0,
+      price_change_percentage_1y: coin.price_change_percentage_1y || 0,
       market_cap: coin.market_cap,
       total_volume: coin.total_volume,
       image: coin.image,
@@ -195,7 +207,7 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
   console.log('[CryptoDUST] Fetching PulseChain Ecosystem tokens via CoinGecko category...');
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h,24h`;
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
 
     const headers: HeadersInit = {};
     if (COINGECKO_PULSE_DEMO_KEY) {
@@ -222,6 +234,9 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
       current_price: coin.current_price || 0,
       price_change_percentage_24h: coin.price_change_percentage_24h || 0,
       price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      price_change_percentage_7d: coin.price_change_percentage_7d || 0,
+      price_change_percentage_30d: coin.price_change_percentage_30d || 0,
+      price_change_percentage_1y: coin.price_change_percentage_1y || 0,
       market_cap: coin.market_cap,
       total_volume: coin.total_volume,
       image: coin.image,
@@ -246,7 +261,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
   console.log(`[CryptoDUST] Fetching ${CURATED_PULSECHAIN_IDS.length} curated PulseChain tokens...`);
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h`;
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
 
     const headers: HeadersInit = {};
     if (COINGECKO_PULSE_DEMO_KEY) {
@@ -273,6 +288,9 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
       current_price: coin.current_price || 0,
       price_change_percentage_24h: coin.price_change_percentage_24h || 0,
       price_change_percentage_1h: coin.price_change_percentage_1h || 0,
+      price_change_percentage_7d: coin.price_change_percentage_7d || 0,
+      price_change_percentage_30d: coin.price_change_percentage_30d || 0,
+      price_change_percentage_1y: coin.price_change_percentage_1y || 0,
       market_cap: coin.market_cap,
       total_volume: coin.total_volume,
       image: coin.image,

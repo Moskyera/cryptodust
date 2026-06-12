@@ -841,9 +841,18 @@ export default function App() {
                           : 'bg-white/5 border-white/10'
                     } ${favorites.includes(coin.id) ? 'border-blue-500 border-2' : ''}`}
                   >
-                    <div>
-                      <div className="font-semibold">{coin.symbol}</div>
-                      <div className="text-xs text-[#9ca3af]">{formatPrice(coin.current_price)}</div>
+                    <div className="flex items-center gap-3">
+                      {coin.image && (
+                        <img 
+                          src={coin.image} 
+                          alt="" 
+                          className="w-8 h-8 rounded-full flex-shrink-0" 
+                        />
+                      )}
+                      <div>
+                        <div className="font-semibold">{coin.symbol}</div>
+                        <div className="text-xs text-[#9ca3af]">{formatPrice(coin.current_price)}</div>
+                      </div>
                     </div>
                     <div className="text-right">
                       <div className={`text-sm font-medium ${(coin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>

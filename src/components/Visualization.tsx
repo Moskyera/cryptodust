@@ -1072,54 +1072,114 @@ export function Visualization({
       }
 
       // === SPECIAL MEGA EFFECT: >1000% up (PC only, during highlight) ===
-      // Distinct intense slow-pulsing outer light aura + bright energy ring + radiating particles.
-      // Keeps the effect clear and not overwhelming (general effects around planets also reduced for clarity).
+      // Over-the-top "supernova" visual reserved exclusively for insane gainers.
+      // Multiple intense layers: huge aura, blinding core, several rings, heavy starburst beams,
+      // dense particle explosion, and a secondary fast cyan corona.
       if (!simplifyForDrag && isMegaMover && isCurrentlyHighlighted && r > 12) {
         const t = Date.now()
 
-        // Intense slow pulsing outer aura (light visual)
-        const megaPulse = Math.sin(t / 280) * 0.35 + 1.05
-        const megaSize = r * 3.8 * megaPulse
-        const megaGlow = ctx.createRadialGradient(x, y, r * 0.9, x, y, megaSize)
-        megaGlow.addColorStop(0, '#f0fdf4')
-        megaGlow.addColorStop(0.3, '#4ade80')
-        megaGlow.addColorStop(0.7, '#22c55e')
-        megaGlow.addColorStop(1, 'transparent')
-        ctx.globalAlpha = 0.32
-        ctx.fillStyle = megaGlow
+        // 1. Massive, very slow pulsing outer "supernova" aura (biggest and brightest)
+        const auraPulse = Math.sin(t / 450) * 0.2 + 1.0
+        const auraR = r * 8.0 * auraPulse
+        const aura = ctx.createRadialGradient(x, y, r * 1.3, x, y, auraR)
+        aura.addColorStop(0, '#ffffff')
+        aura.addColorStop(0.15, '#f0fdf4')
+        aura.addColorStop(0.35, '#86efac')
+        aura.addColorStop(0.6, '#4ade80')
+        aura.addColorStop(1, 'transparent')
+        ctx.globalAlpha = 0.38
+        ctx.fillStyle = aura
         ctx.beginPath()
-        ctx.arc(x, y, megaSize, 0, Math.PI * 2)
+        ctx.arc(x, y, auraR, 0, Math.PI * 2)
         ctx.fill()
 
-        // Bright clean energy ring orbiting slowly
-        ctx.globalAlpha = 0.85
-        ctx.strokeStyle = '#f0fdf4'
-        ctx.lineWidth = 2.2
-        const ringR = r * (2.1 + Math.sin(t / 320) * 0.12)
+        // 2. Blinding white-hot core (very bright and fast flickering)
+        ctx.globalAlpha = 0.85 + Math.sin(t / 60) * 0.12
+        ctx.fillStyle = '#ffffff'
         ctx.beginPath()
-        ctx.arc(x, y, ringR, 0, Math.PI * 2)
-        ctx.stroke()
+        ctx.arc(x, y, r * 1.05, 0, Math.PI * 2)
+        ctx.fill()
 
-        // Radiating bright particles (special light burst)
-        ctx.globalAlpha = 0.95
-        for (let s = 0; s < 10; s++) {
-          const angle = (t / 380) + (s * (Math.PI * 2 / 10))
-          const dist = r * 2.6 + Math.sin(t / 140 + s) * 4
+        ctx.globalAlpha = 0.55 + Math.sin(t / 40) * 0.3
+        ctx.fillStyle = '#f0fdf4'
+        ctx.beginPath()
+        ctx.arc(x, y, r * 1.35, 0, Math.PI * 2)
+        ctx.fill()
+
+        // 3. Several prominent rotating energy rings (different radii + speeds)
+        ctx.globalAlpha = 0.92
+        ctx.strokeStyle = '#f0fdf4'
+        const ringConfigs = [
+          { base: 1.9, speed: 180, amp: 0.22, width: 3.5 },
+          { base: 2.7, speed: 260, amp: 0.18, width: 2.8 },
+          { base: 3.6, speed: 140, amp: 0.25, width: 2.2 },
+          { base: 4.5, speed: 320, amp: 0.15, width: 1.6 }
+        ]
+        for (let i = 0; i < ringConfigs.length; i++) {
+          const cfg = ringConfigs[i]
+          const ringR = r * (cfg.base + Math.sin(t / cfg.speed) * cfg.amp)
+          ctx.lineWidth = cfg.width
+          ctx.beginPath()
+          ctx.arc(x, y, ringR, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+
+        // 4. Heavy starburst radial beams (the "true special" dramatic part)
+        ctx.globalAlpha = 0.65
+        ctx.strokeStyle = '#4ade80'
+        ctx.lineWidth = 2.6
+        const beamCount = 18
+        for (let i = 0; i < beamCount; i++) {
+          const ang = (t / 380) + (i * (Math.PI * 2 / beamCount))
+          const inner = r * 1.5
+          const outer = r * (7.2 + Math.sin(t / 150 + i * 1.7) * 0.6)
+          ctx.beginPath()
+          ctx.moveTo(x + Math.cos(ang) * inner, y + Math.sin(ang) * inner)
+          ctx.lineTo(x + Math.cos(ang) * outer, y + Math.sin(ang) * outer * 0.9)
+          ctx.stroke()
+        }
+
+        // 5. Very dense particle explosion (two speeds + sizes)
+        ctx.globalAlpha = 0.98
+        // Big slow outer particles
+        for (let s = 0; s < 26; s++) {
+          const angle = (t / 210) + (s * (Math.PI * 2 / 26))
+          const dist = r * 4.2 + Math.sin(t / 95 + s) * 8
           const sx = x + Math.cos(angle) * dist
-          const sy = y + Math.sin(angle) * dist * 0.85
-          const ps = 2.0 + Math.sin(t / 90 + s) * 0.8
+          const sy = y + Math.sin(angle) * dist * 0.87
+          const ps = 2.8 + Math.sin(t / 55 + s) * 1.3
 
           ctx.fillStyle = '#f0fdf4'
           ctx.beginPath()
           ctx.arc(sx, sy, ps, 0, Math.PI * 2)
           ctx.fill()
 
-          // core
           ctx.fillStyle = '#ffffff'
           ctx.beginPath()
           ctx.arc(sx, sy, ps * 0.4, 0, Math.PI * 2)
           ctx.fill()
         }
+        // Fast inner bright sparks
+        ctx.globalAlpha = 0.9
+        for (let s = 0; s < 14; s++) {
+          const angle = (t / 95) + (s * (Math.PI * 2 / 14))
+          const dist = r * 2.1 + Math.sin(t / 40 + s) * 5
+          const sx = x + Math.cos(angle) * dist
+          const sy = y + Math.sin(angle) * dist * 0.9
+          ctx.fillStyle = '#ffffff'
+          ctx.beginPath()
+          ctx.arc(sx, sy, 3.2, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
+        // 6. Extra fast cyan corona ring (added layer for extra "wow")
+        ctx.globalAlpha = 0.45 + Math.sin(t / 70) * 0.25
+        ctx.strokeStyle = '#67f6ff'
+        ctx.lineWidth = 1.3
+        const coronaR = r * (3.1 + Math.sin(t / 110) * 0.3)
+        ctx.beginPath()
+        ctx.arc(x, y, coronaR, 0, Math.PI * 2)
+        ctx.stroke()
 
         ctx.globalAlpha = 1.0
       }

@@ -465,7 +465,12 @@ export function Visualization({
     if (isHighlighting) {
       bubbles.forEach(b => {
         const ch = Math.abs(b.coin.price_change_percentage_24h || 0)
-        if (ch > 22) {
+        if (ch > 1000) {
+          // Very gentle movement for mega gainers (>1000%) so the special effects are clearly visible and look good
+          const k = 2.0
+          b.vx += (Math.random() - 0.5) * k
+          b.vy += (Math.random() - 0.5) * k
+        } else if (ch > 22) {
           // Extra strong kick for extreme movers (>22%)
           const k = (ch - 6) * 0.18
           b.vx += (Math.random() - 0.5) * k
@@ -494,6 +499,7 @@ export function Visualization({
       const isCurrentlyHighlighted = isBigMover && isHighlighting
       const isExtremeMover = Math.abs(coin.price_change_percentage_24h || 0) > 22
       const isElectricityMover = change > 56  // >56% up for electric effect during highlight
+      const isMegaMover = change > 1000  // >1000% up gets special prominent effect (PC only)
 
       // Simple blue perimeter for favorites (so they are clearly marked)
       if (!simplifyForDrag && isFavorite && r > 18) {
@@ -507,7 +513,7 @@ export function Visualization({
       // Big Mover intense layered glow — skip during mobile drag
       if (!simplifyForDrag && isCurrentlyHighlighted && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
-        const moverSize = r * 3.2 * moverPulse
+        const moverSize = r * 2.0 * moverPulse  // smaller glow for clarity on PC
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
         const moverGlow = ctx.createRadialGradient(x, y, r * 0.6, x, y, moverSize)
         moverGlow.addColorStop(0, moverColor)
@@ -526,7 +532,7 @@ export function Visualization({
 
         // Very bright, fast-pulsing golden aura (special for +22%+ moves)
         const extremePulse = Math.sin(t / 90) * 0.35 + 1.4
-        const extremeSize = r * 4.0 * extremePulse
+        const extremeSize = r * 2.5 * extremePulse  // smaller for clearer look on PC
         const extremeGlow = ctx.createRadialGradient(x, y, r * 0.5, x, y, extremeSize)
         extremeGlow.addColorStop(0, '#fde047')
         extremeGlow.addColorStop(0.3, '#fbbf24')
@@ -919,6 +925,7 @@ export function Visualization({
       }
 
       // === ELECTRICITY EFFECT: >56% up movers while "Highlight Big Movers" is active ===
+      // (general mover glows reduced in size for better clarity on PC)
       // Jagged branching lightning + rapid crackle flicker + bright discharge particles.
       // Drawn late so bolts & particles render over the logo and labels (surface surge).
       // Only for strong positive surges (change > 56). Desktop canvas only.
@@ -952,12 +959,12 @@ export function Visualization({
           for (let s = 0; s <= segs; s++) {
             const u = s / segs
             let ang = startA + (endA - startA) * u
-            // Base radius biased inward so bolts travel across the logo/face
-            const rad = r * (0.48 + 0.42 * u + Math.sin(t / 65 + s * 2.1 + seed) * 0.07)
+            // Base radius biased inward so bolts travel across the logo/face (smaller for clarity)
+            const rad = r * (0.35 + 0.28 * u + Math.sin(t / 65 + s * 2.1 + seed) * 0.05)
             let px = x + Math.cos(ang) * rad
             let py = y + Math.sin(ang) * rad * 0.95
-            // Sharp perpendicular zig-zag for classic lightning look
-            const zigAmp = r * (0.11 - Math.abs(u - 0.5) * 0.04)
+            // Sharp perpendicular zig-zag for classic lightning look (smaller)
+            const zigAmp = r * (0.07 - Math.abs(u - 0.5) * 0.03)
             const zig = Math.sin(t / 38 + s * 5.7 + seed * 1.3) * zigAmp
             const pa = ang + Math.PI / 2
             px += Math.cos(pa) * zig
@@ -1061,6 +1068,59 @@ export function Visualization({
         ctx.stroke()
 
         ctx.shadowBlur = 0
+        ctx.globalAlpha = 1.0
+      }
+
+      // === SPECIAL MEGA EFFECT: >1000% up (PC only, during highlight) ===
+      // Distinct intense slow-pulsing outer light aura + bright energy ring + radiating particles.
+      // Keeps the effect clear and not overwhelming (general effects around planets also reduced for clarity).
+      if (!simplifyForDrag && isMegaMover && isCurrentlyHighlighted && r > 12) {
+        const t = Date.now()
+
+        // Intense slow pulsing outer aura (light visual)
+        const megaPulse = Math.sin(t / 280) * 0.35 + 1.05
+        const megaSize = r * 3.8 * megaPulse
+        const megaGlow = ctx.createRadialGradient(x, y, r * 0.9, x, y, megaSize)
+        megaGlow.addColorStop(0, '#f0fdf4')
+        megaGlow.addColorStop(0.3, '#4ade80')
+        megaGlow.addColorStop(0.7, '#22c55e')
+        megaGlow.addColorStop(1, 'transparent')
+        ctx.globalAlpha = 0.32
+        ctx.fillStyle = megaGlow
+        ctx.beginPath()
+        ctx.arc(x, y, megaSize, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Bright clean energy ring orbiting slowly
+        ctx.globalAlpha = 0.85
+        ctx.strokeStyle = '#f0fdf4'
+        ctx.lineWidth = 2.2
+        const ringR = r * (2.1 + Math.sin(t / 320) * 0.12)
+        ctx.beginPath()
+        ctx.arc(x, y, ringR, 0, Math.PI * 2)
+        ctx.stroke()
+
+        // Radiating bright particles (special light burst)
+        ctx.globalAlpha = 0.95
+        for (let s = 0; s < 10; s++) {
+          const angle = (t / 380) + (s * (Math.PI * 2 / 10))
+          const dist = r * 2.6 + Math.sin(t / 140 + s) * 4
+          const sx = x + Math.cos(angle) * dist
+          const sy = y + Math.sin(angle) * dist * 0.85
+          const ps = 2.0 + Math.sin(t / 90 + s) * 0.8
+
+          ctx.fillStyle = '#f0fdf4'
+          ctx.beginPath()
+          ctx.arc(sx, sy, ps, 0, Math.PI * 2)
+          ctx.fill()
+
+          // core
+          ctx.fillStyle = '#ffffff'
+          ctx.beginPath()
+          ctx.arc(sx, sy, ps * 0.4, 0, Math.PI * 2)
+          ctx.fill()
+        }
+
         ctx.globalAlpha = 1.0
       }
 

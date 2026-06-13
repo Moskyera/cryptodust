@@ -1079,7 +1079,7 @@ export function Visualization({
 
         // 1. Elegant slow-pulsing premium aura (valuable special, smaller size)
         const auraPulse = Math.sin(t / 380) * 0.18 + 0.95
-        const auraR = r * 4.0 * auraPulse
+        const auraR = r * 2.9 * auraPulse  // even smaller for 1000% + better logo visibility  // smaller for 1000% + logo visibility
         const aura = ctx.createRadialGradient(x, y, r * 1.0, x, y, auraR)
         aura.addColorStop(0, '#f0fdf4')
         aura.addColorStop(0.2, '#86efac')
@@ -1092,18 +1092,14 @@ export function Visualization({
         ctx.arc(x, y, auraR, 0, Math.PI * 2)
         ctx.fill()
 
-        // 2. Refined bright core with subtle gold accent (feels valuable)
-        ctx.globalAlpha = 0.75 + Math.sin(t / 80) * 0.18
-        ctx.fillStyle = '#f0fdf4'
+        // 2. Very subtle thin gold ring close to the surface (no heavy central light so logo stays visible)
+        ctx.globalAlpha = 0.26 + Math.sin(t / 80) * 0.10
+        ctx.strokeStyle = '#fde047'
+        ctx.lineWidth = 0.85
+        const coreRing = r * 1.04
         ctx.beginPath()
-        ctx.arc(x, y, r * 0.85, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.globalAlpha = 0.32 + Math.sin(t / 55) * 0.2
-        ctx.fillStyle = '#fde047'  // subtle gold
-        ctx.beginPath()
-        ctx.arc(x, y, r * 0.5, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.arc(x, y, coreRing, 0, Math.PI * 2)
+        ctx.stroke()
 
         // 3. Clean, high-quality rotating rings (elegant luxury feel)
         ctx.globalAlpha = 0.85
@@ -1130,7 +1126,7 @@ export function Visualization({
         for (let i = 0; i < beamCount; i++) {
           const ang = (t / 420) + (i * (Math.PI * 2 / beamCount))
           const inner = r * 1.15
-          const outer = r * (3.7 + Math.sin(t / 190 + i) * 0.2)
+          const outer = r * (2.9 + Math.sin(t / 190 + i) * 0.12)  // smaller for 1000% + logo visibility
           ctx.beginPath()
           ctx.moveTo(x + Math.cos(ang) * inner, y + Math.sin(ang) * inner)
           ctx.lineTo(x + Math.cos(ang) * outer, y + Math.sin(ang) * outer * 0.94)
@@ -1141,7 +1137,7 @@ export function Visualization({
         ctx.globalAlpha = 0.88
         for (let s = 0; s < 12; s++) {
           const angle = (t / 290) + (s * (Math.PI * 2 / 12))
-          const dist = r * 2.5 + Math.sin(t / 130 + s) * 3
+          const dist = r * 2.1 + Math.sin(t / 130 + s) * 2  // smaller for 1000% + logo visibility
           const sx = x + Math.cos(angle) * dist
           const sy = y + Math.sin(angle) * dist * 0.9
           const ps = 1.4 + Math.sin(t / 80 + s) * 0.6

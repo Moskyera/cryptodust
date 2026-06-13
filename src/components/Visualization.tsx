@@ -277,6 +277,14 @@ export function Visualization({
           b.vx *= finalFriction
           b.vy *= finalFriction
 
+          // Extra damping for high % gainers: calms their movement a little when % is high, makes drift smoother and less frantic
+          const ch = Math.abs(b.coin.price_change_percentage_24h || 0)
+          if (ch > 50) {
+            const extraDamp = 0.96 - Math.min((ch - 50) / 2000, 0.015)
+            b.vx *= extraDamp
+            b.vy *= extraDamp
+          }
+
           // Smooth radius change (Size By) — uses the locked baseRadius so planets don't keep growing with live prices
           b.r += (b.targetR - b.r) * 0.085
         }
@@ -467,18 +475,19 @@ export function Visualization({
         const ch = Math.abs(b.coin.price_change_percentage_24h || 0)
         if (ch > 1000) {
           // Very gentle movement for mega gainers (>1000%) so the special effects are clearly visible and look good
-          const k = 2.0
-          b.vx += (Math.random() - 0.5) * k
-          b.vy += (Math.random() - 0.5) * k
+          const k = 1.5
+          b.vx += (Math.random() - 0.5) * k * 0.6  // reduced random for smoother
+          b.vy += (Math.random() - 0.5) * k * 0.6
         } else if (ch > 22) {
-          // Extra strong kick for extreme movers (>22%)
-          const k = (ch - 6) * 0.18
-          b.vx += (Math.random() - 0.5) * k
-          b.vy += (Math.random() - 0.5) * k
+          // Extra strong kick for extreme movers (>22%) — calmed a bit for higher % so they don't move too frantically
+          let k = (ch - 6) * 0.10
+          if (ch > 150) k *= 0.6  // calm even more as % goes higher
+          b.vx += (Math.random() - 0.5) * k * 0.65  // *0.65 for smoother, less jerky movement
+          b.vy += (Math.random() - 0.5) * k * 0.65
         } else if (ch > 6) {
           const k = (ch - 6) * 0.075
-          b.vx += (Math.random() - 0.5) * k
-          b.vy += (Math.random() - 0.5) * k
+          b.vx += (Math.random() - 0.5) * k * 0.7
+          b.vy += (Math.random() - 0.5) * k * 0.7
         }
       })
     }

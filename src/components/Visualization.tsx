@@ -513,7 +513,7 @@ export function Visualization({
       // Big Mover intense layered glow — skip during mobile drag
       if (!simplifyForDrag && isCurrentlyHighlighted && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
-        const moverSize = r * 2.0 * moverPulse  // smaller glow for clarity on PC
+        const moverSize = r * 1.35 * moverPulse  // green light a little smaller for all coins (PC)
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
         const moverGlow = ctx.createRadialGradient(x, y, r * 0.6, x, y, moverSize)
         moverGlow.addColorStop(0, moverColor)
@@ -532,7 +532,7 @@ export function Visualization({
 
         // Very bright, fast-pulsing golden aura (special for +22%+ moves)
         const extremePulse = Math.sin(t / 90) * 0.35 + 1.4
-        const extremeSize = r * 2.5 * extremePulse  // smaller for clearer look on PC
+        const extremeSize = r * 2.0 * extremePulse  // green light a bit smaller for all coins (PC)
         const extremeGlow = ctx.createRadialGradient(x, y, r * 0.5, x, y, extremeSize)
         extremeGlow.addColorStop(0, '#fde047')
         extremeGlow.addColorStop(0.3, '#fbbf24')
@@ -1072,48 +1072,46 @@ export function Visualization({
       }
 
       // === SPECIAL MEGA EFFECT: >1000% up (PC only, during highlight) ===
-      // Over-the-top "supernova" visual reserved exclusively for insane gainers.
-      // Multiple intense layers: huge aura, blinding core, several rings, heavy starburst beams,
-      // dense particle explosion, and a secondary fast cyan corona.
+      // Valuable special premium effect — elegant, high-quality, not overwhelming.
+      // Refined emerald + subtle gold/cyan luxury glow, clean rings, premium particles, elegant rays.
       if (!simplifyForDrag && isMegaMover && isCurrentlyHighlighted && r > 12) {
         const t = Date.now()
 
-        // 1. Massive, very slow pulsing outer "supernova" aura (biggest and brightest)
-        const auraPulse = Math.sin(t / 450) * 0.2 + 1.0
-        const auraR = r * 8.0 * auraPulse
-        const aura = ctx.createRadialGradient(x, y, r * 1.3, x, y, auraR)
-        aura.addColorStop(0, '#ffffff')
-        aura.addColorStop(0.15, '#f0fdf4')
-        aura.addColorStop(0.35, '#86efac')
-        aura.addColorStop(0.6, '#4ade80')
+        // 1. Elegant slow-pulsing premium aura (valuable special, smaller size)
+        const auraPulse = Math.sin(t / 380) * 0.18 + 0.95
+        const auraR = r * 4.0 * auraPulse
+        const aura = ctx.createRadialGradient(x, y, r * 1.0, x, y, auraR)
+        aura.addColorStop(0, '#f0fdf4')
+        aura.addColorStop(0.2, '#86efac')
+        aura.addColorStop(0.45, '#4ade80')
+        aura.addColorStop(0.75, '#166534')  // deep emerald for depth
         aura.addColorStop(1, 'transparent')
-        ctx.globalAlpha = 0.38
+        ctx.globalAlpha = 0.30
         ctx.fillStyle = aura
         ctx.beginPath()
         ctx.arc(x, y, auraR, 0, Math.PI * 2)
         ctx.fill()
 
-        // 2. Blinding white-hot core (very bright and fast flickering)
-        ctx.globalAlpha = 0.85 + Math.sin(t / 60) * 0.12
-        ctx.fillStyle = '#ffffff'
-        ctx.beginPath()
-        ctx.arc(x, y, r * 1.05, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.globalAlpha = 0.55 + Math.sin(t / 40) * 0.3
+        // 2. Refined bright core with subtle gold accent (feels valuable)
+        ctx.globalAlpha = 0.75 + Math.sin(t / 80) * 0.18
         ctx.fillStyle = '#f0fdf4'
         ctx.beginPath()
-        ctx.arc(x, y, r * 1.35, 0, Math.PI * 2)
+        ctx.arc(x, y, r * 0.85, 0, Math.PI * 2)
         ctx.fill()
 
-        // 3. Several prominent rotating energy rings (different radii + speeds)
-        ctx.globalAlpha = 0.92
+        ctx.globalAlpha = 0.32 + Math.sin(t / 55) * 0.2
+        ctx.fillStyle = '#fde047'  // subtle gold
+        ctx.beginPath()
+        ctx.arc(x, y, r * 0.5, 0, Math.PI * 2)
+        ctx.fill()
+
+        // 3. Clean, high-quality rotating rings (elegant luxury feel)
+        ctx.globalAlpha = 0.85
         ctx.strokeStyle = '#f0fdf4'
         const ringConfigs = [
-          { base: 1.9, speed: 180, amp: 0.22, width: 3.5 },
-          { base: 2.7, speed: 260, amp: 0.18, width: 2.8 },
-          { base: 3.6, speed: 140, amp: 0.25, width: 2.2 },
-          { base: 4.5, speed: 320, amp: 0.15, width: 1.6 }
+          { base: 1.6, speed: 160, amp: 0.14, width: 2.4 },
+          { base: 2.2, speed: 240, amp: 0.11, width: 1.8 },
+          { base: 2.9, speed: 310, amp: 0.16, width: 1.3 }
         ]
         for (let i = 0; i < ringConfigs.length; i++) {
           const cfg = ringConfigs[i]
@@ -1124,61 +1122,48 @@ export function Visualization({
           ctx.stroke()
         }
 
-        // 4. Heavy starburst radial beams (the "true special" dramatic part)
-        ctx.globalAlpha = 0.65
+        // 4. Elegant fine radial rays (valuable special, not heavy)
+        ctx.globalAlpha = 0.42
         ctx.strokeStyle = '#4ade80'
-        ctx.lineWidth = 2.6
-        const beamCount = 18
+        ctx.lineWidth = 1.2
+        const beamCount = 10
         for (let i = 0; i < beamCount; i++) {
-          const ang = (t / 380) + (i * (Math.PI * 2 / beamCount))
-          const inner = r * 1.5
-          const outer = r * (7.2 + Math.sin(t / 150 + i * 1.7) * 0.6)
+          const ang = (t / 420) + (i * (Math.PI * 2 / beamCount))
+          const inner = r * 1.15
+          const outer = r * (3.7 + Math.sin(t / 190 + i) * 0.2)
           ctx.beginPath()
           ctx.moveTo(x + Math.cos(ang) * inner, y + Math.sin(ang) * inner)
-          ctx.lineTo(x + Math.cos(ang) * outer, y + Math.sin(ang) * outer * 0.9)
+          ctx.lineTo(x + Math.cos(ang) * outer, y + Math.sin(ang) * outer * 0.94)
           ctx.stroke()
         }
 
-        // 5. Very dense particle explosion (two speeds + sizes)
-        ctx.globalAlpha = 0.98
-        // Big slow outer particles
-        for (let s = 0; s < 26; s++) {
-          const angle = (t / 210) + (s * (Math.PI * 2 / 26))
-          const dist = r * 4.2 + Math.sin(t / 95 + s) * 8
+        // 5. Premium sparse high-quality particles (valuable, not dense)
+        ctx.globalAlpha = 0.88
+        for (let s = 0; s < 12; s++) {
+          const angle = (t / 290) + (s * (Math.PI * 2 / 12))
+          const dist = r * 2.5 + Math.sin(t / 130 + s) * 3
           const sx = x + Math.cos(angle) * dist
-          const sy = y + Math.sin(angle) * dist * 0.87
-          const ps = 2.8 + Math.sin(t / 55 + s) * 1.3
+          const sy = y + Math.sin(angle) * dist * 0.9
+          const ps = 1.4 + Math.sin(t / 80 + s) * 0.6
 
           ctx.fillStyle = '#f0fdf4'
           ctx.beginPath()
           ctx.arc(sx, sy, ps, 0, Math.PI * 2)
           ctx.fill()
 
-          ctx.fillStyle = '#ffffff'
+          ctx.fillStyle = '#fde047'  // gold touch for value
           ctx.beginPath()
-          ctx.arc(sx, sy, ps * 0.4, 0, Math.PI * 2)
-          ctx.fill()
-        }
-        // Fast inner bright sparks
-        ctx.globalAlpha = 0.9
-        for (let s = 0; s < 14; s++) {
-          const angle = (t / 95) + (s * (Math.PI * 2 / 14))
-          const dist = r * 2.1 + Math.sin(t / 40 + s) * 5
-          const sx = x + Math.cos(angle) * dist
-          const sy = y + Math.sin(angle) * dist * 0.9
-          ctx.fillStyle = '#ffffff'
-          ctx.beginPath()
-          ctx.arc(sx, sy, 3.2, 0, Math.PI * 2)
+          ctx.arc(sx, sy, ps * 0.3, 0, Math.PI * 2)
           ctx.fill()
         }
 
-        // 6. Extra fast cyan corona ring (added layer for extra "wow")
-        ctx.globalAlpha = 0.45 + Math.sin(t / 70) * 0.25
+        // 6. Subtle elegant cyan inner halo (adds premium depth, not big)
+        ctx.globalAlpha = 0.35 + Math.sin(t / 95) * 0.15
         ctx.strokeStyle = '#67f6ff'
-        ctx.lineWidth = 1.3
-        const coronaR = r * (3.1 + Math.sin(t / 110) * 0.3)
+        ctx.lineWidth = 0.9
+        const haloR = r * (1.4 + Math.sin(t / 140) * 0.08)
         ctx.beginPath()
-        ctx.arc(x, y, coronaR, 0, Math.PI * 2)
+        ctx.arc(x, y, haloR, 0, Math.PI * 2)
         ctx.stroke()
 
         ctx.globalAlpha = 1.0

@@ -132,6 +132,7 @@ export default function App() {
   const [physicsPaused, setPhysicsPaused] = useState(false)
   const [isMarketOpen, setIsMarketOpen] = useState(false)
   const [pagesPanelExpanded, setPagesPanelExpanded] = useState(true)
+  const [performanceMode, setPerformanceMode] = useState(false)
   const [showRampModal, setShowRampModal] = useState(false)
   const [showDonateModal, setShowDonateModal] = useState(false)
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -266,14 +267,14 @@ export default function App() {
   )
 
   // Planet scale boosts for specific pages:
-  // - 500-600 tab (Pulse + custom): 1.4x (reduced a little for better balance)
+  // - 500-600 tab (Pulse + custom): 1.28x (same size as other boosted tabs like 100-200 etc.)
   // - 0-100,100-200,200-300,400-500 tabs: 1.28x (0.28x bigger) for better visibility
   // Note: 300-400 tab gets no extra boost.
   const pageStart = currentPage * PAGE_SIZE
   const baseScale = isMobile ? 0.45 : 1
   let planetScale = baseScale
   if (pageStart >= 500) {
-    planetScale = baseScale * 1.4
+    planetScale = baseScale * 1.28
   } else if (pageStart === 0 || pageStart === 100 || pageStart === 200 || pageStart === 400) {
     planetScale = baseScale * 1.28
   }
@@ -619,6 +620,19 @@ export default function App() {
             >
               {physicsPaused ? '▶ Resume Physics' : '⏸ Pause Physics'}
             </button>
+
+            {/* Performance / Compact mode toggle for PC - lighter on CPU/GPU while keeping the core lively planets and special high-% effects */}
+            <button
+              onClick={() => setPerformanceMode(!performanceMode)}
+              className={`px-5 py-2 text-sm font-medium rounded-3xl flex items-center gap-x-2 transition-all border active:scale-[0.985] ${
+                performanceMode
+                  ? 'bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/15'
+                  : 'bg-white/5 text-white/80 border-white/10 hover:bg-white/10'
+              }`}
+              title={performanceMode ? "Switch to full rich visuals" : "Performance mode: lighter drawing and reduced effects for better performance on PC"}
+            >
+              {performanceMode ? '🚀 Full Quality' : '⚡ Performance Mode'}
+            </button>
           </div>
 
           {/* Quick Filters - More interesting styling */}
@@ -694,6 +708,7 @@ export default function App() {
             isMobile={isMobile}
             isPulsechain={activePreset === 'pulsechain'}
             topOffset={desktopTopOffset}
+            performanceMode={performanceMode}
           />
         )}
 

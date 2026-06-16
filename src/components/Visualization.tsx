@@ -32,6 +32,7 @@ interface VisualizationProps {
   isMobile?: boolean   // explicit for aggressive mobile perf paths
   isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger for better visibility and impact
   topOffset?: number  // desktop collapsible tabs panel height reserve so planets don't overlap it; used for top clamps + push on expand
+  performanceMode?: boolean  // compact/lighter drawing for better performance on PC while keeping core lively planets + special high-% effects
 }
 
 export function Visualization({ 
@@ -47,7 +48,8 @@ export function Visualization({
   planetScale = 1,
   isMobile: explicitIsMobile,
   isPulsechain = false,
-  topOffset: topOffsetProp = 0
+  topOffset: topOffsetProp = 0,
+  performanceMode = false
 }: VisualizationProps) {
   const isMobile = explicitIsMobile ?? (planetScale < 0.7)
   const topOffset = topOffsetProp || 0
@@ -523,6 +525,12 @@ export function Visualization({
       if (isGreenGlower || r > 25) drawQuality = 1;
       if (isGoldGlower || isMegaMover || r > 40) drawQuality = 2;
 
+      if (performanceMode) {
+        // In performance mode: cap non-mega at lower quality for lighter load, but keep special high-% effects
+        if (drawQuality === 1 && !isGoldGlower && !isMegaMover) drawQuality = 0;
+        // mega stays at 2 but we'll reduce its intensity below
+      }
+
       // Simple blue perimeter for favorites (so they are clearly marked)
       if (!simplifyForDrag && isFavorite && r > 18) {
         ctx.strokeStyle = '#3b82f6' // blue-500
@@ -535,7 +543,7 @@ export function Visualization({
       // Big Mover intense layered glow (green for >40% positive) — only for green glow tier
       if (!simplifyForDrag && isCurrentlyHighlighted && isGreenGlower && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
-        const moverSize = r * 1.25 * moverPulse  // green light a little smaller for all coins (PC)
+        const moverSize = r * (performanceMode ? 1.1 : 1.25) * moverPulse  // even smaller in performance mode
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
         const moverGlow = ctx.createRadialGradient(x, y, r * 0.6, x, y, moverSize)
         moverGlow.addColorStop(0, moverColor)
@@ -554,7 +562,7 @@ export function Visualization({
 
         // Very bright, fast-pulsing golden aura (special for +22%+ moves)
         const extremePulse = Math.sin(t / 90) * 0.35 + 1.4
-        const extremeSize = r * 2.0 * extremePulse  // green light a bit smaller for all coins (PC)
+        const extremeSize = r * (performanceMode ? 1.6 : 2.0) * extremePulse  // smaller in performance mode
         const extremeGlow = ctx.createRadialGradient(x, y, r * 0.5, x, y, extremeSize)
         extremeGlow.addColorStop(0, '#fde047')
         extremeGlow.addColorStop(0.3, '#fbbf24')
@@ -567,7 +575,7 @@ export function Visualization({
 
         // Extra intense orbiting sparkles for extreme movers
         ctx.globalAlpha = 0.95
-        const extremeSparkCount = isMobile ? 6 : (drawQuality >= 2 ? 9 : 5)  // LOD: reduced for lower tiers
+        const extremeSparkCount = isMobile ? 6 : (performanceMode ? 4 : (drawQuality >= 2 ? 9 : 5))  // perf mode further reduced
         for (let s = 0; s < extremeSparkCount; s++) {
           const angle = (t / 280) + (s * (Math.PI * 2 / extremeSparkCount))
           const dist = r * (1.9 + Math.sin(t / 130 + s) * 0.25)
@@ -1101,7 +1109,7 @@ export function Visualization({
 
         // 1. Elegant slow-pulsing premium aura (valuable special, smaller size)
         const auraPulse = Math.sin(t / 380) * 0.18 + 0.95
-        const auraR = r * 2.6 * auraPulse  // smaller for 1000%, logo visible, valuable special look
+        const auraR = r * (performanceMode ? 2.0 : 2.6) * auraPulse  // smaller in perf mode, not so big, logo clear
         const aura = ctx.createRadialGradient(x, y, r * 1.0, x, y, auraR)
         aura.addColorStop(0, '#f0fdf4')
         aura.addColorStop(0.2, '#86efac')
@@ -1148,7 +1156,7 @@ export function Visualization({
         for (let i = 0; i < beamCount; i++) {
           const ang = (t / 420) + (i * (Math.PI * 2 / beamCount))
           const inner = r * 1.15
-          const outer = r * (2.4 + Math.sin(t / 190 + i) * 0.1)  // smaller for 1000%, valuable special not big
+          const outer = r * (performanceMode ? 1.8 : 2.2) + Math.sin(t / 190 + i) * 0.1  // smaller in perf mode for 1000%
           ctx.beginPath()
           ctx.moveTo(x + Math.cos(ang) * inner, y + Math.sin(ang) * inner)
           ctx.lineTo(x + Math.cos(ang) * outer, y + Math.sin(ang) * outer * 0.94)
@@ -1157,9 +1165,10 @@ export function Visualization({
 
         // 5. Premium sparse high-quality particles (valuable, not dense)
         ctx.globalAlpha = 0.88
-        for (let s = 0; s < 12; s++) {
+        const megaParticleCount = performanceMode ? 6 : 10;
+        for (let s = 0; s < megaParticleCount; s++) {
           const angle = (t / 290) + (s * (Math.PI * 2 / 12))
-          const dist = r * 1.8 + Math.sin(t / 130 + s) * 1.5  // smaller for 1000%, not so big, logo clear
+          const dist = r * (performanceMode ? 1.5 : 1.8) + Math.sin(t / 130 + s) * 1.2  // smaller in perf mode
           const sx = x + Math.cos(angle) * dist
           const sy = y + Math.sin(angle) * dist * 0.9
           const ps = 1.4 + Math.sin(t / 80 + s) * 0.6
@@ -1191,7 +1200,7 @@ export function Visualization({
       if (!simplifyForDrag && isCurrentlyHighlighted && r > 18) {
         const t = Date.now()
         ctx.globalAlpha = 0.9
-        const sparkCount = isMobile ? 3 : (drawQuality >= 2 ? 4 : 2)  // LOD: less for non-mega
+        const sparkCount = isMobile ? 3 : (performanceMode ? 2 : (drawQuality >= 2 ? 4 : 3))  // perf mode: even less particles
         for (let s = 0; s < sparkCount; s++) {
           const angle = (t / 420) + (s * (Math.PI * 2 / sparkCount))
           const dist = r * (1.35 + Math.sin(t / 180 + s) * 0.15)

@@ -578,22 +578,23 @@ export function Visualization({
           ctx.globalAlpha = 0.95
           const extremeSparkCount = isMobile ? 6 : (performanceMode ? 4 : (drawQuality >= 2 ? 9 : 5))  // perf mode further reduced
           for (let s = 0; s < extremeSparkCount; s++) {
-          const angle = (t / 280) + (s * (Math.PI * 2 / extremeSparkCount))
-          const dist = r * (1.9 + Math.sin(t / 130 + s) * 0.25)
-          const sx = x + Math.cos(angle) * dist
-          const sy = y + Math.sin(angle) * dist * 0.9
-          const sparkSize = 2.2 + Math.sin(t / 80 + s) * 0.9
+            const angle = (t / 280) + (s * (Math.PI * 2 / extremeSparkCount))
+            const dist = r * (1.9 + Math.sin(t / 130 + s) * 0.25)
+            const sx = x + Math.cos(angle) * dist
+            const sy = y + Math.sin(angle) * dist * 0.9
+            const sparkSize = 2.2 + Math.sin(t / 80 + s) * 0.9
 
-          ctx.fillStyle = '#fde047'
-          ctx.beginPath()
-          ctx.arc(sx, sy, sparkSize, 0, Math.PI * 2)
-          ctx.fill()
+            ctx.fillStyle = '#fde047'
+            ctx.beginPath()
+            ctx.arc(sx, sy, sparkSize, 0, Math.PI * 2)
+            ctx.fill()
 
-          ctx.fillStyle = '#ffffff'
-          ctx.beginPath()
-          ctx.arc(sx, sy, sparkSize * 0.4, 0, Math.PI * 2)
-          ctx.fill()
-        }
+            ctx.fillStyle = '#ffffff'
+            ctx.beginPath()
+            ctx.arc(sx, sy, sparkSize * 0.4, 0, Math.PI * 2)
+            ctx.fill()
+          }
+      }
       }
 
       // Atmospheric outer glow — skip for low quality planets (LOD optimization)

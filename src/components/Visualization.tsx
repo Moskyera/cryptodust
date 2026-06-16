@@ -511,7 +511,6 @@ export function Visualization({
 
       const isBigMover = isGreenGlower || isGoldGlower || isMegaMover
       const isCurrentlyHighlighted = isBigMover && isHighlighting
-      const isExtremeMover = isGoldGlower || isMegaMover
       const isElectricityMover = change > 56  // >56% up for electric effect during highlight
 
       // LOD for performance: low quality for small or non-special planets (cheaper drawing)

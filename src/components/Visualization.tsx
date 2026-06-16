@@ -504,11 +504,20 @@ export function Visualization({
       const baseColor = isGainer ? '#22c55e' : '#f43f5e'
       const isFavorite = favorites.includes(coin.id)
 
-      const isBigMover = Math.abs(coin.price_change_percentage_24h || 0) > 6
-      const isCurrentlyHighlighted = isBigMover && isHighlighting
-      const isExtremeMover = Math.abs(coin.price_change_percentage_24h || 0) > 22
-      const isElectricityMover = change > 56  // >56% up for electric effect during highlight
+      const absChange = Math.abs(change)
+      const isGreenGlower = change > 40
+      const isGoldGlower = absChange > 350
       const isMegaMover = change > 1000  // >1000% up gets special prominent effect (PC only)
+
+      const isBigMover = isGreenGlower || isGoldGlower || isMegaMover
+      const isCurrentlyHighlighted = isBigMover && isHighlighting
+      const isExtremeMover = isGoldGlower || isMegaMover
+      const isElectricityMover = change > 56  // >56% up for electric effect during highlight
+
+      // LOD for performance: low quality for small or non-special planets (cheaper drawing)
+      let drawQuality = 0;
+      if (isGreenGlower || r > 25) drawQuality = 1;
+      if (isGoldGlower || isMegaMover || r > 40) drawQuality = 2;
 
       // Simple blue perimeter for favorites (so they are clearly marked)
       if (!simplifyForDrag && isFavorite && r > 18) {
@@ -519,10 +528,10 @@ export function Visualization({
         ctx.stroke()
       }
 
-      // Big Mover intense layered glow — skip during mobile drag
-      if (!simplifyForDrag && isCurrentlyHighlighted && r > 16) {
+      // Big Mover intense layered glow (green for >40% positive) — only for green glow tier
+      if (!simplifyForDrag && isCurrentlyHighlighted && isGreenGlower && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
-        const moverSize = r * 1.35 * moverPulse  // green light a little smaller for all coins (PC)
+        const moverSize = r * 1.25 * moverPulse  // green light a little smaller for all coins (PC)
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
         const moverGlow = ctx.createRadialGradient(x, y, r * 0.6, x, y, moverSize)
         moverGlow.addColorStop(0, moverColor)
@@ -535,8 +544,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // === SPECIAL VISUAL: Extreme movers (>22% 24h change) ===
-      if (!simplifyForDrag && isExtremeMover && isCurrentlyHighlighted && r > 14) {
+      // === SPECIAL VISUAL: Gold glow for >350% (extreme movers) ===
+      if (!simplifyForDrag && isGoldGlower && isCurrentlyHighlighted && r > 14) {
         const t = Date.now()
 
         // Very bright, fast-pulsing golden aura (special for +22%+ moves)
@@ -554,7 +563,7 @@ export function Visualization({
 
         // Extra intense orbiting sparkles for extreme movers
         ctx.globalAlpha = 0.95
-        const extremeSparkCount = isMobile ? 6 : 9
+        const extremeSparkCount = isMobile ? 6 : (drawQuality >= 2 ? 9 : 5)  // LOD: reduced for lower tiers
         for (let s = 0; s < extremeSparkCount; s++) {
           const angle = (t / 280) + (s * (Math.PI * 2 / extremeSparkCount))
           const dist = r * (1.9 + Math.sin(t / 130 + s) * 0.25)
@@ -574,8 +583,8 @@ export function Visualization({
         }
       }
 
-      // Atmospheric outer glow — skip during mobile drag for performance
-      if (!simplifyForDrag && r > 14) {
+      // Atmospheric outer glow — skip for low quality planets (LOD optimization)
+      if (!simplifyForDrag && drawQuality >= 1 && r > 14) {
         ctx.globalAlpha = 0.35
         const glow = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.4, x, y, r * 2.1)
         glow.addColorStop(0, baseColor)
@@ -754,8 +763,8 @@ export function Visualization({
         ctx.fillText(coin.symbol, x, bandCenterY - r * 0.11)
       }
 
-      // Specular highlight (shiny top-left) — skip during mobile drag
-      if (!simplifyForDrag && r > 15) {
+      // Specular highlight (shiny top-left) — skip for low quality (LOD)
+      if (!simplifyForDrag && drawQuality >= 1 && r > 15) {
         ctx.globalAlpha = 0.6
         ctx.fillStyle = '#ffffff'
         ctx.beginPath()
@@ -763,8 +772,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Attractive rings (especially visible on larger planets) — skip during drag
-      if (!simplifyForDrag && r > 26) {
+      // Attractive rings (especially visible on larger planets) — skip for low quality (LOD)
+      if (!simplifyForDrag && drawQuality >= 1 && r > 26) {
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
         ctx.lineWidth = r * 0.09
@@ -1088,7 +1097,7 @@ export function Visualization({
 
         // 1. Elegant slow-pulsing premium aura (valuable special, smaller size)
         const auraPulse = Math.sin(t / 380) * 0.18 + 0.95
-        const auraR = r * 2.9 * auraPulse  // even smaller for 1000% + better logo visibility  // smaller for 1000% + logo visibility
+        const auraR = r * 2.6 * auraPulse  // smaller for 1000%, logo visible, valuable special look
         const aura = ctx.createRadialGradient(x, y, r * 1.0, x, y, auraR)
         aura.addColorStop(0, '#f0fdf4')
         aura.addColorStop(0.2, '#86efac')
@@ -1135,7 +1144,7 @@ export function Visualization({
         for (let i = 0; i < beamCount; i++) {
           const ang = (t / 420) + (i * (Math.PI * 2 / beamCount))
           const inner = r * 1.15
-          const outer = r * (2.9 + Math.sin(t / 190 + i) * 0.12)  // smaller for 1000% + logo visibility
+          const outer = r * (2.4 + Math.sin(t / 190 + i) * 0.1)  // smaller for 1000%, valuable special not big
           ctx.beginPath()
           ctx.moveTo(x + Math.cos(ang) * inner, y + Math.sin(ang) * inner)
           ctx.lineTo(x + Math.cos(ang) * outer, y + Math.sin(ang) * outer * 0.94)
@@ -1146,7 +1155,7 @@ export function Visualization({
         ctx.globalAlpha = 0.88
         for (let s = 0; s < 12; s++) {
           const angle = (t / 290) + (s * (Math.PI * 2 / 12))
-          const dist = r * 2.1 + Math.sin(t / 130 + s) * 2  // smaller for 1000% + logo visibility
+          const dist = r * 1.8 + Math.sin(t / 130 + s) * 1.5  // smaller for 1000%, not so big, logo clear
           const sx = x + Math.cos(angle) * dist
           const sy = y + Math.sin(angle) * dist * 0.9
           const ps = 1.4 + Math.sin(t / 80 + s) * 0.6
@@ -1178,7 +1187,7 @@ export function Visualization({
       if (!simplifyForDrag && isCurrentlyHighlighted && r > 18) {
         const t = Date.now()
         ctx.globalAlpha = 0.9
-        const sparkCount = isMobile ? 3 : 4
+        const sparkCount = isMobile ? 3 : (drawQuality >= 2 ? 4 : 2)  // LOD: less for non-mega
         for (let s = 0; s < sparkCount; s++) {
           const angle = (t / 420) + (s * (Math.PI * 2 / sparkCount))
           const dist = r * (1.35 + Math.sin(t / 180 + s) * 0.15)

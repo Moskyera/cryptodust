@@ -104,7 +104,7 @@ export function Visualization({
   const lastHoverCheckRef = useRef(0)
   const pausedTimeRef = useRef(0)
   const pausedRef = useRef(paused)
-  const tickRef = useRef(tick)
+  const tickRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     pausedRef.current = paused

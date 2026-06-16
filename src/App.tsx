@@ -644,7 +644,7 @@ export default function App() {
                   ? 'bg-amber-500/15 text-amber-300 border-amber-500/35 hover:bg-amber-500/20'
                   : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
               }`}
-              title={performanceMode ? 'Performance mode on — lighter GPU/CPU usage' : 'Enable performance mode — reduces effects and caps FPS'}
+              title={performanceMode ? 'Manual performance mode on — max savings' : 'Enable manual performance mode (smart perf auto-optimizes when idle)'}
             >
               <Gauge className="w-3 h-3" />
               {performanceMode ? 'Perf ON' : 'Perf'}
@@ -725,6 +725,7 @@ export default function App() {
             isPulsechain={activePreset === 'pulsechain'}
             topOffset={desktopTopOffset}
             performanceMode={performanceMode}
+            marketTableOpen={isMarketOpen}
           />
         )}
 

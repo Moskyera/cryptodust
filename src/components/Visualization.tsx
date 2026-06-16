@@ -32,12 +32,26 @@ interface VisualizationProps {
   isMobile?: boolean   // explicit for aggressive mobile perf paths
   isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger for better visibility and impact
   topOffset?: number  // desktop collapsible tabs panel height reserve so planets don't overlap it; used for top clamps + push on expand
-  performanceMode?: boolean  // desktop lite rendering: fewer effects, capped FPS, no physics
+  performanceMode?: boolean  // desktop manual lite rendering: fewer effects, capped FPS, no physics
+  marketTableOpen?: boolean  // desktop: pause canvas while market table overlay is open
 }
 
 const DESKTOP_FPS_IDLE_MS = 1000 / 30
 const DESKTOP_FPS_ACTIVE_MS = 1000 / 60
 const COLLISION_CELL_SIZE = 120
+const SMART_PERF_IDLE_MS = 30000
+const DIRTY_FRAME_MS = 2000
+
+function computeTopMoverIds(
+  items: Array<{ id: string; change: number }>
+): Set<string> {
+  return new Set(
+    [...items]
+      .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+      .slice(0, 10)
+      .map(item => item.id)
+  )
+}
 
 function applySpatialCollisions(bubbles: Bubble[], touchComfort: number) {
   const grid = new Map<string, number[]>()
@@ -112,6 +126,7 @@ export function Visualization({
   isPulsechain = false,
   topOffset: topOffsetProp = 0,
   performanceMode = false,
+  marketTableOpen = false,
 }: VisualizationProps) {
   const isMobile = explicitIsMobile ?? (planetScale < 0.7)
   const topOffset = topOffsetProp || 0
@@ -169,33 +184,86 @@ export function Visualization({
   const pausedTimeRef = useRef(0)
   const pausedRef = useRef(paused)
   const performanceModeRef = useRef(performanceMode)
+  const marketTableOpenRef = useRef(marketTableOpen)
   const selectedIdRef = useRef<string | null>(externalSelectedId ?? null)
   const isPageVisibleRef = useRef(true)
   const lastFrameTimeRef = useRef(0)
   const interactionUntilRef = useRef(0)
+  const needsRedrawRef = useRef(true)
+  const topMoverIdsRef = useRef<Set<string>>(new Set())
+  const slowFrameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tickRef = useRef<() => void>(() => {})
 
-  const scheduleNextFrame = useCallback(() => {
-    if (!isMobile && !isPageVisibleRef.current) {
+  const cancelScheduledFrame = useCallback(() => {
+    if (animationRef.current != null) {
+      cancelAnimationFrame(animationRef.current)
       animationRef.current = undefined
+    }
+    if (slowFrameTimerRef.current != null) {
+      clearTimeout(slowFrameTimerRef.current)
+      slowFrameTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleNextFrame = useCallback((options?: { slow?: boolean }) => {
+    if (!isMobile && (!isPageVisibleRef.current || marketTableOpenRef.current)) {
+      cancelScheduledFrame()
       return
     }
+
+    cancelScheduledFrame()
+
+    if (options?.slow) {
+      slowFrameTimerRef.current = setTimeout(() => {
+        slowFrameTimerRef.current = null
+        tickRef.current()
+      }, DIRTY_FRAME_MS)
+      return
+    }
+
     animationRef.current = requestAnimationFrame(() => tickRef.current())
-  }, [isMobile])
+  }, [isMobile, cancelScheduledFrame])
+
+  const markNeedsRedraw = useCallback(() => {
+    needsRedrawRef.current = true
+  }, [])
 
   const markInteraction = useCallback(() => {
     if (!isMobile) {
       interactionUntilRef.current = Date.now() + 2500
+      markNeedsRedraw()
     }
-  }, [isMobile])
+  }, [isMobile, markNeedsRedraw])
 
   useEffect(() => {
     pausedRef.current = paused
-  }, [paused])
+    markNeedsRedraw()
+  }, [paused, markNeedsRedraw])
 
   useEffect(() => {
     performanceModeRef.current = performanceMode
-  }, [performanceMode])
+    markNeedsRedraw()
+  }, [performanceMode, markNeedsRedraw])
+
+  useEffect(() => {
+    marketTableOpenRef.current = marketTableOpen
+    if (marketTableOpen) {
+      cancelScheduledFrame()
+    } else {
+      markNeedsRedraw()
+      scheduleNextFrame()
+    }
+  }, [marketTableOpen, cancelScheduledFrame, markNeedsRedraw, scheduleNextFrame])
+
+  useEffect(() => {
+    topMoverIdsRef.current = computeTopMoverIds(
+      tokens.map(t => ({
+        id: t.id,
+        change: t.price_change_percentage_24h || 0,
+      }))
+    )
+    markNeedsRedraw()
+  }, [tokens, markNeedsRedraw])
 
   // Desktop: pause animation loop when browser tab is hidden
   useEffect(() => {
@@ -207,23 +275,27 @@ export function Visualization({
 
       if (visible) {
         lastFrameTimeRef.current = 0
+        markNeedsRedraw()
         scheduleNextFrame()
-      } else if (animationRef.current != null) {
-        cancelAnimationFrame(animationRef.current)
-        animationRef.current = undefined
+      } else {
+        cancelScheduledFrame()
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [isMobile, scheduleNextFrame])
+  }, [isMobile, scheduleNextFrame, cancelScheduledFrame, markNeedsRedraw])
 
   // Kickstart a draw when paused state changes (to ensure frozen paused frame is drawn, or live on resume)
   useEffect(() => {
     if (animationRef.current == null) {
       scheduleNextFrame()
     }
-  }, [paused, scheduleNextFrame])
+  }, [paused, scheduleNextFrame, markNeedsRedraw])
+
+  useEffect(() => {
+    markNeedsRedraw()
+  }, [highlightUntil, favorites, sizeMetric, topLabel, markNeedsRedraw])
 
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
@@ -285,7 +357,14 @@ export function Visualization({
     })
 
     bubblesRef.current = newBubbles
-  }, [tokens])   // Note: sizeMetric no longer triggers full recreate (we update targetR live below)
+    topMoverIdsRef.current = computeTopMoverIds(
+      newBubbles.map(b => ({
+        id: b.id,
+        change: b.coin.price_change_percentage_24h || 0,
+      }))
+    )
+    markNeedsRedraw()
+  }, [tokens, markNeedsRedraw])   // Note: sizeMetric no longer triggers full recreate (we update targetR live below)
 
   // Keep planet coin data in sync with fresh API refreshes (24h%, price, volume, etc.)
   useEffect(() => {
@@ -298,7 +377,14 @@ export function Visualization({
         b.coin = fresh
       }
     })
-  }, [tokens])
+    topMoverIdsRef.current = computeTopMoverIds(
+      bubblesRef.current.map(b => ({
+        id: b.id,
+        change: b.coin.price_change_percentage_24h || 0,
+      }))
+    )
+    markNeedsRedraw()
+  }, [tokens, markNeedsRedraw])
 
   // Live update targetR when Size By changes → smooth planet resizing without resetting positions
   useEffect(() => {
@@ -340,21 +426,21 @@ export function Visualization({
 
   // Physics + Render loop (fully self-contained, balanced braces)
   const tick = useCallback(() => {
-    if (!isMobile && !isPageVisibleRef.current) {
-      animationRef.current = undefined
+    if (!isMobile && (!isPageVisibleRef.current || marketTableOpenRef.current)) {
+      cancelScheduledFrame()
       return
     }
 
     if (!isMobile) {
       const now = performance.now()
-      const perfMode = performanceModeRef.current
+      const manualPerfMode = performanceModeRef.current
       const isInteracting =
-        !perfMode &&
+        !manualPerfMode &&
         (Date.now() < interactionUntilRef.current ||
           !!draggingIdRef.current ||
           !!hoveredIdRef.current ||
           !!selectedIdRef.current)
-      const minInterval = perfMode ? DESKTOP_FPS_IDLE_MS : (isInteracting ? DESKTOP_FPS_ACTIVE_MS : DESKTOP_FPS_IDLE_MS)
+      const minInterval = manualPerfMode ? DESKTOP_FPS_IDLE_MS : (isInteracting ? DESKTOP_FPS_ACTIVE_MS : DESKTOP_FPS_IDLE_MS)
 
       if (lastFrameTimeRef.current > 0 && now - lastFrameTimeRef.current < minInterval) {
         scheduleNextFrame()
@@ -378,57 +464,46 @@ export function Visualization({
 
     const w = canvas.width
     const h = canvas.height
-
-    // No artificial frame throttling on mobile.
-    // We keep full speed + drawing simplification during drag (see simplifyForDrag below)
-    // This makes touch feel much more direct and responsive, like cryptobubbles.net on phone.
-    const isDragging = !!draggingIdRef.current
-    const perfLite = !isMobile && performanceModeRef.current
-
-    // Clear background
-    ctx.fillStyle = '#0a0a12'
-    ctx.fillRect(0, 0, w, h)
-
     const bubbles = bubblesRef.current
     const isHighlighting = Date.now() < highlightUntil
-
-    // Freeze time for all animations when physics is paused → makes paused state look clean and intentional
-    // (planets + all pulses, orbiting, electricity, sparkles, rotations stay frozen instead of half-alive)
+    const isDragging = !!draggingIdRef.current
     const isPaused = pausedRef.current
-    let time = Date.now()
-    if (isPaused) {
-      if (!pausedTimeRef.current) pausedTimeRef.current = Date.now()
-      time = pausedTimeRef.current
-    } else {
-      pausedTimeRef.current = 0
-    }
-
-    // On mobile during drag, simplify drawing *very* aggressively to eliminate lag / jank
+    const manualPerfLite = !isMobile && performanceModeRef.current
+    const isSmartPerfActive =
+      !isMobile &&
+      !performanceModeRef.current &&
+      Date.now() - interactionUntilRef.current > SMART_PERF_IDLE_MS &&
+      !isHighlighting &&
+      !selectedIdRef.current &&
+      !hoveredIdRef.current &&
+      !draggingIdRef.current
+    const effectivePerfLite = manualPerfLite || isSmartPerfActive
     const simplifyForDrag = isMobile && isDragging
+    const topMoverIds = topMoverIdsRef.current
 
-    const topMoverIds = new Set(
-      [...bubbles]
-        .sort(
-          (a, b) =>
-            Math.abs(b.coin.price_change_percentage_24h || 0) -
-            Math.abs(a.coin.price_change_percentage_24h || 0)
-        )
-        .slice(0, 10)
-        .map(b => b.id)
-    )
-
-    const allowHeavyEffects = (coinId: string) => {
-      if (simplifyForDrag || perfLite) return false
+    const allowPriorityEffects = (coinId: string) => {
       if (topMoverIds.has(coinId)) return true
       if (selectedId === coinId) return true
       if (hoveredIdRef.current === coinId) return true
       return false
     }
 
+    const allowHeavyEffects = (coinId: string) => {
+      if (simplifyForDrag || effectivePerfLite) return false
+      return allowPriorityEffects(coinId)
+    }
+
+    let anyMoving = false
+    const noteMovement = (bubble: Bubble) => {
+      if (Math.hypot(bubble.vx, bubble.vy) > 0.08 || Math.abs(bubble.targetR - bubble.r) > 0.4) {
+        anyMoving = true
+      }
+    }
+
     // =====================================================
     // PHYSICS SECTION — ONLY RUNS WHEN NOT PAUSED
     // On mobile we disable physics completely for stability and better touch experience (Proposal 1)
-    // Desktop performance mode also skips physics for lower CPU usage
+    // Desktop manual performance mode also skips physics for lower CPU usage
     // =====================================================
     if (!isPaused && !isMobile && !performanceModeRef.current) {
       const SUBSTEPS = 1   // 1 = big perf win, still feels lively with current personality + drift system
@@ -482,6 +557,7 @@ export function Visualization({
 
           // Smooth radius change (Size By) — uses the locked baseRadius so planets don't keep growing with live prices
           b.r += (b.targetR - b.r) * 0.085
+          noteMovement(b)
         }
 
         // 2) Gentle push ONLY when planets are about to touch (spatial hash for O(n) avg)
@@ -652,10 +728,38 @@ export function Visualization({
           b.vx += (Math.random() - 0.5) * k * 0.7
           b.vy += (Math.random() - 0.5) * k * 0.7
         }
+        noteMovement(b)
       })
+    } else {
+      bubbles.forEach(noteMovement)
     }
 
-    // ==================== DRAW EVERYTHING (always runs) ====================
+    const canSkipDraw =
+      !isMobile &&
+      !needsRedrawRef.current &&
+      !isDragging &&
+      !isHighlighting &&
+      !selectedIdRef.current &&
+      !hoveredIdRef.current &&
+      (isPaused || !anyMoving)
+
+    if (canSkipDraw) {
+      scheduleNextFrame({ slow: true })
+      return
+    }
+
+    let time = Date.now()
+    if (isPaused) {
+      if (!pausedTimeRef.current) pausedTimeRef.current = Date.now()
+      time = pausedTimeRef.current
+    } else {
+      pausedTimeRef.current = 0
+    }
+
+    ctx.fillStyle = '#0a0a12'
+    ctx.fillRect(0, 0, w, h)
+
+    // ==================== DRAW EVERYTHING ====================
     bubbles.forEach((b) => {
       const coin = b.coin
       const r = b.r
@@ -813,7 +917,11 @@ export function Visualization({
           ctx.save()
           ctx.globalAlpha = 0.96
 
-          if (r > 18 && !perfLite) {
+          const allowLogoShadow =
+            !effectivePerfLite &&
+            (allowPriorityEffects(coin.id) || r > 25)
+
+          if (allowLogoShadow) {
             ctx.shadowColor = 'rgba(0,0,0,0.55)'
             ctx.shadowBlur = 6
             ctx.shadowOffsetX = 1
@@ -876,7 +984,7 @@ export function Visualization({
           ctx.lineWidth = Math.max(3, r * 0.07)
           ctx.strokeText(pctStr, x, topY)
 
-          if (!perfLite) {
+          if (!effectivePerfLite && allowPriorityEffects(coin.id)) {
             ctx.shadowColor = neon
             ctx.shadowBlur = 10
           }
@@ -902,7 +1010,7 @@ export function Visualization({
         ctx.fillStyle = 'rgba(5, 8, 20, 0.85)'
         ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
 
-        if (!perfLite) {
+        if (!effectivePerfLite && allowPriorityEffects(coin.id)) {
           ctx.shadowColor = '#67f6ff'
           ctx.shadowBlur = 20
           ctx.fillStyle = 'rgba(103, 246, 255, 0.18)'
@@ -988,7 +1096,7 @@ export function Visualization({
         ctx.setLineDash([])
 
         // Orbiting bright particles — very expensive, skip during mobile drag / perf mode
-        if (!simplifyForDrag && !perfLite && r > 20) {
+        if (!simplifyForDrag && !effectivePerfLite && r > 20) {
           ctx.globalAlpha = 1.0
           const orbitCount = isMobile ? 3 : 5   // richer desktop selection energy
           for (let i = 0; i < orbitCount; i++) {
@@ -1031,7 +1139,7 @@ export function Visualization({
       // DESKTOP HOVER PREVIEW (Visual & UX Polish item 4)
       // Soft elegant ring + floating info badge when hovering a planet (without selecting it)
       // Gives instant rich feedback and "mini info on hover" feel on desktop only
-      if (!isMobile && !simplifyForDrag && !perfLite && hoveredIdRef.current === coin.id && selectedId !== coin.id) {
+      if (!isMobile && !simplifyForDrag && !effectivePerfLite && hoveredIdRef.current === coin.id && selectedId !== coin.id) {
         const t = time
 
         // Very soft wide preview ring (distinct from selection, gentle presence)
@@ -1388,12 +1496,14 @@ export function Visualization({
     // the next executing tick will see the updated isPaused (via ref) and draw the
     // correct frozen (when paused) or live scene. Planets stay visible (as a static frozen
     // frame with effects stopped via frozen 'time') + PAUSED label when paused.
+    needsRedrawRef.current = false
     scheduleNextFrame()
-  }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused, isMobile, scheduleNextFrame, topOffset])
+  }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused, isMobile, scheduleNextFrame, topOffset, cancelScheduledFrame])
 
   tickRef.current = tick
 
   const resizeCanvas = useCallback(() => {
+    markNeedsRedraw()
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -1447,7 +1557,7 @@ export function Visualization({
         b.y = Math.max(b.r + hard + topOffset, Math.min(h - b.r - hard - mobileBottomReserve, b.y))
       })
     }
-  }, [isMobile])
+  }, [isMobile, markNeedsRedraw])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -1488,9 +1598,9 @@ export function Visualization({
         window.visualViewport.removeEventListener('resize', vvResize)
       }
       if (ro) ro.disconnect()
-      if (animationRef.current) cancelAnimationFrame(animationRef.current)
+      cancelScheduledFrame()
     }
-  }, [resizeCanvas, scheduleNextFrame])
+  }, [resizeCanvas, scheduleNextFrame, cancelScheduledFrame])
 
   // Convert screen/client coords to canvas world coords
   const screenToWorld = (clientX: number, clientY: number) => {

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, type TokenPrice } from './lib/prices'
-import { TrendingUp, Zap, Pause, Play } from 'lucide-react'
+import { TrendingUp, Zap, Pause, Play, Gauge } from 'lucide-react'
 
 // =====================================================
 // Mini Sparkline (Visual & UX Polish — Desktop Details)
@@ -130,6 +130,13 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [highlightUntil, setHighlightUntil] = useState(0)
   const [physicsPaused, setPhysicsPaused] = useState(false)
+  const [performanceMode, setPerformanceMode] = useState(() => {
+    try {
+      return localStorage.getItem('cryptodust_performance_mode') === '1'
+    } catch {
+      return false
+    }
+  })
   const [isMarketOpen, setIsMarketOpen] = useState(false)
   const [pagesPanelExpanded, setPagesPanelExpanded] = useState(true)
   const [showRampModal, setShowRampModal] = useState(false)
@@ -621,6 +628,27 @@ export default function App() {
               {physicsPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
               {physicsPaused ? 'Resume' : 'Pause'}
             </button>
+
+            <button
+              onClick={() => {
+                setPerformanceMode(prev => {
+                  const next = !prev
+                  try {
+                    localStorage.setItem('cryptodust_performance_mode', next ? '1' : '0')
+                  } catch { /* ignore */ }
+                  return next
+                })
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-2xl flex items-center gap-x-1.5 transition-all border active:scale-[0.985] ${
+                performanceMode
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/35 hover:bg-amber-500/20'
+                  : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
+              }`}
+              title={performanceMode ? 'Performance mode on — lighter GPU/CPU usage' : 'Enable performance mode — reduces effects and caps FPS'}
+            >
+              <Gauge className="w-3 h-3" />
+              {performanceMode ? 'Perf ON' : 'Perf'}
+            </button>
           </div>
 
           {/* Quick Filters - More interesting styling */}
@@ -696,6 +724,7 @@ export default function App() {
             isMobile={isMobile}
             isPulsechain={activePreset === 'pulsechain'}
             topOffset={desktopTopOffset}
+            performanceMode={performanceMode}
           />
         )}
 

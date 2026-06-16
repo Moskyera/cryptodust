@@ -32,6 +32,69 @@ interface VisualizationProps {
   isMobile?: boolean   // explicit for aggressive mobile perf paths
   isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger for better visibility and impact
   topOffset?: number  // desktop collapsible tabs panel height reserve so planets don't overlap it; used for top clamps + push on expand
+  performanceMode?: boolean  // desktop lite rendering: fewer effects, capped FPS, no physics
+}
+
+const DESKTOP_FPS_IDLE_MS = 1000 / 30
+const DESKTOP_FPS_ACTIVE_MS = 1000 / 60
+const COLLISION_CELL_SIZE = 120
+
+function applySpatialCollisions(bubbles: Bubble[], touchComfort: number) {
+  const grid = new Map<string, number[]>()
+
+  for (let i = 0; i < bubbles.length; i++) {
+    const b = bubbles[i]
+    const key = `${Math.floor(b.x / COLLISION_CELL_SIZE)},${Math.floor(b.y / COLLISION_CELL_SIZE)}`
+    if (!grid.has(key)) grid.set(key, [])
+    grid.get(key)!.push(i)
+  }
+
+  for (let i = 0; i < bubbles.length; i++) {
+    const a = bubbles[i]
+    const cx = Math.floor(a.x / COLLISION_CELL_SIZE)
+    const cy = Math.floor(a.y / COLLISION_CELL_SIZE)
+
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oy = -1; oy <= 1; oy++) {
+        const cell = grid.get(`${cx + ox},${cy + oy}`)
+        if (!cell) continue
+
+        for (const j of cell) {
+          if (j <= i) continue
+
+          const bb = bubbles[j]
+          const dx = bb.x - a.x
+          const dy = bb.y - a.y
+          const d = Math.hypot(dx, dy) || 1.0
+          const want = a.r + bb.r + touchComfort
+
+          if (d < want) {
+            const overlap = want - d
+            const f = Math.min(overlap * 0.022, 1.2)
+
+            const fx = (dx / d) * f
+            const fy = (dy / d) * f
+
+            const pushInfluenceA = 0.9 + (a.restlessness - 1) * 0.08
+            const pushInfluenceB = 0.9 + (bb.restlessness - 1) * 0.08
+
+            a.vx -= fx * pushInfluenceA
+            a.vy -= fy * pushInfluenceA
+            bb.vx += fx * pushInfluenceB
+            bb.vy += fy * pushInfluenceB
+
+            if (overlap > 12) {
+              const jitter = 0.003
+              a.vx += (Math.random() - 0.5) * jitter
+              a.vy += (Math.random() - 0.5) * jitter
+              bb.vx += (Math.random() - 0.5) * jitter
+              bb.vy += (Math.random() - 0.5) * jitter
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 export function Visualization({ 
@@ -48,6 +111,7 @@ export function Visualization({
   isMobile: explicitIsMobile,
   isPulsechain = false,
   topOffset: topOffsetProp = 0,
+  performanceMode = false,
 }: VisualizationProps) {
   const isMobile = explicitIsMobile ?? (planetScale < 0.7)
   const topOffset = topOffsetProp || 0
@@ -104,23 +168,72 @@ export function Visualization({
   const lastHoverCheckRef = useRef(0)
   const pausedTimeRef = useRef(0)
   const pausedRef = useRef(paused)
+  const performanceModeRef = useRef(performanceMode)
+  const selectedIdRef = useRef<string | null>(externalSelectedId ?? null)
+  const isPageVisibleRef = useRef(true)
+  const lastFrameTimeRef = useRef(0)
+  const interactionUntilRef = useRef(0)
   const tickRef = useRef<() => void>(() => {})
+
+  const scheduleNextFrame = useCallback(() => {
+    if (!isMobile && !isPageVisibleRef.current) {
+      animationRef.current = undefined
+      return
+    }
+    animationRef.current = requestAnimationFrame(() => tickRef.current())
+  }, [isMobile])
+
+  const markInteraction = useCallback(() => {
+    if (!isMobile) {
+      interactionUntilRef.current = Date.now() + 2500
+    }
+  }, [isMobile])
 
   useEffect(() => {
     pausedRef.current = paused
   }, [paused])
 
+  useEffect(() => {
+    performanceModeRef.current = performanceMode
+  }, [performanceMode])
+
+  // Desktop: pause animation loop when browser tab is hidden
+  useEffect(() => {
+    if (isMobile) return
+
+    const handleVisibility = () => {
+      const visible = document.visibilityState === 'visible'
+      isPageVisibleRef.current = visible
+
+      if (visible) {
+        lastFrameTimeRef.current = 0
+        scheduleNextFrame()
+      } else if (animationRef.current != null) {
+        cancelAnimationFrame(animationRef.current)
+        animationRef.current = undefined
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [isMobile, scheduleNextFrame])
+
   // Kickstart a draw when paused state changes (to ensure frozen paused frame is drawn, or live on resume)
   useEffect(() => {
     if (animationRef.current == null) {
-      animationRef.current = requestAnimationFrame(() => tickRef.current())
+      scheduleNextFrame()
     }
-  }, [paused])
+  }, [paused, scheduleNextFrame])
 
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
   const selectedId = externalSelectedId !== undefined ? externalSelectedId : internalSelectedId
   const setSelectedId: (id: string | null) => void = onSelect || setInternalSelectedId
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId ?? null
+    markInteraction()
+  }, [selectedId, markInteraction])
 
   // Initialize bubbles when the *set* of tokens changes (prevents reset on selection/click)
   useEffect(() => {
@@ -227,16 +340,39 @@ export function Visualization({
 
   // Physics + Render loop (fully self-contained, balanced braces)
   const tick = useCallback(() => {
+    if (!isMobile && !isPageVisibleRef.current) {
+      animationRef.current = undefined
+      return
+    }
+
+    if (!isMobile) {
+      const now = performance.now()
+      const perfMode = performanceModeRef.current
+      const isInteracting =
+        !perfMode &&
+        (Date.now() < interactionUntilRef.current ||
+          !!draggingIdRef.current ||
+          !!hoveredIdRef.current ||
+          !!selectedIdRef.current)
+      const minInterval = perfMode ? DESKTOP_FPS_IDLE_MS : (isInteracting ? DESKTOP_FPS_ACTIVE_MS : DESKTOP_FPS_IDLE_MS)
+
+      if (lastFrameTimeRef.current > 0 && now - lastFrameTimeRef.current < minInterval) {
+        scheduleNextFrame()
+        return
+      }
+      lastFrameTimeRef.current = now
+    }
+
     const canvas = canvasRef.current
 
     if (!canvas) {
-      animationRef.current = requestAnimationFrame(tick)
+      scheduleNextFrame()
       return
     }
 
     const ctx = canvas.getContext('2d', { alpha: true })
     if (!ctx) {
-      animationRef.current = requestAnimationFrame(tick)
+      scheduleNextFrame()
       return
     }
 
@@ -247,6 +383,7 @@ export function Visualization({
     // We keep full speed + drawing simplification during drag (see simplifyForDrag below)
     // This makes touch feel much more direct and responsive, like cryptobubbles.net on phone.
     const isDragging = !!draggingIdRef.current
+    const perfLite = !isMobile && performanceModeRef.current
 
     // Clear background
     ctx.fillStyle = '#0a0a12'
@@ -269,11 +406,31 @@ export function Visualization({
     // On mobile during drag, simplify drawing *very* aggressively to eliminate lag / jank
     const simplifyForDrag = isMobile && isDragging
 
+    const topMoverIds = new Set(
+      [...bubbles]
+        .sort(
+          (a, b) =>
+            Math.abs(b.coin.price_change_percentage_24h || 0) -
+            Math.abs(a.coin.price_change_percentage_24h || 0)
+        )
+        .slice(0, 10)
+        .map(b => b.id)
+    )
+
+    const allowHeavyEffects = (coinId: string) => {
+      if (simplifyForDrag || perfLite) return false
+      if (topMoverIds.has(coinId)) return true
+      if (selectedId === coinId) return true
+      if (hoveredIdRef.current === coinId) return true
+      return false
+    }
+
     // =====================================================
     // PHYSICS SECTION — ONLY RUNS WHEN NOT PAUSED
     // On mobile we disable physics completely for stability and better touch experience (Proposal 1)
+    // Desktop performance mode also skips physics for lower CPU usage
     // =====================================================
-    if (!isPaused && !isMobile) {
+    if (!isPaused && !isMobile && !performanceModeRef.current) {
       const SUBSTEPS = 1   // 1 = big perf win, still feels lively with current personality + drift system
 
       // Handle active drag-to-fling — IMPORTANT: zero velocity while dragging to prevent shake
@@ -327,46 +484,9 @@ export function Visualization({
           b.r += (b.targetR - b.r) * 0.085
         }
 
-        // 2) Gentle push ONLY when planets are about to touch (user request)
-        // Planets should float freely with smooth movement and only bump each other when nearly colliding.
-        const TOUCH_COMFORT = 14   // very small — push starts only when almost touching
-        for (let i = 0; i < bubbles.length; i++) {
-          for (let j = i + 1; j < bubbles.length; j++) {
-            const a = bubbles[i]
-            const bb = bubbles[j]
-            const dx = bb.x - a.x
-            const dy = bb.y - a.y
-            const d = Math.hypot(dx, dy) || 1.0
-            const want = a.r + bb.r + TOUCH_COMFORT
-
-            if (d < want) {
-              // Very soft, short-range push (feels natural)
-              const overlap = (want - d)
-              const f = Math.min(overlap * 0.022, 1.2)   // gentle force
-
-              const fx = (dx / d) * f
-              const fy = (dy / d) * f
-
-              // Slight personality influence on how much they get pushed (restless = more reactive)
-              const pushInfluenceA = 0.9 + (a.restlessness - 1) * 0.08
-              const pushInfluenceB = 0.9 + (bb.restlessness - 1) * 0.08
-
-              a.vx -= fx * pushInfluenceA
-              a.vy -= fy * pushInfluenceA
-              bb.vx += fx * pushInfluenceB
-              bb.vy += fy * pushInfluenceB
-
-              // Minimal jitter only on hard collision
-              if (overlap > 12) {
-                const j = 0.003
-                a.vx += (Math.random() - 0.5) * j
-                a.vy += (Math.random() - 0.5) * j
-                bb.vx += (Math.random() - 0.5) * j
-                bb.vy += (Math.random() - 0.5) * j
-              }
-            }
-          }
-        }
+        // 2) Gentle push ONLY when planets are about to touch (spatial hash for O(n) avg)
+        const TOUCH_COMFORT = 14
+        applySpatialCollisions(bubbles, TOUCH_COMFORT)
 
         // 3) Idle motion with Personality (Proposal 2) - made stronger so planets actually move
         // High-restlessness planets now wake up and drift on their own with visible (but smooth) movement.
@@ -575,7 +695,7 @@ export function Visualization({
       }
 
       // Big Mover intense layered glow (green for >50% up) — shown always for qualifying coins (without needing highlight mode)
-      if (!simplifyForDrag && isGreenGlower && r > 16) {
+      if (!simplifyForDrag && isGreenGlower && allowHeavyEffects(coin.id) && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
         const moverSize = r * 1.1 * moverPulse  // performance-only (smaller for perf)
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
@@ -591,7 +711,7 @@ export function Visualization({
       }
 
       // === SPECIAL VISUAL: Gold glow for >350% (extreme movers) — shown always for qualifying coins (without needing highlight mode)
-      if (!simplifyForDrag && isGoldGlower && r > 14) {
+      if (!simplifyForDrag && isGoldGlower && allowHeavyEffects(coin.id) && r > 14) {
         const t = time
 
         // Very bright, fast-pulsing golden aura (special for +22%+ moves)
@@ -632,7 +752,7 @@ export function Visualization({
       }
 
       // Atmospheric outer glow — skip for low quality planets (LOD optimization)
-      if (!simplifyForDrag && drawQuality >= 1 && r > 14) {
+      if (!simplifyForDrag && drawQuality >= 1 && allowHeavyEffects(coin.id) && r > 14) {
         ctx.globalAlpha = 0.35
         const glow = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.4, x, y, r * 2.1)
         glow.addColorStop(0, baseColor)
@@ -693,7 +813,7 @@ export function Visualization({
           ctx.save()
           ctx.globalAlpha = 0.96
 
-          if (r > 18) {
+          if (r > 18 && !perfLite) {
             ctx.shadowColor = 'rgba(0,0,0,0.55)'
             ctx.shadowBlur = 6
             ctx.shadowOffsetX = 1
@@ -756,8 +876,10 @@ export function Visualization({
           ctx.lineWidth = Math.max(3, r * 0.07)
           ctx.strokeText(pctStr, x, topY)
 
-          ctx.shadowColor = neon
-          ctx.shadowBlur = 10
+          if (!perfLite) {
+            ctx.shadowColor = neon
+            ctx.shadowBlur = 10
+          }
           ctx.fillStyle = neon
           ctx.fillText(pctStr, x, topY)
           ctx.shadowBlur = 0
@@ -780,17 +902,18 @@ export function Visualization({
         ctx.fillStyle = 'rgba(5, 8, 20, 0.85)'
         ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
 
-        // Volumetric neon glow (cyan theme with multiple layers for depth)
-        ctx.shadowColor = '#67f6ff'
-        ctx.shadowBlur = 20
-        ctx.fillStyle = 'rgba(103, 246, 255, 0.18)'
-        ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
+        if (!perfLite) {
+          ctx.shadowColor = '#67f6ff'
+          ctx.shadowBlur = 20
+          ctx.fillStyle = 'rgba(103, 246, 255, 0.18)'
+          ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
 
-        ctx.shadowBlur = 10
-        ctx.fillStyle = 'rgba(103, 246, 255, 0.10)'
-        ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
+          ctx.shadowBlur = 10
+          ctx.fillStyle = 'rgba(103, 246, 255, 0.10)'
+          ctx.fillRect(x - r * 0.93, bandTop, r * 1.86, bandH)
 
-        ctx.shadowBlur = 0
+          ctx.shadowBlur = 0
+        }
         ctx.restore()
       }
 
@@ -812,7 +935,7 @@ export function Visualization({
       }
 
       // Attractive rings (especially visible on larger planets) — only for >50% up (as requested)
-      if (!simplifyForDrag && change > 50 && r > 26) {
+      if (!simplifyForDrag && change > 50 && allowHeavyEffects(coin.id) && r > 26) {
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
         ctx.lineWidth = r * 0.09
@@ -864,8 +987,8 @@ export function Visualization({
         ctx.stroke()
         ctx.setLineDash([])
 
-        // Orbiting bright particles — very expensive, completely skip during mobile drag
-        if (!simplifyForDrag && r > 20) {
+        // Orbiting bright particles — very expensive, skip during mobile drag / perf mode
+        if (!simplifyForDrag && !perfLite && r > 20) {
           ctx.globalAlpha = 1.0
           const orbitCount = isMobile ? 3 : 5   // richer desktop selection energy
           for (let i = 0; i < orbitCount; i++) {
@@ -908,7 +1031,7 @@ export function Visualization({
       // DESKTOP HOVER PREVIEW (Visual & UX Polish item 4)
       // Soft elegant ring + floating info badge when hovering a planet (without selecting it)
       // Gives instant rich feedback and "mini info on hover" feel on desktop only
-      if (!isMobile && !simplifyForDrag && hoveredIdRef.current === coin.id && selectedId !== coin.id) {
+      if (!isMobile && !simplifyForDrag && !perfLite && hoveredIdRef.current === coin.id && selectedId !== coin.id) {
         const t = time
 
         // Very soft wide preview ring (distinct from selection, gentle presence)
@@ -986,7 +1109,7 @@ export function Visualization({
       // Jagged branching lightning + rapid crackle flicker + bright discharge particles.
       // Drawn late so bolts & particles render over the logo and labels (surface surge).
       // Only for strong positive surges (change > 56). Desktop canvas only.
-      if (!simplifyForDrag && isElectricityMover && isCurrentlyHighlighted && r > 18) {
+      if (!simplifyForDrag && isElectricityMover && isCurrentlyHighlighted && allowHeavyEffects(coin.id) && r > 18) {
         const t = time
 
         // Intense fast crackle flicker (very rapid, electricity-like)
@@ -1130,7 +1253,7 @@ export function Visualization({
 
       // === SPECIAL MEGA EFFECT: >1000% up (PC only, during highlight) ===
       // Valuable special premium effect — elegant, high-quality, contained (smaller, no center light for logo visibility).
-      if (!simplifyForDrag && isMegaMover && isCurrentlyHighlighted && r > 12) {
+      if (!simplifyForDrag && isMegaMover && isCurrentlyHighlighted && allowHeavyEffects(coin.id) && r > 12) {
         const t = time
 
         // 1. Small elegant pulsing aura
@@ -1220,7 +1343,7 @@ export function Visualization({
       }
 
       // Orbiting sparkles when a big mover is highlighted — skip entirely during mobile drag
-      if (!simplifyForDrag && isCurrentlyHighlighted && r > 18) {
+      if (!simplifyForDrag && isCurrentlyHighlighted && allowHeavyEffects(coin.id) && r > 18) {
         const t = time
         ctx.globalAlpha = 0.9
         const sparkCount = isMobile ? 3 : 2  // performance-only (reduced particles)
@@ -1265,8 +1388,8 @@ export function Visualization({
     // the next executing tick will see the updated isPaused (via ref) and draw the
     // correct frozen (when paused) or live scene. Planets stay visible (as a static frozen
     // frame with effects stopped via frozen 'time') + PAUSED label when paused.
-    animationRef.current = requestAnimationFrame(() => tickRef.current())
-  }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused])
+    scheduleNextFrame()
+  }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused, isMobile, scheduleNextFrame, topOffset])
 
   tickRef.current = tick
 
@@ -1277,7 +1400,7 @@ export function Visualization({
     const parent = canvas.parentElement
     if (!parent) return
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5)
+    const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 2.5 : 1.5)
 
     let displayWidth = parent.clientWidth
     let displayHeight = parent.clientHeight
@@ -1355,7 +1478,7 @@ export function Visualization({
     }
 
     if (!pausedRef.current) {
-      animationRef.current = requestAnimationFrame(() => tickRef.current())
+      scheduleNextFrame()
     }
 
     return () => {
@@ -1367,7 +1490,7 @@ export function Visualization({
       if (ro) ro.disconnect()
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
     }
-  }, [resizeCanvas])
+  }, [resizeCanvas, scheduleNextFrame])
 
   // Convert screen/client coords to canvas world coords
   const screenToWorld = (clientX: number, clientY: number) => {
@@ -1385,6 +1508,7 @@ export function Visualization({
     const canvas = canvasRef.current
     if (!canvas) return
 
+    markInteraction()
     const { x: wx, y: wy } = screenToWorld(e.clientX, e.clientY)
 
     const currentBubbles = bubblesRef.current
@@ -1430,6 +1554,7 @@ export function Visualization({
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    markInteraction()
     const { x: wx, y: wy } = screenToWorld(e.clientX, e.clientY)
     mouseRef.current = { x: wx, y: wy }
 
@@ -1480,6 +1605,7 @@ export function Visualization({
         const newHover = closest ? closest.id : null
         if (newHover !== hoveredIdRef.current) {
           hoveredIdRef.current = newHover
+          if (newHover) markInteraction()
         }
       }
     }

@@ -512,7 +512,7 @@ export function Visualization({
       const isFavorite = favorites.includes(coin.id)
 
       const absChange = Math.abs(change)
-      const isGreenGlower = change > 40
+      const isGreenGlower = change > 50
       const isGoldGlower = absChange > 350
       const isMegaMover = change > 1000  // >1000% up gets special prominent effect (PC only)
 
@@ -540,8 +540,8 @@ export function Visualization({
         ctx.stroke()
       }
 
-      // Big Mover intense layered glow (green for >40% positive) — only for green glow tier
-      if (!simplifyForDrag && isCurrentlyHighlighted && isGreenGlower && r > 16) {
+      // Big Mover intense layered glow (green for >50% up) — shown always for qualifying coins (without needing highlight mode)
+      if (!simplifyForDrag && isGreenGlower && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
         const moverSize = r * (performanceMode ? 1.1 : 1.25) * moverPulse  // even smaller in performance mode
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
@@ -556,8 +556,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // === SPECIAL VISUAL: Gold glow for >350% (extreme movers) ===
-      if (!simplifyForDrag && isGoldGlower && isCurrentlyHighlighted && r > 14) {
+      // === SPECIAL VISUAL: Gold glow for >350% (extreme movers) — shown always for qualifying coins (without needing highlight mode)
+      if (!simplifyForDrag && isGoldGlower && r > 14) {
         const t = Date.now()
 
         // Very bright, fast-pulsing golden aura (special for +22%+ moves)
@@ -573,10 +573,11 @@ export function Visualization({
         ctx.arc(x, y, extremeSize, 0, Math.PI * 2)
         ctx.fill()
 
-        // Extra intense orbiting sparkles for extreme movers
-        ctx.globalAlpha = 0.95
-        const extremeSparkCount = isMobile ? 6 : (performanceMode ? 4 : (drawQuality >= 2 ? 9 : 5))  // perf mode further reduced
-        for (let s = 0; s < extremeSparkCount; s++) {
+        // Extra intense orbiting sparkles for extreme movers — only during highlight for performance
+        if (isCurrentlyHighlighted) {
+          ctx.globalAlpha = 0.95
+          const extremeSparkCount = isMobile ? 6 : (performanceMode ? 4 : (drawQuality >= 2 ? 9 : 5))  // perf mode further reduced
+          for (let s = 0; s < extremeSparkCount; s++) {
           const angle = (t / 280) + (s * (Math.PI * 2 / extremeSparkCount))
           const dist = r * (1.9 + Math.sin(t / 130 + s) * 0.25)
           const sx = x + Math.cos(angle) * dist
@@ -784,8 +785,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Attractive rings (especially visible on larger planets) — skip for low quality (LOD)
-      if (!simplifyForDrag && drawQuality >= 1 && r > 26) {
+      // Attractive rings (especially visible on larger planets) — only for >50% up (as requested)
+      if (!simplifyForDrag && change > 50 && r > 26) {
         ctx.globalAlpha = 0.55
         ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
         ctx.lineWidth = r * 0.09

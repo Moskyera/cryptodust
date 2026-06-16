@@ -280,7 +280,7 @@ export function Visualization({
           // Extra damping for high % gainers: calms their movement a little when % is high, makes drift smoother and less frantic
           const ch = Math.abs(b.coin.price_change_percentage_24h || 0)
           if (ch > 50) {
-            const extraDamp = 0.96 - Math.min((ch - 50) / 2000, 0.015)
+            const extraDamp = 0.94 - Math.min((ch - 50) / 1000, 0.03)  // stronger damp as % goes up for calmer/smoother movement
             b.vx *= extraDamp
             b.vy *= extraDamp
           }
@@ -337,16 +337,20 @@ export function Visualization({
           const b = bubbles[i]
           const speed = Math.hypot(b.vx, b.vy)
 
+          const ch = Math.abs(b.coin.price_change_percentage_24h || 0)
+
           // Occasional "wake up" kick for lively planets when they are very still
           if (b.restlessness > 1.0 && speed < 0.3 && Math.random() < (0.025 * b.restlessness)) {
-            const cruiseSpeed = 0.35 + (b.restlessness - 1) * 0.25   // visible but gentle speed
+            let cruiseSpeed = 0.35 + (b.restlessness - 1) * 0.25   // visible but gentle speed
+            if (ch > 50) cruiseSpeed *= 0.6  // calmer when % high for smoother movement
             b.vx = b.driftBiasX * cruiseSpeed * 2.2 + (Math.random() - 0.5) * 0.2
             b.vy = b.driftBiasY * cruiseSpeed * 2.2 + (Math.random() - 0.5) * 0.2
           }
 
           // Continuous personality drift (lively planets slowly keep moving)
           if (speed < 0.5) {
-            const driftStrength = 0.0022 * b.restlessness
+            let driftStrength = 0.0022 * b.restlessness
+            if (ch > 50) driftStrength *= 0.5  // calmer when % high for smoother movement
             b.vx += b.driftBiasX * driftStrength
             b.vy += b.driftBiasY * driftStrength
           }
@@ -479,11 +483,12 @@ export function Visualization({
           b.vx += (Math.random() - 0.5) * k * 0.6  // reduced random for smoother
           b.vy += (Math.random() - 0.5) * k * 0.6
         } else if (ch > 22) {
-          // Extra strong kick for extreme movers (>22%) — calmed a bit for higher % so they don't move too frantically
-          let k = (ch - 6) * 0.10
-          if (ch > 150) k *= 0.6  // calm even more as % goes higher
-          b.vx += (Math.random() - 0.5) * k * 0.65  // *0.65 for smoother, less jerky movement
-          b.vy += (Math.random() - 0.5) * k * 0.65
+          // Extra strong kick for extreme movers (>22%) — calmed more as % goes higher for smoother movement
+          let k = (ch - 6) * 0.08
+          if (ch > 100) k = 8 - (ch - 100) * 0.02  // decrease k for very high % to calm
+          k = Math.max(1, k)
+          b.vx += (Math.random() - 0.5) * k * 0.5  // *0.5 for even smoother, less jerky
+          b.vy += (Math.random() - 0.5) * k * 0.5
         } else if (ch > 6) {
           const k = (ch - 6) * 0.075
           b.vx += (Math.random() - 0.5) * k * 0.7

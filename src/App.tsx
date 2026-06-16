@@ -266,14 +266,14 @@ export default function App() {
   )
 
   // Planet scale boosts for specific pages:
-  // - 500-600 tab: 1.65x (existing, for visibility of special low-cap coins)
+  // - 500-600 tab (Pulse + custom): 1.4x (reduced a little for better balance)
   // - 0-100,100-200,200-300,400-500 tabs: 1.28x (0.28x bigger) for better visibility
   // Note: 300-400 tab gets no extra boost.
   const pageStart = currentPage * PAGE_SIZE
   const baseScale = isMobile ? 0.45 : 1
   let planetScale = baseScale
   if (pageStart >= 500) {
-    planetScale = baseScale * 1.65
+    planetScale = baseScale * 1.4
   } else if (pageStart === 0 || pageStart === 100 || pageStart === 200 || pageStart === 400) {
     planetScale = baseScale * 1.28
   }

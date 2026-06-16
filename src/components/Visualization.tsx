@@ -32,7 +32,6 @@ interface VisualizationProps {
   isMobile?: boolean   // explicit for aggressive mobile perf paths
   isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger for better visibility and impact
   topOffset?: number  // desktop collapsible tabs panel height reserve so planets don't overlap it; used for top clamps + push on expand
-  performanceMode?: boolean  // compact/lighter drawing for better performance on PC while keeping core lively planets + special high-% effects
 }
 
 export function Visualization({ 
@@ -49,7 +48,6 @@ export function Visualization({
   isMobile: explicitIsMobile,
   isPulsechain = false,
   topOffset: topOffsetProp = 0,
-  performanceMode = false
 }: VisualizationProps) {
   const isMobile = explicitIsMobile ?? (planetScale < 0.7)
   const topOffset = topOffsetProp || 0
@@ -525,11 +523,9 @@ export function Visualization({
       if (isGreenGlower || r > 25) drawQuality = 1;
       if (isGoldGlower || isMegaMover || r > 40) drawQuality = 2;
 
-      if (performanceMode) {
-        // In performance mode: cap non-mega at lower quality for lighter load, but keep special high-% effects
-        if (drawQuality === 1 && !isGoldGlower && !isMegaMover) drawQuality = 0;
-        // mega stays at 2 but we'll reduce its intensity below
-      }
+      // Performance-only: cap non-mega at lower quality for lighter load, but keep special high-% effects
+      if (drawQuality === 1 && !isGoldGlower && !isMegaMover) drawQuality = 0;
+      // mega stays at 2 but we'll reduce its intensity below
 
       // Simple blue perimeter for favorites (so they are clearly marked)
       if (!simplifyForDrag && isFavorite && r > 18) {
@@ -543,7 +539,7 @@ export function Visualization({
       // Big Mover intense layered glow (green for >50% up) — shown always for qualifying coins (without needing highlight mode)
       if (!simplifyForDrag && isGreenGlower && r > 16) {
         const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
-        const moverSize = r * (performanceMode ? 1.1 : 1.25) * moverPulse  // even smaller in performance mode
+        const moverSize = r * 1.1 * moverPulse  // performance-only (smaller for perf)
         const moverColor = change > 0 ? '#4ade80' : '#f87171'
         const moverGlow = ctx.createRadialGradient(x, y, r * 0.6, x, y, moverSize)
         moverGlow.addColorStop(0, moverColor)
@@ -562,7 +558,7 @@ export function Visualization({
 
         // Very bright, fast-pulsing golden aura (special for +22%+ moves)
         const extremePulse = Math.sin(t / 90) * 0.35 + 1.4
-        const extremeSize = r * (performanceMode ? 1.6 : 2.0) * extremePulse  // smaller in performance mode
+        const extremeSize = r * 1.6 * extremePulse  // performance-only (smaller)
         const extremeGlow = ctx.createRadialGradient(x, y, r * 0.5, x, y, extremeSize)
         extremeGlow.addColorStop(0, '#fde047')
         extremeGlow.addColorStop(0.3, '#fbbf24')
@@ -576,7 +572,7 @@ export function Visualization({
         // Extra intense orbiting sparkles for extreme movers — only during highlight for performance
         if (isCurrentlyHighlighted) {
           ctx.globalAlpha = 0.95
-          const extremeSparkCount = isMobile ? 6 : (performanceMode ? 4 : (drawQuality >= 2 ? 9 : 5))  // perf mode further reduced
+          const extremeSparkCount = isMobile ? 6 : 4  // performance-only (reduced)
           for (let s = 0; s < extremeSparkCount; s++) {
             const angle = (t / 280) + (s * (Math.PI * 2 / extremeSparkCount))
             const dist = r * (1.9 + Math.sin(t / 130 + s) * 0.25)
@@ -1198,7 +1194,7 @@ export function Visualization({
       if (!simplifyForDrag && isCurrentlyHighlighted && r > 18) {
         const t = Date.now()
         ctx.globalAlpha = 0.9
-        const sparkCount = isMobile ? 3 : (performanceMode ? 2 : (drawQuality >= 2 ? 4 : 3))  // perf mode: even less particles
+        const sparkCount = isMobile ? 3 : 2  // performance-only (reduced particles)
         for (let s = 0; s < sparkCount; s++) {
           const angle = (t / 420) + (s * (Math.PI * 2 / sparkCount))
           const dist = r * (1.35 + Math.sin(t / 180 + s) * 0.15)

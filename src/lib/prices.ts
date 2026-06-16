@@ -41,6 +41,55 @@ export interface TokenPrice {
 }
 
 // ==================== COINGECKO FETCH ====================
+function mapCoinGeckoCoin(coin: any): TokenPrice {
+  const change24h =
+    coin.price_change_percentage_24h ??
+    coin.price_change_percentage_24h_in_currency ??
+    0
+
+  return {
+    id: coin.id,
+    symbol: coin.symbol.toUpperCase(),
+    name: coin.name,
+    current_price: coin.current_price ?? 0,
+    price_change_percentage_24h: change24h,
+    price_change_percentage_1h:
+      coin.price_change_percentage_1h ?? coin.price_change_percentage_1h_in_currency,
+    price_change_percentage_7d:
+      coin.price_change_percentage_7d ?? coin.price_change_percentage_7d_in_currency,
+    price_change_percentage_30d:
+      coin.price_change_percentage_30d ?? coin.price_change_percentage_30d_in_currency,
+    price_change_percentage_1y:
+      coin.price_change_percentage_1y ?? coin.price_change_percentage_1y_in_currency,
+    market_cap: coin.market_cap,
+    total_volume: coin.total_volume,
+    image: coin.image,
+  }
+}
+
+function mergeTokenData(existing: TokenPrice, incoming: TokenPrice): TokenPrice {
+  const merged: TokenPrice = { ...existing, ...incoming }
+
+  // PulseChain supplemental fetches can return null/0 and must not wipe fresher main-list data.
+  if (
+    (incoming.price_change_percentage_24h == null || incoming.price_change_percentage_24h === 0) &&
+    existing.price_change_percentage_24h != null &&
+    existing.price_change_percentage_24h !== 0
+  ) {
+    merged.price_change_percentage_24h = existing.price_change_percentage_24h
+  }
+
+  if (
+    (incoming.current_price == null || incoming.current_price === 0) &&
+    existing.current_price != null &&
+    existing.current_price > 0
+  ) {
+    merged.current_price = existing.current_price
+  }
+
+  return merged
+}
+
 async function fetchCoinGecko(
   url: string,
   options: { usePulseKey?: boolean } = {}
@@ -73,21 +122,7 @@ async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPri
     }
 
     const data = await res.json()
-
-    return data.map((coin: any) => ({
-      id: coin.id,
-      symbol: coin.symbol.toUpperCase(),
-      name: coin.name,
-      current_price: coin.current_price || 0,
-      price_change_percentage_24h: coin.price_change_percentage_24h || 0,
-      price_change_percentage_1h: coin.price_change_percentage_1h,
-      price_change_percentage_7d: coin.price_change_percentage_7d,
-      price_change_percentage_30d: coin.price_change_percentage_30d,
-      price_change_percentage_1y: coin.price_change_percentage_1y,
-      market_cap: coin.market_cap,
-      total_volume: coin.total_volume,
-      image: coin.image,
-    }))
+    return data.map(mapCoinGeckoCoin)
   } catch (error) {
     console.warn(`CoinGecko page ${page} fetch failed:`, error)
     return []
@@ -157,20 +192,7 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
     if (!res.ok) return []
 
     const data = await res.json()
-    return data.map((coin: any) => ({
-      id: coin.id,
-      symbol: coin.symbol.toUpperCase(),
-      name: coin.name,
-      current_price: coin.current_price || 0,
-      price_change_percentage_24h: coin.price_change_percentage_24h || 0,
-      price_change_percentage_1h: coin.price_change_percentage_1h,
-      price_change_percentage_7d: coin.price_change_percentage_7d,
-      price_change_percentage_30d: coin.price_change_percentage_30d,
-      price_change_percentage_1y: coin.price_change_percentage_1y,
-      market_cap: coin.market_cap,
-      total_volume: coin.total_volume,
-      image: coin.image,
-    }))
+    return data.map(mapCoinGeckoCoin)
   } catch {
     return []
   }
@@ -187,20 +209,7 @@ async function fetchSpecialCoins(): Promise<TokenPrice[]> {
     if (!res.ok) return []
 
     const data = await res.json()
-    return data.map((coin: any) => ({
-      id: coin.id,
-      symbol: coin.symbol.toUpperCase(),
-      name: coin.name,
-      current_price: coin.current_price || 0,
-      price_change_percentage_24h: coin.price_change_percentage_24h || 0,
-      price_change_percentage_1h: coin.price_change_percentage_1h,
-      price_change_percentage_7d: coin.price_change_percentage_7d,
-      price_change_percentage_30d: coin.price_change_percentage_30d,
-      price_change_percentage_1y: coin.price_change_percentage_1y,
-      market_cap: coin.market_cap,
-      total_volume: coin.total_volume,
-      image: coin.image,
-    }))
+    return data.map(mapCoinGeckoCoin)
   } catch {
     return []
   }
@@ -231,20 +240,7 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
 
     const data = await res.json();
 
-    let tokens: TokenPrice[] = data.map((coin: any) => ({
-      id: coin.id,
-      symbol: coin.symbol.toUpperCase(),
-      name: coin.name,
-      current_price: coin.current_price || 0,
-      price_change_percentage_24h: coin.price_change_percentage_24h || 0,
-      price_change_percentage_1h: coin.price_change_percentage_1h,
-      price_change_percentage_7d: coin.price_change_percentage_7d,
-      price_change_percentage_30d: coin.price_change_percentage_30d,
-      price_change_percentage_1y: coin.price_change_percentage_1y,
-      market_cap: coin.market_cap,
-      total_volume: coin.total_volume,
-      image: coin.image,
-    }));
+    let tokens: TokenPrice[] = data.map(mapCoinGeckoCoin);
 
     // Remove explicitly excluded coins (e.g. pulseium, go)
     tokens = tokens.filter(t => !PULSECHAIN_EXCLUDED_IDS.includes(t.id.toLowerCase()));
@@ -279,20 +275,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 
     const data = await res.json();
 
-    let tokens: TokenPrice[] = data.map((coin: any) => ({
-      id: coin.id,
-      symbol: coin.symbol.toUpperCase(),
-      name: coin.name,
-      current_price: coin.current_price || 0,
-      price_change_percentage_24h: coin.price_change_percentage_24h || 0,
-      price_change_percentage_1h: coin.price_change_percentage_1h,
-      price_change_percentage_7d: coin.price_change_percentage_7d,
-      price_change_percentage_30d: coin.price_change_percentage_30d,
-      price_change_percentage_1y: coin.price_change_percentage_1y,
-      market_cap: coin.market_cap,
-      total_volume: coin.total_volume,
-      image: coin.image,
-    }));
+    let tokens: TokenPrice[] = data.map(mapCoinGeckoCoin);
 
     // Remove explicitly excluded coins
     tokens = tokens.filter(t => !PULSECHAIN_EXCLUDED_IDS.includes(t.id.toLowerCase()));
@@ -344,7 +327,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       for (const token of curatedPulse) {
         const index = all.findIndex(t => t.id === token.id)
         if (index !== -1) {
-          all[index] = { ...all[index], ...token }
+          all[index] = mergeTokenData(all[index], token)
         } else {
           all.push(token)
         }
@@ -363,8 +346,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       for (const token of pulseEcosystem) {
         const index = all.findIndex(t => t.id === token.id)
         if (index !== -1) {
-          // Prefer richer category data when available
-          all[index] = { ...all[index], ...token }
+          all[index] = mergeTokenData(all[index], token)
         } else {
           all.push(token)
         }

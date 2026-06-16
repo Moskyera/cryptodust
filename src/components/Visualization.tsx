@@ -174,6 +174,19 @@ export function Visualization({
     bubblesRef.current = newBubbles
   }, [tokens])   // Note: sizeMetric no longer triggers full recreate (we update targetR live below)
 
+  // Keep planet coin data in sync with fresh API refreshes (24h%, price, volume, etc.)
+  useEffect(() => {
+    if (!tokens.length || !bubblesRef.current.length) return
+
+    const tokenMap = new Map(tokens.map(t => [t.id, t]))
+    bubblesRef.current.forEach(b => {
+      const fresh = tokenMap.get(b.id)
+      if (fresh) {
+        b.coin = fresh
+      }
+    })
+  }, [tokens])
+
   // Live update targetR when Size By changes → smooth planet resizing without resetting positions
   useEffect(() => {
     if (!bubblesRef.current.length) return

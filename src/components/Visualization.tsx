@@ -102,6 +102,7 @@ export function Visualization({
   // Hover preview state (desktop UX polish) — separate from selection/click
   const hoveredIdRef = useRef<string | null>(null)
   const lastHoverCheckRef = useRef(0)
+  const pausedTimeRef = useRef(0)
 
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
@@ -227,6 +228,16 @@ export function Visualization({
 
     const bubbles = bubblesRef.current
     const isHighlighting = Date.now() < highlightUntil
+
+    // Freeze time for all animations when physics is paused → makes paused state look clean and intentional
+    // (planets + all pulses, orbiting, electricity, sparkles, rotations stay frozen instead of half-alive)
+    let time = Date.now()
+    if (paused) {
+      if (!pausedTimeRef.current) pausedTimeRef.current = Date.now()
+      time = pausedTimeRef.current
+    } else {
+      pausedTimeRef.current = 0
+    }
 
     // On mobile during drag, simplify drawing *very* aggressively to eliminate lag / jank
     const simplifyForDrag = isMobile && isDragging
@@ -554,7 +565,7 @@ export function Visualization({
 
       // === SPECIAL VISUAL: Gold glow for >350% (extreme movers) — shown always for qualifying coins (without needing highlight mode)
       if (!simplifyForDrag && isGoldGlower && r > 14) {
-        const t = Date.now()
+        const t = time
 
         // Very bright, fast-pulsing golden aura (special for +22%+ moves)
         const extremePulse = Math.sin(t / 90) * 0.35 + 1.4
@@ -773,15 +784,6 @@ export function Visualization({
         ctx.fillText(coin.symbol, x, bandCenterY - r * 0.11)
       }
 
-      // Specular highlight (shiny top-left) — skip for low quality (LOD)
-      if (!simplifyForDrag && drawQuality >= 1 && r > 15) {
-        ctx.globalAlpha = 0.6
-        ctx.fillStyle = '#ffffff'
-        ctx.beginPath()
-        ctx.arc(x - r * 0.3, y - r * 0.32, r * 0.26, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
       // Attractive rings (especially visible on larger planets) — only for >50% up (as requested)
       if (!simplifyForDrag && change > 50 && r > 26) {
         ctx.globalAlpha = 0.55
@@ -796,7 +798,7 @@ export function Visualization({
 
       // Selection effect — beautiful rotating orbiting ring (as requested)
       if (selectedId === coin.id) {
-        const t = Date.now()
+        const t = time
 
         // Soft wide cyan glow (stable, no tremble)
         ctx.globalAlpha = 0.22
@@ -880,7 +882,7 @@ export function Visualization({
       // Soft elegant ring + floating info badge when hovering a planet (without selecting it)
       // Gives instant rich feedback and "mini info on hover" feel on desktop only
       if (!isMobile && !simplifyForDrag && hoveredIdRef.current === coin.id && selectedId !== coin.id) {
-        const t = Date.now()
+        const t = time
 
         // Very soft wide preview ring (distinct from selection, gentle presence)
         ctx.globalAlpha = 0.13
@@ -958,7 +960,7 @@ export function Visualization({
       // Drawn late so bolts & particles render over the logo and labels (surface surge).
       // Only for strong positive surges (change > 56). Desktop canvas only.
       if (!simplifyForDrag && isElectricityMover && isCurrentlyHighlighted && r > 18) {
-        const t = Date.now()
+        const t = time
 
         // Intense fast crackle flicker (very rapid, electricity-like)
         const baseFlicker = 0.55 + Math.sin(t / 28) * 0.38 + Math.sin(t / 9) * 0.18
@@ -1102,7 +1104,7 @@ export function Visualization({
       // === SPECIAL MEGA EFFECT: >1000% up (PC only, during highlight) ===
       // Valuable special premium effect — elegant, high-quality, contained (smaller, no center light for logo visibility).
       if (!simplifyForDrag && isMegaMover && isCurrentlyHighlighted && r > 12) {
-        const t = Date.now()
+        const t = time
 
         // 1. Small elegant pulsing aura
         const auraPulse = Math.sin(t / 380) * 0.18 + 0.95
@@ -1192,7 +1194,7 @@ export function Visualization({
 
       // Orbiting sparkles when a big mover is highlighted — skip entirely during mobile drag
       if (!simplifyForDrag && isCurrentlyHighlighted && r > 18) {
-        const t = Date.now()
+        const t = time
         ctx.globalAlpha = 0.9
         const sparkCount = isMobile ? 3 : 2  // performance-only (reduced particles)
         for (let s = 0; s < sparkCount; s++) {
@@ -1214,6 +1216,20 @@ export function Visualization({
         }
       }
     })
+
+    // Clean paused indicator — only visible when physics paused.
+    // Freezes all time-based effects (glows, electricity, sparkles, rings) + shows clear "PAUSED" label.
+    // Makes the paused state look intentional and professional instead of half-broken.
+    if (paused && !simplifyForDrag) {
+      ctx.save()
+      ctx.globalAlpha = 0.75
+      ctx.fillStyle = '#ffffff'
+      ctx.font = '500 11px Inter, system-ui, sans-serif'
+      ctx.textAlign = 'right'
+      ctx.textBaseline = 'top'
+      ctx.fillText('PAUSED', w - 14, 14)
+      ctx.restore()
+    }
 
     // Labels removed — all text is rendered directly inside each planet via canvas
     // (ticker + price + 24h% are drawn inside the circle for a clean, integrated look)

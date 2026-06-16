@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, type TokenPrice } from './lib/prices'
-import { TrendingUp, Zap } from 'lucide-react'
+import { TrendingUp, Zap, Pause, Play } from 'lucide-react'
 
 // =====================================================
 // Mini Sparkline (Visual & UX Polish — Desktop Details)
@@ -608,16 +608,18 @@ export default function App() {
               ))}
             </div>
 
-            {/* Prominent Physics pause/resume button (big and obvious like user requested) */}
+            {/* Physics pause/resume — clean minimal control (good looking, not prominent/ugly) */}
             <button
               onClick={() => setPhysicsPaused(!physicsPaused)}
-              className={`px-5 py-2 text-sm font-medium rounded-3xl flex items-center gap-x-2 transition-all border active:scale-[0.985] ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-2xl flex items-center gap-x-1.5 transition-all border active:scale-[0.985] ${
                 physicsPaused
                   ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/15'
                   : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15'
               }`}
+              title={physicsPaused ? "Resume physics simulation" : "Pause physics simulation"}
             >
-              {physicsPaused ? '▶ Resume Physics' : '⏸ Pause Physics'}
+              {physicsPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+              {physicsPaused ? 'Resume' : 'Pause'}
             </button>
           </div>
 

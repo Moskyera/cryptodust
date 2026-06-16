@@ -103,6 +103,11 @@ export function Visualization({
   const hoveredIdRef = useRef<string | null>(null)
   const lastHoverCheckRef = useRef(0)
   const pausedTimeRef = useRef(0)
+  const pausedRef = useRef(paused)
+
+  useEffect(() => {
+    pausedRef.current = paused
+  }, [paused])
 
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
@@ -231,8 +236,9 @@ export function Visualization({
 
     // Freeze time for all animations when physics is paused → makes paused state look clean and intentional
     // (planets + all pulses, orbiting, electricity, sparkles, rotations stay frozen instead of half-alive)
+    const isPaused = pausedRef.current
     let time = Date.now()
-    if (paused) {
+    if (isPaused) {
       if (!pausedTimeRef.current) pausedTimeRef.current = Date.now()
       time = pausedTimeRef.current
     } else {
@@ -246,7 +252,7 @@ export function Visualization({
     // PHYSICS SECTION — ONLY RUNS WHEN NOT PAUSED
     // On mobile we disable physics completely for stability and better touch experience (Proposal 1)
     // =====================================================
-    if (!paused && !isMobile) {
+    if (!isPaused && !isMobile) {
       const SUBSTEPS = 1   // 1 = big perf win, still feels lively with current personality + drift system
 
       // Handle active drag-to-fling — IMPORTANT: zero velocity while dragging to prevent shake
@@ -1220,7 +1226,7 @@ export function Visualization({
     // Clean paused indicator — only visible when physics paused.
     // Freezes all time-based effects (glows, electricity, sparkles, rings) + shows clear "PAUSED" label.
     // Makes the paused state look intentional and professional instead of half-broken.
-    if (paused && !simplifyForDrag) {
+    if (isPaused && !simplifyForDrag) {
       ctx.save()
       ctx.globalAlpha = 0.75
       ctx.fillStyle = '#ffffff'
@@ -1235,7 +1241,7 @@ export function Visualization({
     // (ticker + price + 24h% are drawn inside the circle for a clean, integrated look)
 
     // Schedule next frame ONLY when physics is running
-    if (!paused) {
+    if (!isPaused) {
       animationRef.current = requestAnimationFrame(tick)
     }
   }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused])

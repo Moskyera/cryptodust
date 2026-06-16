@@ -104,9 +104,21 @@ export function Visualization({
   const lastHoverCheckRef = useRef(0)
   const pausedTimeRef = useRef(0)
   const pausedRef = useRef(paused)
+  const tickRef = useRef(tick)
 
   useEffect(() => {
     pausedRef.current = paused
+  }, [paused])
+
+  useEffect(() => {
+    tickRef.current = tick
+  }, [tick])
+
+  // Kickstart a draw when paused state changes (to ensure frozen paused frame is drawn, or live on resume)
+  useEffect(() => {
+    if (animationRef.current == null) {
+      animationRef.current = requestAnimationFrame(() => tickRef.current())
+    }
   }, [paused])
 
   // Use external selection if provided, otherwise fall back to internal (for standalone use)
@@ -1240,10 +1252,11 @@ export function Visualization({
     // Labels removed — all text is rendered directly inside each planet via canvas
     // (ticker + price + 24h% are drawn inside the circle for a clean, integrated look)
 
-    // Schedule next frame ONLY when physics is running
-    if (!isPaused) {
-      animationRef.current = requestAnimationFrame(tick)
-    }
+    // Always schedule the next frame. This ensures that when the paused prop changes,
+    // the next executing tick will see the updated isPaused (via ref) and draw the
+    // correct frozen (when paused) or live scene. Planets stay visible (as a static frozen
+    // frame with effects stopped via frozen 'time') + PAUSED label when paused.
+    animationRef.current = requestAnimationFrame(() => tickRef.current())
   }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused])
 
   const resizeCanvas = useCallback(() => {
@@ -1330,8 +1343,8 @@ export function Visualization({
       ro.observe(parent)
     }
 
-    if (!paused) {
-      animationRef.current = requestAnimationFrame(tick)
+    if (!pausedRef.current) {
+      animationRef.current = requestAnimationFrame(() => tickRef.current())
     }
 
     return () => {
@@ -1343,7 +1356,7 @@ export function Visualization({
       if (ro) ro.disconnect()
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
     }
-  }, [tick, resizeCanvas, paused])
+  }, [resizeCanvas])
 
   // Convert screen/client coords to canvas world coords
   const screenToWorld = (clientX: number, clientY: number) => {

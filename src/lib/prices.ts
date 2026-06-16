@@ -22,6 +22,7 @@ const COINGECKO_API_KEY = import.meta.env.VITE_COINGECKO_API_KEY || ''
 const COINGECKO_PULSE_DEMO_KEY = import.meta.env.VITE_COINGECKO_PULSE_DEMO_KEY || COINGECKO_API_KEY
 
 const REFRESH_INTERVAL = 5 * 60 * 1000 // 5 minutes
+const USE_API_PROXY = import.meta.env.PROD
 
 // ==================== TYPES ====================
 export interface TokenPrice {
@@ -40,17 +41,32 @@ export interface TokenPrice {
 }
 
 // ==================== COINGECKO FETCH ====================
+async function fetchCoinGecko(
+  url: string,
+  options: { usePulseKey?: boolean } = {}
+): Promise<Response> {
+  const { usePulseKey = false } = options
+
+  if (USE_API_PROXY) {
+    const proxyUrl = `/api/coingecko?url=${encodeURIComponent(url)}&pulse=${usePulseKey ? '1' : '0'}`
+    return fetch(proxyUrl)
+  }
+
+  const headers: HeadersInit = {}
+  const apiKey = usePulseKey ? COINGECKO_PULSE_DEMO_KEY : COINGECKO_API_KEY
+
+  if (apiKey) {
+    headers['x-cg-demo-api-key'] = apiKey
+  }
+
+  return fetch(url, { headers })
+}
+
 async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPrice[]> {
   const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
 
   try {
-    const headers: HeadersInit = {}
-
-    if (COINGECKO_API_KEY) {
-      headers['x-cg-demo-api-key'] = COINGECKO_API_KEY
-    }
-
-    const res = await fetch(url, { headers })
+    const res = await fetchCoinGecko(url)
 
     if (!res.ok) {
       throw new Error(`CoinGecko API error: ${res.status}`)
@@ -137,7 +153,7 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
-    const res = await fetch(url)
+    const res = await fetchCoinGecko(url, { usePulseKey: true })
     if (!res.ok) return []
 
     const data = await res.json()
@@ -167,13 +183,7 @@ async function fetchSpecialCoins(): Promise<TokenPrice[]> {
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
-
-    const headers: HeadersInit = {}
-    if (COINGECKO_API_KEY) {
-      headers['x-cg-demo-api-key'] = COINGECKO_API_KEY
-    }
-
-    const res = await fetch(url, { headers })
+    const res = await fetchCoinGecko(url)
     if (!res.ok) return []
 
     const data = await res.json()
@@ -208,13 +218,7 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
-
-    const headers: HeadersInit = {};
-    if (COINGECKO_PULSE_DEMO_KEY) {
-      headers['x-cg-demo-api-key'] = COINGECKO_PULSE_DEMO_KEY;
-    }
-
-    const res = await fetch(url, { headers });
+    const res = await fetchCoinGecko(url, { usePulseKey: true });
 
     if (!res.ok) {
       if (res.status === 429) {
@@ -262,13 +266,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
-
-    const headers: HeadersInit = {};
-    if (COINGECKO_PULSE_DEMO_KEY) {
-      headers['x-cg-demo-api-key'] = COINGECKO_PULSE_DEMO_KEY;
-    }
-
-    const res = await fetch(url, { headers });
+    const res = await fetchCoinGecko(url, { usePulseKey: true });
 
     if (!res.ok) {
       if (res.status === 429) {

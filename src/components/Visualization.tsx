@@ -110,10 +110,6 @@ export function Visualization({
     pausedRef.current = paused
   }, [paused])
 
-  useEffect(() => {
-    tickRef.current = tick
-  }, [tick])
-
   // Kickstart a draw when paused state changes (to ensure frozen paused frame is drawn, or live on resume)
   useEffect(() => {
     if (animationRef.current == null) {
@@ -1258,6 +1254,8 @@ export function Visualization({
     // frame with effects stopped via frozen 'time') + PAUSED label when paused.
     animationRef.current = requestAnimationFrame(() => tickRef.current())
   }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused])
+
+  tickRef.current = tick
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current

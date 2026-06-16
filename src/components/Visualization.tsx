@@ -1103,42 +1103,39 @@ export function Visualization({
       }
 
       // === SPECIAL MEGA EFFECT: >1000% up (PC only, during highlight) ===
-      // Valuable special premium effect — elegant, high-quality, not overwhelming.
-      // Refined emerald + subtle gold/cyan luxury glow, clean rings, premium particles, elegant rays.
+      // Valuable special premium effect — elegant, high-quality, contained (smaller, no center light for logo visibility).
       if (!simplifyForDrag && isMegaMover && isCurrentlyHighlighted && r > 12) {
         const t = Date.now()
 
-        // 1. Elegant slow-pulsing premium aura (valuable special, smaller size)
+        // 1. Small elegant pulsing aura
         const auraPulse = Math.sin(t / 380) * 0.18 + 0.95
-        const auraR = r * (performanceMode ? 2.0 : 2.6) * auraPulse  // smaller in perf mode, not so big, logo clear
+        const auraR = r * 2.8 * auraPulse
         const aura = ctx.createRadialGradient(x, y, r * 1.0, x, y, auraR)
         aura.addColorStop(0, '#f0fdf4')
         aura.addColorStop(0.2, '#86efac')
         aura.addColorStop(0.45, '#4ade80')
-        aura.addColorStop(0.75, '#166534')  // deep emerald for depth
         aura.addColorStop(1, 'transparent')
-        ctx.globalAlpha = 0.30
+        ctx.globalAlpha = 0.25
         ctx.fillStyle = aura
         ctx.beginPath()
         ctx.arc(x, y, auraR, 0, Math.PI * 2)
         ctx.fill()
 
-        // 2. Very subtle thin gold ring close to the surface (no heavy central light so logo stays visible)
-        ctx.globalAlpha = 0.26 + Math.sin(t / 80) * 0.10
+        // 2. Subtle thin gold ring near surface (no center light)
+        ctx.globalAlpha = 0.25 + Math.sin(t / 80) * 0.08
         ctx.strokeStyle = '#fde047'
-        ctx.lineWidth = 0.85
-        const coreRing = r * 1.04
+        ctx.lineWidth = 0.8
         ctx.beginPath()
-        ctx.arc(x, y, coreRing, 0, Math.PI * 2)
+        ctx.arc(x, y, r * 1.03, 0, Math.PI * 2)
         ctx.stroke()
 
-        // 3. Clean, high-quality rotating rings (elegant luxury feel)
-        ctx.globalAlpha = 0.85
+        // 3. Elegant rotating rings
+        ctx.globalAlpha = 0.8
         ctx.strokeStyle = '#f0fdf4'
         const ringConfigs = [
-          { base: 1.6, speed: 160, amp: 0.14, width: 2.4 },
-          { base: 2.2, speed: 240, amp: 0.11, width: 1.8 },
-          { base: 2.9, speed: 310, amp: 0.16, width: 1.3 }
+          { base: 1.4, speed: 160, amp: 0.1, width: 1.8 },
+          { base: 1.85, speed: 240, amp: 0.08, width: 1.3 },
+          { base: 2.35, speed: 310, amp: 0.11, width: 0.9 }
         ]
         for (let i = 0; i < ringConfigs.length; i++) {
           const cfg = ringConfigs[i]
@@ -1149,47 +1146,46 @@ export function Visualization({
           ctx.stroke()
         }
 
-        // 4. Elegant fine radial rays (valuable special, not heavy)
-        ctx.globalAlpha = 0.42
+        // 4. Fine rays
+        ctx.globalAlpha = 0.35
         ctx.strokeStyle = '#4ade80'
-        ctx.lineWidth = 1.2
-        const beamCount = 10
+        ctx.lineWidth = 0.8
+        const beamCount = 6
         for (let i = 0; i < beamCount; i++) {
           const ang = (t / 420) + (i * (Math.PI * 2 / beamCount))
-          const inner = r * 1.15
-          const outer = r * (performanceMode ? 1.8 : 2.2) + Math.sin(t / 190 + i) * 0.1  // smaller in perf mode for 1000%
+          const inner = r * 1.02
+          const outer = r * (2.6 + Math.sin(t / 190 + i) * 0.1)
           ctx.beginPath()
           ctx.moveTo(x + Math.cos(ang) * inner, y + Math.sin(ang) * inner)
           ctx.lineTo(x + Math.cos(ang) * outer, y + Math.sin(ang) * outer * 0.94)
           ctx.stroke()
         }
 
-        // 5. Premium sparse high-quality particles (valuable, not dense)
-        ctx.globalAlpha = 0.88
-        const megaParticleCount = performanceMode ? 6 : 10;
-        for (let s = 0; s < megaParticleCount; s++) {
-          const angle = (t / 290) + (s * (Math.PI * 2 / 12))
-          const dist = r * (performanceMode ? 1.5 : 1.8) + Math.sin(t / 130 + s) * 1.2  // smaller in perf mode
+        // 5. Sparse premium particles
+        ctx.globalAlpha = 0.8
+        for (let s = 0; s < 8; s++) {
+          const angle = (t / 290) + (s * (Math.PI * 2 / 8))
+          const dist = r * 1.9 + Math.sin(t / 130 + s) * 1.5
           const sx = x + Math.cos(angle) * dist
           const sy = y + Math.sin(angle) * dist * 0.9
-          const ps = 1.4 + Math.sin(t / 80 + s) * 0.6
+          const ps = 1.1 + Math.sin(t / 80 + s) * 0.4
 
           ctx.fillStyle = '#f0fdf4'
           ctx.beginPath()
           ctx.arc(sx, sy, ps, 0, Math.PI * 2)
           ctx.fill()
 
-          ctx.fillStyle = '#fde047'  // gold touch for value
+          ctx.fillStyle = '#fde047'
           ctx.beginPath()
-          ctx.arc(sx, sy, ps * 0.3, 0, Math.PI * 2)
+          ctx.arc(sx, sy, ps * 0.25, 0, Math.PI * 2)
           ctx.fill()
         }
 
-        // 6. Subtle elegant cyan inner halo (adds premium depth, not big)
-        ctx.globalAlpha = 0.35 + Math.sin(t / 95) * 0.15
+        // 6. Subtle cyan halo
+        ctx.globalAlpha = 0.25 + Math.sin(t / 95) * 0.1
         ctx.strokeStyle = '#67f6ff'
-        ctx.lineWidth = 0.9
-        const haloR = r * (1.4 + Math.sin(t / 140) * 0.08)
+        ctx.lineWidth = 0.6
+        const haloR = r * (1.2 + Math.sin(t / 140) * 0.03)
         ctx.beginPath()
         ctx.arc(x, y, haloR, 0, Math.PI * 2)
         ctx.stroke()

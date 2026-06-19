@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, type TokenPrice } from './lib/prices'
 import { TrendingUp, Zap, Pause, Play, Gauge } from 'lucide-react'
+import { Analytics } from '@vercel/analytics/react'
 
 // =====================================================
 // Mini Sparkline (Visual & UX Polish — Desktop Details)
@@ -1542,6 +1543,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   )
 }

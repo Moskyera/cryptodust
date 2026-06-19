@@ -11,6 +11,7 @@
     "push": "powershell -ExecutionPolicy Bypass -File ./push.ps1"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "lucide-react": "^0.484.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -197,7 +197,7 @@ export default function App() {
       })
     }
 
-    return result.slice(0, 600) // keep max ~600 coins (top 500 + all Pulse curated/ecosystem + user specials like hacash at the end)
+    return result.slice(0, 600) // keep max ~600 coins (top 500 + Pulse + HAC/HACD placed at end of 400-500)
   }, [tokens, activePreset, searchTerm, favorites])
 
   // Smart formatter for market cap and volume (handles K / M / B)
@@ -266,24 +266,17 @@ export default function App() {
   // Always generate 6 pages (0-100 ... 500-600) for consistent tab labels,
   // even if actual coins <600 (e.g. last shows 500-528 on mobile if length=528).
   // The slice will only show available coins.
+  // Note: 400-500 tab now ends with HAC + HACD (positions 498-499).
+  // Last tab is pure PulseChain only (renamed from Pulse + custom).
   const totalPages = Math.ceil(MAX_DISPLAY_COINS / PAGE_SIZE)
   const currentPageTokens = filteredTokens.slice(
     currentPage * PAGE_SIZE,
     (currentPage + 1) * PAGE_SIZE
   )
 
-  // Planet scale boosts for specific pages:
-  // - 500-600 tab (Pulse + custom): 1.28x (same size as other boosted tabs like 100-200 etc.)
-  // - 0-100,100-200,200-300,400-500 tabs: 1.28x (0.28x bigger) for better visibility
-  // Note: 300-400 tab gets no extra boost.
-  const pageStart = currentPage * PAGE_SIZE
+  // No planet scale boosts (as requested).
   const baseScale = isMobile ? 0.45 : 1
-  let planetScale = baseScale
-  if (pageStart >= 500) {
-    planetScale = baseScale * 1.28
-  } else if (pageStart === 0 || pageStart === 100 || pageStart === 200 || pageStart === 400) {
-    planetScale = baseScale * 1.28
-  }
+  const planetScale = baseScale
 
   // Top offset for the collapsible pages/tabs panel on desktop only.
   // Expanded: ~46px (tabs bar) so planets stay below it. Minimized: tiny 7px bar for max planet surface.
@@ -743,7 +736,7 @@ export default function App() {
                   const start = index * 100
                   const end = Math.min(start + 100, filteredTokens.length)
                   const isLastPage = index === totalPages - 1
-                  const label = isLastPage ? 'Pulse + custom' : `${start}–${end}`
+                  const label = isLastPage ? 'PulseChain' : `${start}–${end}`
                   const isActive = currentPage === index
                   return (
                     <button
@@ -863,7 +856,7 @@ export default function App() {
                 const start = index * 100;
                 const end = Math.min(start + 100, filteredTokens.length);
                 const isLastPage = index === Math.max(1, Math.ceil(filteredTokens.length / PAGE_SIZE)) - 1;
-                const label = isLastPage ? 'Pulse + custom' : `${start}–${end}`;
+                const label = isLastPage ? 'PulseChain' : `${start}–${end}`;
                 return (
                   <button
                     key={index}

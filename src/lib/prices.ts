@@ -290,8 +290,8 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 }
 
 // Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. 
-// We remove specific ones (PXEN, PTP) from the low-cap appended section, then append the user specials (hacash, hacash-diamond) at the very end.
-// With the 600 cap, the 500-600 tab will contain the new ones (replacing the removed).
+// HAC and HACD are inserted at positions 498-499 (end of 400-500 tab).
+// Last 100 (500-600) are pure PulseChain coins only.
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
@@ -355,26 +355,27 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       console.warn('[CryptoDUST] PulseChain Ecosystem category fetch failed', e)
     }
 
-    // Remove specific low-cap tokens from the appended section (the 500-600 tab) as requested
+    // Remove specific low-cap tokens (as requested previously)
     const toRemoveFromEnd = ['xen-crypto-pulsechain', 'pulsetrailerpark'];
     all = all.filter(t => !toRemoveFromEnd.includes(t.id));
 
     // ============================================
-    // User-requested coins for the 500-600 page/tab
-    // hacash and hacash-diamond from CoinGecko (with original logos)
-    // Appended at the very end after the Pulse tokens (and after the removals above).
-    // This places them in the 500-600 tab, effectively replacing the removed ones in the appended low-cap section.
+    // User-requested coins HAC and HACD placed permanently as the last two
+    // of the 400-500 tab (positions 498-499).
+    // The last tab (500+) will now contain only PulseChain coins.
     // ============================================
     const requestedIds = ['hacash', 'hacash-diamond']
-    const finalExistingIds = new Set(all.map(t => t.id))
+    // Remove if they were already added earlier (e.g. from ecosystem)
+    all = all.filter(t => !requestedIds.includes(t.id));
 
-    for (const token of specialCoins) {
-      if (requestedIds.includes(token.id) && !finalExistingIds.has(token.id)) {
-        all.push(token)
-      }
+    const insertIndex = 498;
+    const toInsert = specialCoins.filter(t => requestedIds.includes(t.id));
+    // Insert in reverse order so hacash then hacash-diamond
+    for (let i = toInsert.length - 1; i >= 0; i--) {
+      all.splice(insertIndex, 0, toInsert[i]);
     }
 
-    // Generous cap to include all appended (Pulse + the two new at the very end).
+    // Cap at 600 so last 100 are pure PulseChain.
     return all.slice(0, 600)
   } catch (error) {
     console.error('Failed to fetch coins', error)

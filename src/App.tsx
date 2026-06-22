@@ -149,6 +149,26 @@ export default function App() {
     }
   })
 
+  // Holdings for favorites (desktop only feature) - amount user holds per coin
+  const [holdings, setHoldings] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('cryptodust_holdings') || '{}')
+    } catch {
+      return {}
+    }
+  })
+
+  const updateHolding = (id: string, amount: number) => {
+    const newHoldings = { ...holdings }
+    if (amount > 0) {
+      newHoldings[id] = amount
+    } else {
+      delete newHoldings[id]
+    }
+    setHoldings(newHoldings)
+    localStorage.setItem('cryptodust_holdings', JSON.stringify(newHoldings))
+  }
+
   const selectedCoin = selectedId 
     ? (tokens.find(t => t.id === selectedId) || (selectedId === 'whales-on-pulse' ? WHALES_ON_PULSE : null))
     : null
@@ -200,6 +220,18 @@ export default function App() {
     return result.slice(0, 600) // keep max ~600 coins (top 500 + Pulse + HAC/HACD placed at end of 400-500)
   }, [tokens, activePreset, searchTerm, favorites])
 
+  // Portfolio value: live USD total for favorited coins where user has entered holdings (desktop only)
+  const portfolioValue = React.useMemo(() => {
+    if (!tokens.length) return 0
+    return favorites.reduce((total, id) => {
+      const amount = holdings[id] || 0
+      if (amount <= 0) return total
+      const coin = tokens.find(t => t.id === id)
+      if (!coin) return total
+      return total + amount * (coin.current_price || 0)
+    }, 0)
+  }, [favorites, holdings, tokens])
+
   // Smart formatter for market cap and volume (handles K / M / B)
   function formatMarketValue(value: number | null | undefined): string {
     if (!value || value <= 0) return '—';
@@ -245,8 +277,14 @@ export default function App() {
 
   const toggleFavorite = (id: string) => {
     let newFavs: string[]
-    if (favorites.includes(id)) {
+    const wasFavorited = favorites.includes(id)
+    if (wasFavorited) {
       newFavs = favorites.filter(f => f !== id)
+      // clean up holding data when unfavoriting (desktop feature)
+      const newHoldings = { ...holdings }
+      delete newHoldings[id]
+      setHoldings(newHoldings)
+      localStorage.setItem('cryptodust_holdings', JSON.stringify(newHoldings))
     } else {
       newFavs = [...favorites, id]
     }
@@ -682,6 +720,17 @@ export default function App() {
               )
             })}
 
+            {/* Portfolio value (desktop only) - live total USD of holdings in Favorites.
+                Shown left of Whales image when user has entered amounts for favorited coins. */}
+            {!isMobile && portfolioValue > 0 && (
+              <div 
+                className="text-sm md:text-base font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/30 mr-2 flex-shrink-0"
+                title="Total value of your holdings in Favorites (enter amounts in the Details panel)"
+              >
+                ${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            )}
+
             {/* Round button for Whales on Pulse - far right of the filters panel, larger, logo clearly visible */}
             <button
               onClick={() => setSelectedId('whales-on-pulse')}
@@ -1084,6 +1133,32 @@ export default function App() {
                   </button>
                 )}
               </div>
+
+              {/* Desktop-only: input holdings for this favorite (only shown if favorited).
+                  Amounts are used to compute the live portfolio value shown left of Whales image. */}
+              {favorites.includes(selectedCoin.id) && (
+                <div className="mt-2 flex items-center gap-1.5 text-xs">
+                  <span className="text-white/50">My holdings:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    className="w-20 bg-black/50 border border-white/20 rounded px-1.5 py-0.5 text-right text-sm focus:outline-none focus:border-[#67f6ff]"
+                    value={holdings[selectedCoin.id] || ''}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      updateHolding(selectedCoin.id, isFinite(val) ? val : 0)
+                    }}
+                    placeholder="0"
+                  />
+                  <span className="text-white/60">{selectedCoin.symbol}</span>
+                  {holdings[selectedCoin.id] > 0 && selectedCoin.current_price && (
+                    <span className="text-emerald-400 text-[10px] font-mono">
+                      = ${(holdings[selectedCoin.id] * selectedCoin.current_price).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-3 text-sm">
                 {!isWhales && (

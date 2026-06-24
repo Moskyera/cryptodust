@@ -217,7 +217,7 @@ export default function App() {
       })
     }
 
-    return result // top ~500 (HAC at 498-499) + ~98 pure Pulse coins for the PulseChain tab
+    return result // top ~500 (HAC at 498-499) + up to ~98 pure Pulse coins (from Pulse sources) for the tab
   }, [tokens, activePreset, searchTerm, favorites])
 
   // Portfolio value: live USD total for favorited coins where user has entered holdings
@@ -299,8 +299,9 @@ export default function App() {
   }
 
   // Pagination: 100 coins per page for the first 5 tabs (0-499).
-  // PulseChain tab (the 6th / last) shows ~90-98 pure PulseChain coins only.
-  // (limited in prices.ts). First 500 items (and tabs 0-4) untouched. Pure only.
+  // PulseChain tab (the 6th / last) shows up to ~98 pure PulseChain coins (the ones from
+  // the ecosystem category + curated + special, limited in prices.ts).
+  // No leaks, previous tabs untouched.
   const PAGE_SIZE = 100
   const MAX_DISPLAY_COINS = 600
   const totalPages = Math.ceil(MAX_DISPLAY_COINS / PAGE_SIZE)

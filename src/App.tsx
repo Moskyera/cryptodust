@@ -112,12 +112,25 @@ export default function App() {
   const [topLabel, setTopLabel] = useState<'price' | 'change_24h'>('price')
   const [isMobile, setIsMobile] = useState(false)
 
+  // PWA Install prompt - only for mobile, minimal non-intrusive addition
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+
   // Simple mobile detection for planet sizing and UI
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // PWA install prompt listener - careful, only used for mobile install button
+  React.useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
   // Refs used by keyboard handler (see below) so we never have stale closures
@@ -167,6 +180,17 @@ export default function App() {
     }
     setHoldings(newHoldings)
     localStorage.setItem('cryptodust_holdings', JSON.stringify(newHoldings))
+  }
+
+  // Very careful PWA install handler - only triggers if browser offers it
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') {
+      // User installed the app
+    }
+    setDeferredPrompt(null)
   }
 
   const selectedCoin = selectedId 
@@ -895,6 +919,15 @@ export default function App() {
                   </button>
                 );
               })}
+              {/* Minimal install button for mobile PWA - only shows when browser allows it */}
+              {isMobile && deferredPrompt && (
+                <button
+                  onClick={handleInstallClick}
+                  className="text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap bg-orange-500/10 text-orange-400 border-orange-500/20 active:bg-orange-500/20"
+                >
+                  Install App
+                </button>
+              )}
             </div>
 
             {/* Mobile Search - full width, touch friendly, themed */}
@@ -1436,6 +1469,15 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* Minimal Privacy link for app stores - only mobile drawer */}
+          {isMobile && (
+            <div className="px-4 pb-2 text-[10px] text-[#6b7280]">
+              <a href="#" onClick={() => alert('Privacy Policy: We do not store personal data. Prices are fetched from CoinGecko.')} className="underline">
+                Privacy Policy
+              </a>
+            </div>
+          )}
 
           {/* Compact search in mobile drawer */}
           {isMobile && (

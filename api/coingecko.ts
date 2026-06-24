@@ -1,3 +1,7 @@
+// @ts-nocheck
+// This is a Vercel serverless function (Node.js), not part of the browser app.
+// We skip TS checking to avoid needing @types/node in the client project.
+
 const COINGECKO_ORIGIN = 'https://api.coingecko.com/api/v3/'
 
 function getApiKey(usePulse: boolean): string | undefined {

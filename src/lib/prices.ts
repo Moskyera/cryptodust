@@ -290,8 +290,9 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 }
 
 // Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. 
-// HAC and HACD are inserted at positions 498-499 (end of 400-500 tab).
-// Last 100 (500-600) are pure PulseChain coins only.
+// HAC and HACD are inserted at positions 498-499 (end of 400-500 tab) via splice.
+// The tail (500-599) is then rebuilt to contain ONLY PulseChain coins (removes any
+// non-Pulse shifted by the 498 splice). Previous tabs and PulseChain tab are isolated.
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
@@ -362,7 +363,6 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     // ============================================
     // User-requested coins HAC and HACD placed permanently as the last two
     // of the 400-500 tab (positions 498-499).
-    // The last tab (500+) will now contain only PulseChain coins.
     // ============================================
     const requestedIds = ['hacash', 'hacash-diamond']
     // Remove if they were already added earlier (e.g. from ecosystem)
@@ -375,8 +375,41 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       all.splice(insertIndex, 0, toInsert[i]);
     }
 
-    // Cap at 600 so last 100 are pure PulseChain.
-    return all.slice(0, 600)
+    // ============================================
+    // LEAKAGE FIX (user request for PulseChain tab):
+    // The splice at 498 shifts the items that were at original 498-499 (non-Pulse top coins)
+    // into positions 500+. We MUST remove ONLY from the tail so that:
+    // - Tabs 0-499 (including 400-500 ending with HAC/HACD) are 100% unaffected
+    // - PulseChain tab (500+) starts with pure PulseChain coins only.
+    // We keep mainSection exactly as-is (slice 0-500 after insert) + pulse-only from tail.
+    // ============================================
+    const mainSection = all.slice(0, 500)
+    const seen = new Set(mainSection.map(t => t.id))
+    const pulseTail: TokenPrice[] = []
+    const tailCandidates = all.slice(500)
+
+    for (const t of tailCandidates) {
+      if (seen.has(t.id)) continue
+      const id = t.id.toLowerCase()
+      if (PULSECHAIN_EXCLUDED_IDS.includes(id)) continue
+
+      const sym = t.symbol.toLowerCase()
+      const nm = t.name.toLowerCase()
+      const isPurePulse =
+        SPECIAL_PULSECHAIN_IDS.includes(id) ||
+        CURATED_PULSECHAIN_IDS.includes(id) ||
+        id.includes('pulse') ||
+        sym.includes('pulse') ||
+        nm.includes('pulse')
+
+      if (isPurePulse) {
+        seen.add(t.id)
+        pulseTail.push(t)
+      }
+    }
+
+    const result = [...mainSection, ...pulseTail].slice(0, 600)
+    return result
   } catch (error) {
     console.error('Failed to fetch coins', error)
     return []

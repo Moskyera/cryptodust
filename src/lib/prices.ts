@@ -226,26 +226,42 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
   console.log('[CryptoDUST] Fetching PulseChain Ecosystem tokens via CoinGecko category...');
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
-    const res = await fetchCoinGecko(url, { usePulseKey: true });
+    // Fetch more pages / larger page to populate the PulseChain tab with as many
+    // pure Pulse coins as possible (user wants more coins visible in that tab).
+    const urls = [
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`,
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=250&page=2&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`,
+    ];
 
-    if (!res.ok) {
-      if (res.status === 429) {
-        console.warn('[CoinGecko Pulse] Rate limit hit on category endpoint.');
-      } else {
-        console.warn(`[CoinGecko Pulse] Category fetch failed: ${res.status}`);
+    const responses = await Promise.all(
+      urls.map(u => fetchCoinGecko(u, { usePulseKey: true }))
+    );
+
+    let tokens: TokenPrice[] = [];
+    for (const res of responses) {
+      if (!res.ok) {
+        if (res.status === 429) {
+          console.warn('[CoinGecko Pulse] Rate limit hit on category endpoint.');
+        } else if (res.status !== 404) {
+          console.warn(`[CoinGecko Pulse] Category fetch failed: ${res.status}`);
+        }
+        continue;
       }
-      return [];
+      const data = await res.json();
+      tokens.push(...data.map(mapCoinGeckoCoin));
     }
 
-    const data = await res.json();
+    // Dedup + remove excluded
+    const seen = new Set<string>();
+    tokens = tokens.filter(t => {
+      const id = t.id.toLowerCase();
+      if (PULSECHAIN_EXCLUDED_IDS.includes(id)) return false;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
 
-    let tokens: TokenPrice[] = data.map(mapCoinGeckoCoin);
-
-    // Remove explicitly excluded coins (e.g. pulseium, go)
-    tokens = tokens.filter(t => !PULSECHAIN_EXCLUDED_IDS.includes(t.id.toLowerCase()));
-
-    console.log(`[CryptoDUST] PulseChain Ecosystem category returned ${tokens.length} tokens (after exclusions).`);
+    console.log(`[CryptoDUST] PulseChain Ecosystem category returned ${tokens.length} tokens (after exclusions + 2 pages).`);
     return tokens;
 
   } catch (error) {
@@ -291,8 +307,9 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 
 // Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. 
 // HAC and HACD are inserted at positions 498-499 (end of 400-500 tab) via splice.
-// The tail (500-599) is then rebuilt to contain ONLY PulseChain coins (removes any
-// non-Pulse shifted by the 498 splice). Previous tabs and PulseChain tab are isolated.
+// The tail (500+) is rebuilt with ONLY PulseChain coins.
+// We now fetch 2x pages of 250 from the category so the PulseChain tab has as many
+// (or more) pure coins as before the leakage removal. No impact on tabs 0-499.
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
@@ -376,19 +393,20 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     }
 
     // ============================================
-    // LEAKAGE FIX (user request for PulseChain tab):
-    // The splice at 498 shifts the items that were at original 498-499 (non-Pulse top coins)
-    // into positions 500+. We MUST remove ONLY from the tail so that:
-    // - Tabs 0-499 (including 400-500 ending with HAC/HACD) are 100% unaffected
-    // - PulseChain tab (500+) starts with pure PulseChain coins only.
-    // We keep mainSection exactly as-is (slice 0-500 after insert) + pulse-only from tail.
+    // LEAKAGE FIX + MAX PULSE COUNT (user request):
+    // - Keep exactly mainSection (0-499) with HAC/HACD at 498-499. No effect on previous tabs.
+    // - Collect ALL qualifying Pulse coins for the tail (500+). This maximizes the number
+    //   of coins shown in the PulseChain tab (now fed by 2 pages x 250 from category + curated + special).
+    // - Previously the 2 leaked non-pulse were taking slots in the last 100; now 100% pure.
+    // We scan the whole list after HAC insert but skip anything already in mainSection (no dups).
     // ============================================
     const mainSection = all.slice(0, 500)
     const seen = new Set(mainSection.map(t => t.id))
     const pulseTail: TokenPrice[] = []
-    const tailCandidates = all.slice(500)
 
-    for (const t of tailCandidates) {
+    // Scan whole `all` (after the hac splice) so we capture every pulse we fetched
+    // (the extra ones from larger ecosystem fetch will land in the tail area).
+    for (const t of all) {
       if (seen.has(t.id)) continue
       const id = t.id.toLowerCase()
       if (PULSECHAIN_EXCLUDED_IDS.includes(id)) continue
@@ -408,7 +426,9 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       }
     }
 
-    const result = [...mainSection, ...pulseTail].slice(0, 600)
+    // Return full list: first 500 (with HAC at 498-499) + every pure Pulse coin collected.
+    // The PulseChain tab (last) will display all of them (see App.tsx special handling for last page).
+    const result = [...mainSection, ...pulseTail]
     return result
   } catch (error) {
     console.error('Failed to fetch coins', error)

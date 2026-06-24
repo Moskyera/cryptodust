@@ -174,7 +174,7 @@ export default function App() {
     : null
   const isWhales = selectedId === 'whales-on-pulse'
 
-  // Simple filter logic + search + pagination (~600 coins total, 100 per page)
+  // Simple filter logic + search + pagination (~500 top + Pulse coins for the dedicated tab)
   const filteredTokens = React.useMemo(() => {
     let result = [...tokens]
 
@@ -217,7 +217,7 @@ export default function App() {
       })
     }
 
-    return result.slice(0, 600) // keep max ~600 coins (top 500 + Pulse + HAC/HACD placed at end of 400-500)
+    return result // full list: top ~500 (HAC at 498-499) + all Pulse coins (Pulse tab shows everything from 500+)
   }, [tokens, activePreset, searchTerm, favorites])
 
   // Portfolio value: live USD total for favorited coins where user has entered holdings
@@ -298,19 +298,16 @@ export default function App() {
     // (the kick is handled inside Visualization)
   }
 
-  // Pagination: 100 coins per page, up to 6 pages (~600 coins to include top + all Pulse + the two new at the end)
+  // Pagination: 100 coins per page for the first 5 tabs (0-499).
+  // PulseChain tab (the 6th / last) shows *all* pure Pulse coins collected in the tail (often >100).
+  // This restores "more coins" in the PulseChain tab while the first 500 items (and tabs 0-4) are untouched.
   const PAGE_SIZE = 100
   const MAX_DISPLAY_COINS = 600
-  // Always generate 6 pages (0-100 ... 500-600) for consistent tab labels,
-  // even if actual coins <600 (e.g. last shows 500-528 on mobile if length=528).
-  // The slice will only show available coins.
-  // Note: 400-500 tab now ends with HAC + HACD (positions 498-499).
-  // Last tab is pure PulseChain only (renamed from Pulse + custom).
   const totalPages = Math.ceil(MAX_DISPLAY_COINS / PAGE_SIZE)
-  const currentPageTokens = filteredTokens.slice(
-    currentPage * PAGE_SIZE,
-    (currentPage + 1) * PAGE_SIZE
-  )
+  const isLastPageForTokens = currentPage === totalPages - 1
+  const currentPageTokens = isLastPageForTokens
+    ? filteredTokens.slice(500) // all Pulse coins for the dedicated tab
+    : filteredTokens.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
 
   // No planet scale boosts (as requested).
   const baseScale = isMobile ? 0.45 : 1
@@ -459,7 +456,7 @@ export default function App() {
             <div className="relative group">
               <input
                 type="text"
-                placeholder="Search ~600 coins..."
+                placeholder="Search coins..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value)
@@ -900,11 +897,12 @@ export default function App() {
             </div>
 
             {/* Pages - better spacing and touch targets on mobile */}
+            {/* Always 6 tabs (same as desktop) so PulseChain tab can show many coins without creating extra pages */}
             <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
-              {Array.from({ length: Math.max(1, Math.ceil(filteredTokens.length / PAGE_SIZE)) }).map((_, index) => {
+              {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100;
                 const end = Math.min(start + 100, filteredTokens.length);
-                const isLastPage = index === Math.max(1, Math.ceil(filteredTokens.length / PAGE_SIZE)) - 1;
+                const isLastPage = index === totalPages - 1;
                 const label = isLastPage ? 'PulseChain' : `${start}–${end}`;
                 return (
                   <button
@@ -1340,6 +1338,7 @@ export default function App() {
               <div className="font-semibold tracking-tight">Market Table</div>
               <div className="text-[10px] text-[#6b7280]">
                 {filteredTokens.length} coins • Page {currentPage + 1} of {totalPages}
+                {currentPage === totalPages - 1 && ' (PulseChain)'}
               </div>
             </div>
 
@@ -1401,6 +1400,8 @@ export default function App() {
               {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100
                 const end = Math.min(start + 100, filteredTokens.length)
+                const isLast = index === totalPages - 1
+                const label = isLast ? 'PulseChain' : `${start}–${end}`
                 return (
                   <button
                     key={start}
@@ -1411,7 +1412,7 @@ export default function App() {
                         : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
                     }`}
                   >
-                    {start}–{end}
+                    {label}
                   </button>
                 )
               })}
@@ -1510,7 +1511,7 @@ export default function App() {
       )}
       {isLoading && tokens.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a12]/80 text-sm">
-          Loading ~600 coins from CoinGecko...
+          Loading coins from CoinGecko...
         </div>
       )}
 

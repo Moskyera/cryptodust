@@ -220,7 +220,7 @@ export default function App() {
     return result.slice(0, 600) // keep max ~600 coins (top 500 + Pulse + HAC/HACD placed at end of 400-500)
   }, [tokens, activePreset, searchTerm, favorites])
 
-  // Portfolio value: live USD total for favorited coins where user has entered holdings (desktop only)
+  // Portfolio value: live USD total for favorited coins where user has entered holdings
   const portfolioValue = React.useMemo(() => {
     if (!tokens.length) return 0
     return favorites.reduce((total, id) => {
@@ -720,9 +720,9 @@ export default function App() {
               )
             })}
 
-            {/* Portfolio value (desktop only) - live total USD of holdings in Favorites.
-                Shown left of Whales image when user has entered amounts for favorited coins. */}
-            {!isMobile && portfolioValue > 0 && (
+            {/* Portfolio value - live total USD of holdings in Favorites.
+                Shown left of Whales image (desktop) or as banner (mobile) when user has entered amounts for favorited coins. */}
+            {portfolioValue > 0 && (
               <div 
                 className="text-sm md:text-base font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/30 mr-2 flex-shrink-0"
                 title="Total value of your holdings in Favorites (enter amounts in the Details panel)"
@@ -979,6 +979,13 @@ export default function App() {
                 );
               })}
             </div>
+
+            {/* Portfolio value on mobile - shown when >0, for favorites holdings */}
+            {isMobile && portfolioValue > 0 && (
+              <div className="mb-3 px-3 py-1.5 text-sm font-mono text-emerald-400 bg-emerald-500/10 rounded-xl border border-emerald-500/30 text-center">
+                Portfolio: ${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            )}
           </div>
         )}
 
@@ -1018,6 +1025,30 @@ export default function App() {
                   Close
                 </button>
               </div>
+
+              {/* Mobile holdings input for favorited coins (mirrors desktop) */}
+              {!isWhales && favorites.includes(selectedCoin.id) && (
+                <div className="flex items-center gap-1.5 text-xs mt-2 mb-1">
+                  <span className="text-[#6b7280]">My holdings:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    className="w-20 bg-black/50 border border-white/20 rounded px-1.5 py-0.5 text-right text-sm"
+                    value={holdings[selectedCoin.id] || ''}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      updateHolding(selectedCoin.id, isFinite(val) ? val : 0)
+                    }}
+                  />
+                  <span className="text-[#9ca3af]">{selectedCoin.symbol}</span>
+                  {holdings[selectedCoin.id] > 0 && selectedCoin.current_price && (
+                    <span className="text-emerald-400 text-[10px]">
+                      = ${(holdings[selectedCoin.id] * selectedCoin.current_price).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Price + 24h% (hidden for the special Whales on Pulse planet) */}

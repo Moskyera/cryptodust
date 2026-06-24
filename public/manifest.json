@@ -1,0 +1,21 @@
+﻿{
+  "name": "CryptoDUST - Market Visualizer",
+  "short_name": "CryptoDUST",
+  "description": "Immersive real-time cryptocurrency bubble visualization with ~600 coins, PulseChain ecosystem support, and live market data from CoinGecko.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a12",
+  "theme_color": "#0a0a12",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/cryptodust-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "productivity"],
+  "lang": "en"
+}

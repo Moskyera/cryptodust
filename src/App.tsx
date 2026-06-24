@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, type TokenPrice } from './lib/prices'
-import { TrendingUp, Zap, Pause, Play, Gauge } from 'lucide-react'
+import { TrendingUp, Zap, Pause, Play, Gauge, Search } from 'lucide-react'
 
 // =====================================================
 // Mini Sparkline (Visual & UX Polish — Desktop Details)
@@ -897,6 +897,49 @@ export default function App() {
               })}
             </div>
 
+            {/* Mobile Search - full width, touch friendly, themed */}
+            <div className="sticky top-0 z-10 bg-[#0a0a12] py-1 -mx-3 px-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search coins..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setCurrentPage(0)
+                  }}
+                  className="w-full bg-[#0b0b12] border border-[#25252f] rounded-2xl pl-10 pr-10 py-3 text-sm focus:outline-none focus:border-[#67f6ff] focus:bg-[#111118] transition-all placeholder:text-[#6b7280]"
+                />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7280]" />
+                {searchTerm && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('')
+                      setCurrentPage(0)
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280] active:text-white text-lg leading-none"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {searchTerm && (
+                <div className="mt-1.5 text-[10px] text-[#9ca3af] flex items-center justify-between">
+                  <span>{filteredTokens.length} results</span>
+                  <button
+                    onClick={() => {
+                      setSearchTerm('')
+                      setCurrentPage(0)
+                    }}
+                    className="text-[#67f6ff] active:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Pages - better spacing and touch targets on mobile */}
             {/* Always 6 tabs (same as desktop) */}
             <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
@@ -1393,6 +1436,33 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* Compact search in mobile drawer */}
+          {isMobile && (
+            <div className="px-4 pb-2">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search table..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setCurrentPage(0)
+                  }}
+                  className="w-full bg-[#0b0b12] border border-[#25252f] rounded-xl pl-8 pr-8 py-2 text-xs focus:outline-none focus:border-[#67f6ff]"
+                />
+                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-[#6b7280]" />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2.5 top-2 text-xs text-[#6b7280]"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Market Table Content (inside drawer) */}
           <div className="flex-1 overflow-auto px-5 pt-3 pb-6 text-sm custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>

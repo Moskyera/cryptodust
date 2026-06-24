@@ -174,7 +174,7 @@ export default function App() {
     : null
   const isWhales = selectedId === 'whales-on-pulse'
 
-  // Simple filter logic + search + pagination (~500 top + Pulse coins for the dedicated tab)
+  // Simple filter logic + search + pagination (~500 top + ~98 Pulse coins for the PulseChain tab)
   const filteredTokens = React.useMemo(() => {
     let result = [...tokens]
 
@@ -217,7 +217,7 @@ export default function App() {
       })
     }
 
-    return result // full list: top ~500 (HAC at 498-499) + all Pulse coins (Pulse tab shows everything from 500+)
+    return result // top ~500 (HAC at 498-499) + ~98 pure Pulse coins for the PulseChain tab
   }, [tokens, activePreset, searchTerm, favorites])
 
   // Portfolio value: live USD total for favorited coins where user has entered holdings
@@ -299,14 +299,14 @@ export default function App() {
   }
 
   // Pagination: 100 coins per page for the first 5 tabs (0-499).
-  // PulseChain tab (the 6th / last) shows *all* pure Pulse coins collected in the tail (often >100).
-  // This restores "more coins" in the PulseChain tab while the first 500 items (and tabs 0-4) are untouched.
+  // PulseChain tab (the 6th / last) shows ~90-98 pure PulseChain coins only.
+  // (limited in prices.ts). First 500 items (and tabs 0-4) untouched. Pure only.
   const PAGE_SIZE = 100
   const MAX_DISPLAY_COINS = 600
   const totalPages = Math.ceil(MAX_DISPLAY_COINS / PAGE_SIZE)
   const isLastPageForTokens = currentPage === totalPages - 1
   const currentPageTokens = isLastPageForTokens
-    ? filteredTokens.slice(500) // all Pulse coins for the dedicated tab
+    ? filteredTokens.slice(500) // ~90-98 Pulse coins for the dedicated tab
     : filteredTokens.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
 
   // No planet scale boosts (as requested).
@@ -897,7 +897,7 @@ export default function App() {
             </div>
 
             {/* Pages - better spacing and touch targets on mobile */}
-            {/* Always 6 tabs (same as desktop) so PulseChain tab can show many coins without creating extra pages */}
+            {/* Always 6 tabs (same as desktop) */}
             <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
               {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100;

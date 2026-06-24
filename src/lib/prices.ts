@@ -292,8 +292,8 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 
 // Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. 
 // HAC and HACD are inserted at positions 498-499 (end of 400-500 tab) via splice.
-// The tail (500+) is rebuilt with ONLY PulseChain coins (~90-98 of them as requested).
-// No impact on tabs 0-499. The PulseChain tab shows the first ~98 pure Pulse coins.
+// The tail (500+) contains ONLY Pulse coins fetched from Pulse sources (ecosystem category + curated + special),
+// limited to ~98. No leaks from previous tabs. Impact on 0-499 is zero.
 async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
@@ -309,10 +309,12 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
 
     // Merge special tokens (PLS, pHEX etc.)
     const existingIds = new Set(all.map(t => t.id))
+    const pulseIds = new Set<string>()
     for (const token of coinGeckoSpecial) {
       if (!existingIds.has(token.id)) {
         all.push(token)
       }
+      pulseIds.add(token.id.toLowerCase())
     }
 
     // Remove any excluded PulseChain coins that might have slipped in
@@ -333,6 +335,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
         } else {
           all.push(token)
         }
+        pulseIds.add(token.id.toLowerCase())
       }
     } catch (e) {
       console.warn('[CryptoDUST] Curated PulseChain fetch failed', e)
@@ -352,6 +355,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
         } else {
           all.push(token)
         }
+        pulseIds.add(token.id.toLowerCase())
       }
     } catch (e) {
       console.warn('[CryptoDUST] PulseChain Ecosystem category fetch failed', e)
@@ -379,30 +383,23 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     // ============================================
     // LEAKAGE FIX (user request):
     // - Keep exactly mainSection (0-499) with HAC/HACD at 498-499. No effect on previous tabs.
-    // - Collect Pulse coins for the tail (500+), but limit to ~90-98 pure PulseChain coins.
-    // - Pure only (no leaked non-Pulse from previous tab).
-    // We scan after HAC insert but skip anything already in mainSection (no dups).
+    // - Collect ONLY the Pulse coins that were explicitly fetched from Pulse sources
+    //   (SPECIAL + CURATED + full ecosystem category) for the tail (500+).
+    // - Limit to ~98. This avoids any leaked non-Pulse and ensures all real Pulse coins
+    //   from the category are included (not just those with 'pulse' in the name).
     // ============================================
     const mainSection = all.slice(0, 500)
     const seen = new Set(mainSection.map(t => t.id))
     const pulseTail: TokenPrice[] = []
 
-    // Scan whole `all` (after the hac splice) so we capture every pulse we fetched.
+    // Scan to capture every explicitly Pulse-sourced coin (using pulseIds tracked during fetch)
+    // This skips the leaked top-market coins that were shifted into tail by the HAC splice.
     for (const t of all) {
       if (seen.has(t.id)) continue
       const id = t.id.toLowerCase()
       if (PULSECHAIN_EXCLUDED_IDS.includes(id)) continue
 
-      const sym = t.symbol.toLowerCase()
-      const nm = t.name.toLowerCase()
-      const isPurePulse =
-        SPECIAL_PULSECHAIN_IDS.includes(id) ||
-        CURATED_PULSECHAIN_IDS.includes(id) ||
-        id.includes('pulse') ||
-        sym.includes('pulse') ||
-        nm.includes('pulse')
-
-      if (isPurePulse) {
+      if (pulseIds.has(id)) {
         seen.add(t.id)
         pulseTail.push(t)
       }

@@ -1,0 +1,25 @@
+# Triggers the CryptoDUST price-alert checker (/api/push-check on Vercel).
+# Vercel's free plan only allows daily crons, so GitHub Actions provides the
+# ~10-minute cadence instead. Requires the CRON_SECRET repository secret to
+# match the CRON_SECRET env var on Vercel.
+name: Price alerts
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger alert checker
+        run: |
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "CRON_SECRET repository secret is not set — skipping."
+            exit 0
+          fi
+          curl -fsS --max-time 60 \
+            "https://www.cryptodust.xyz/api/push-check?secret=${{ secrets.CRON_SECRET }}" \
+            | tee /dev/stderr

@@ -13,6 +13,9 @@ export default defineConfig({
       // We keep our existing manifest.json, don't auto-generate
       manifest: false,
       workbox: {
+        // Web Push handlers live in public/push-sw.js and are pulled into the
+        // generated service worker here (generateSW mode has no other hook).
+        importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {

@@ -3,8 +3,9 @@ import { Visualization } from './components/Visualization'
 import { usePrices, type TokenPrice } from './lib/prices'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
-  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check,
+  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing,
 } from 'lucide-react'
+import { isPushSupported, getPushSubscription, enablePushAlerts, disablePushAlerts, syncPushPrefs } from './lib/push'
 
 // =====================================================
 // Mini Sparkline (Visual & UX Polish — Desktop Details)
@@ -226,6 +227,47 @@ export default function App() {
     localStorage.setItem('cryptodust_holdings', JSON.stringify(newHoldings))
   }
 
+  // ---- Web Push price alerts (like CoinGecko's, but from CryptoDUST) ----
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const pushSupported = React.useMemo(() => isPushSupported(), [])
+
+  React.useEffect(() => {
+    if (!pushSupported) return
+    getPushSubscription().then(sub => setPushEnabled(!!sub))
+  }, [pushSupported])
+
+  const togglePushAlerts = async () => {
+    if (pushBusy || !pushSupported) return
+    setPushBusy(true)
+    try {
+      if (pushEnabled) {
+        await disablePushAlerts()
+        setPushEnabled(false)
+      } else {
+        const result = await enablePushAlerts({ threshold: 10, favorites })
+        if (result === 'ok') {
+          setPushEnabled(true)
+          if (favorites.length === 0) {
+            alert('Alerts are on! Star (★) some coins — you get notified when a favorite moves more than 10% in 24h.')
+          }
+        } else if (result === 'denied') {
+          alert('Notifications are blocked for this site. Allow them in your browser settings and try again.')
+        } else {
+          alert('Could not enable alerts. Please try again in a moment.')
+        }
+      }
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
+  // Deep link from a notification click: /?coin=<id> selects that planet
+  React.useEffect(() => {
+    const coin = new URLSearchParams(window.location.search).get('coin')
+    if (coin) setSelectedId(coin)
+  }, [])
+
   // Very careful PWA install handler - only triggers if browser offers it
   const handleInstallClick = async () => {
     if (!deferredPrompt) return
@@ -411,6 +453,8 @@ export default function App() {
     }
     setFavorites(newFavs)
     localStorage.setItem('cryptodust_favorites', JSON.stringify(newFavs))
+    // Keep the price-alert watchlist in sync (no-op unless push is enabled)
+    syncPushPrefs({ threshold: 10, favorites: newFavs })
   }
 
   const highlightBigMovers = () => {
@@ -663,6 +707,25 @@ export default function App() {
 
             <div className="w-px h-6 bg-white/10 mx-0.5 flex-shrink-0" />
 
+            {/* Price alerts — Web Push, like CoinGecko's but from CryptoDUST */}
+            {pushSupported && (
+              <button
+                onClick={togglePushAlerts}
+                disabled={pushBusy}
+                className={`premium-button flex items-center justify-center w-9 h-9 rounded-2xl border flex-shrink-0 ${
+                  pushEnabled
+                    ? 'bg-[#67f6ff]/15 border-[#67f6ff]/40 text-[#67f6ff]'
+                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
+                }`}
+                title={pushEnabled
+                  ? 'Price alerts on — your favorites alert at ±10% / 24h. Click to disable.'
+                  : 'Enable price alerts for your favorite coins (±10% / 24h)'}
+                aria-label="Toggle price alerts"
+              >
+                {pushEnabled ? <BellRing className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+              </button>
+            )}
+
             {/* Donate */}
             <button
               onClick={() => setShowDonateModal(true)}
@@ -741,6 +804,20 @@ export default function App() {
                 className="text-[11px] font-medium px-2.5 py-1.5 rounded-xl bg-orange-500/12 text-orange-300 border border-orange-500/30 active:bg-orange-500/25"
               >
                 Install
+              </button>
+            )}
+            {pushSupported && (
+              <button
+                onClick={togglePushAlerts}
+                disabled={pushBusy}
+                aria-label="Toggle price alerts"
+                className={`w-8 h-8 flex items-center justify-center rounded-xl border ${
+                  pushEnabled
+                    ? 'bg-[#67f6ff]/15 border-[#67f6ff]/40 text-[#67f6ff]'
+                    : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
+                }`}
+              >
+                {pushEnabled ? <BellRing className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
               </button>
             )}
             <button

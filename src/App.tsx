@@ -1,7 +1,10 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, type TokenPrice } from './lib/prices'
-import { TrendingUp, Zap, Pause, Play, Gauge, Search } from 'lucide-react'
+import {
+  Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
+  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check,
+} from 'lucide-react'
 
 // =====================================================
 // Mini Sparkline (Visual & UX Polish — Desktop Details)
@@ -73,7 +76,7 @@ function MiniSparkline({ coin, width = 260, height = 52 }: { coin: any; width?: 
 // Known PulseChain token identifiers (used for the "PulseChain" filter)
 // Includes the user's curated list + common ecosystem tokens
 const PULSECHAIN_IDS = new Set([
-  'pulsechain', 'hex-pulsechain', 'pulsex', 'incentive', 'pcock',
+  'pulsechain', 'hex-pulsechain', 'pulsex', 'pulsex-incentive-token', 'pcock',
   'provex', 'ptgc', 'most', 'zerø', 'prvx', 'phex', 'plsx', 'inc',
   'ehex', 'hex', 'pls', 'phex-pulsechain',
   // User's specific curated list
@@ -105,10 +108,45 @@ const WHALES_ON_PULSE: TokenPrice = {
   total_volume: 0,
 }
 
+// Partner / community links. One source of truth so desktop nav and mobile chips
+// can never drift apart again.
+const EXTERNAL_LINKS = [
+  {
+    label: 'ProveX',
+    href: 'https://app.provex.com',
+    img: 'https://app.provex.com/provex.webp',
+    ring: 'hover:border-orange-500/60 hover:text-orange-200 hover:bg-orange-500/10',
+    text: 'text-orange-300',
+  },
+  {
+    label: 'LibertySwap',
+    href: 'https://libertyswap.finance',
+    img: 'https://libertyswap.finance/logo.svg',
+    ring: 'hover:border-cyan-500/60 hover:text-cyan-200 hover:bg-cyan-500/10',
+    text: 'text-cyan-300',
+  },
+  {
+    label: 'iNFO DUST',
+    href: 'https://t.me/iNFO_DUST',
+    img: 'https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg',
+    ring: 'hover:border-blue-500/60 hover:text-blue-200 hover:bg-blue-500/10',
+    text: 'text-blue-300',
+  },
+  {
+    label: 'SimpleX',
+    href: 'https://smp16.simplex.im/c#k7z6aPXx-XHUGQE85X8R3fixZ7HITSmqC_eKlYsX9Y4',
+    img: 'https://upload.wikimedia.org/wikipedia/en/8/81/SimpleX_Logo.png',
+    ring: 'hover:border-purple-500/60 hover:text-purple-200 hover:bg-purple-500/10',
+    text: 'text-purple-300',
+  },
+] as const
+
+const DONATION_ADDRESS = '0x38be95f628ed004a000ddf8724142a95e3c4b492'
+
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price' | 'change_24h'>('change_24h')
+  const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity'>('change_24h')
   const [topLabel, setTopLabel] = useState<'price' | 'change_24h'>('price')
   const [isMobile, setIsMobile] = useState(false)
 
@@ -154,6 +192,12 @@ export default function App() {
   const [pagesPanelExpanded, setPagesPanelExpanded] = useState(true)
   const [showRampModal, setShowRampModal] = useState(false)
   const [showDonateModal, setShowDonateModal] = useState(false)
+
+  // Small transient "done" confirmations instead of the old alert()/innerText hacks
+  const [copiedAddress, setCopiedAddress] = useState(false)
+  const [copiedCanvas, setCopiedCanvas] = useState(false)
+
+  const searchRef = useRef<HTMLInputElement | null>(null)
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('cryptodust_favorites') || '[]')
@@ -193,10 +237,27 @@ export default function App() {
     setDeferredPrompt(null)
   }
 
-  const selectedCoin = selectedId 
+  const selectedCoin = selectedId
     ? (tokens.find(t => t.id === selectedId) || (selectedId === 'whales-on-pulse' ? WHALES_ON_PULSE : null))
     : null
   const isWhales = selectedId === 'whales-on-pulse'
+
+  // The visualization canvas is transparent (the space backdrop is CSS behind it),
+  // so exports must composite it onto the dark background or the PNG comes out
+  // see-through in image viewers and chat apps.
+  const compositeCanvas = (): HTMLCanvasElement | null => {
+    const src = document.querySelector('canvas') as HTMLCanvasElement | null
+    if (!src) return null
+    const out = document.createElement('canvas')
+    out.width = src.width
+    out.height = src.height
+    const ctx = out.getContext('2d')
+    if (!ctx) return null
+    ctx.fillStyle = '#0a0a12'
+    ctx.fillRect(0, 0, out.width, out.height)
+    ctx.drawImage(src, 0, 0)
+    return out
+  }
 
   // Simple filter logic + search + pagination (~500 top + ~98 Pulse coins for the PulseChain tab)
   const filteredTokens = React.useMemo(() => {
@@ -256,6 +317,26 @@ export default function App() {
     }, 0)
   }, [favorites, holdings, tokens])
 
+  // Global market stats.
+  // BTC dominance used to be the hardcoded string "~52%". It is now derived from the
+  // data we already have (top ~600 coins cover the large majority of total cap), so the
+  // number moves with the market instead of lying.
+  const marketStats = React.useMemo(() => {
+    let cap = 0
+    let vol = 0
+    let btcCap = 0
+    for (const t of tokens) {
+      cap += t.market_cap || 0
+      vol += t.total_volume || 0
+      if (t.id === 'bitcoin') btcCap = t.market_cap || 0
+    }
+    return {
+      cap,
+      vol,
+      dominance: cap > 0 && btcCap > 0 ? (btcCap / cap) * 100 : null,
+    }
+  }, [tokens])
+
   // Smart formatter for market cap and volume (handles K / M / B)
   function formatMarketValue(value: number | null | undefined): string {
     if (!value || value <= 0) return '—';
@@ -269,6 +350,22 @@ export default function App() {
     } else {
       return `$${Math.round(value).toLocaleString()}`;
     }
+  }
+
+  // Compact valuation for list rows. Falls back through market cap -> FDV -> liquidity
+  // and returns the label with it, so a PulseChain token never silently shows an FDV
+  // where the row above it shows a real market cap.
+  function valuationFor(coin: TokenPrice): { label: string; value: string; tone: string } {
+    if ((coin.market_cap ?? 0) > 0) {
+      return { label: 'MCap', value: formatMarketValue(coin.market_cap), tone: 'text-[#6b7280]' }
+    }
+    if ((coin.fdv ?? 0) > 0) {
+      return { label: 'FDV', value: formatMarketValue(coin.fdv), tone: 'text-amber-400/70' }
+    }
+    if ((coin.liquidity ?? 0) > 0) {
+      return { label: 'Liq', value: formatMarketValue(coin.liquidity), tone: 'text-[#67f6ff]/70' }
+    }
+    return { label: '', value: '—', tone: 'text-[#6b7280]' }
   }
 
   // Price formatter that shows enough decimals for very small coins
@@ -327,11 +424,14 @@ export default function App() {
   // the ecosystem category + curated + special, limited in prices.ts).
   // No leaks, previous tabs untouched.
   const PAGE_SIZE = 100
-  const MAX_DISPLAY_COINS = 600
-  const totalPages = Math.ceil(MAX_DISPLAY_COINS / PAGE_SIZE)
+  const MAIN_PAGES = 5 // 0–500, in pages of 100
+  const MAIN_SECTION_SIZE = MAIN_PAGES * PAGE_SIZE
+  // Was Math.ceil(600 / 100), which also implied a hard 600-coin ceiling on the
+  // PulseChain tab. The tab now shows whatever the Pulse sources actually return.
+  const totalPages = MAIN_PAGES + 1
   const isLastPageForTokens = currentPage === totalPages - 1
   const currentPageTokens = isLastPageForTokens
-    ? filteredTokens.slice(500) // ~90-98 Pulse coins for the dedicated tab
+    ? filteredTokens.slice(MAIN_SECTION_SIZE) // every Pulse coin, not a fixed 98
     : filteredTokens.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
 
   // No planet scale boosts (as requested).
@@ -394,10 +494,23 @@ export default function App() {
     if (isMobile) return // desktop only
 
     const onKeyDown = (e: KeyboardEvent) => {
-      // Ignore when user is typing in inputs / search
       const active = document.activeElement as HTMLElement | null
       const tag = active?.tagName?.toLowerCase()
-      if (tag === 'input' || tag === 'textarea' || active?.isContentEditable) return
+      const typing = tag === 'input' || tag === 'textarea' || active?.isContentEditable
+
+      // ⌘K / Ctrl+K focuses search — works even while typing elsewhere.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        searchRef.current?.focus()
+        searchRef.current?.select()
+        return
+      }
+
+      // Escape blurs the search field first, then clears the selection.
+      if (typing) {
+        if (e.key === 'Escape') (active as HTMLInputElement)?.blur()
+        return
+      }
 
       const key = e.key.toLowerCase()
       const tokens = currentPageTokensRef.current
@@ -436,50 +549,61 @@ export default function App() {
   }, [isMobile]) // minimal deps — live values come from refs
 
   return (
-    <div className="h-[100dvh] w-screen bg-[#0a0a12] text-white overflow-hidden flex flex-col">   {/* 100dvh is much better on mobile than h-screen */}
+    <div className="app-shell relative h-[100dvh] w-screen text-white overflow-hidden flex flex-col">   {/* 100dvh is much better on mobile than h-screen */}
+      {/* Space backdrop — nebula tints + two twinkling star layers. Fixed and
+          composited, so it costs nothing on scroll; the transparent canvas lets
+          the planets float over it. Shared by desktop and mobile. */}
+      <div className="app-backdrop" aria-hidden="true" />
       {/* Top Navigation - Premium cyberpunk style (hidden on mobile for maximum planet space + clean view) */}
-      <nav className="border-b border-[#25252f] bg-[#0a0a12]/95 backdrop-blur-xl z-50 flex-shrink-0 hidden md:block">
-        <div className="w-full px-3 md:px-5 h-11 md:h-14 flex items-center justify-between">
-          <div className="flex items-center gap-x-2 md:gap-x-4">
+      <nav className="nav-hairline bg-[#0a0a12]/80 backdrop-blur-xl z-50 flex-shrink-0 hidden md:block">
+        <div className="w-full px-4 lg:px-5 h-14 flex items-center justify-between gap-x-4">
+          <div className="flex items-center gap-x-3 flex-shrink-0">
             {/* Logo - using the new custom CryptoDUST logo */}
-            <div className="flex items-center gap-x-2 md:gap-x-3 group">
-              <img 
-                src="/cryptodust-logo.png" 
-                alt="CryptoDUST" 
-                className="w-6 h-6 md:w-9 md:h-9 object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] group-hover:scale-105 transition-transform" 
+            <div className="flex items-center gap-x-2.5 group">
+              <img
+                src="/cryptodust-logo.png"
+                alt="CryptoDUST"
+                className="w-9 h-9 object-contain drop-shadow-[0_0_10px_rgba(251,191,36,0.35)] group-hover:scale-105 transition-transform"
               />
               <div className="leading-none">
                 <div className="flex items-baseline gap-x-1">
-                  <span className="font-semibold tracking-[-1.2px] text-xl md:text-2xl">Crypto</span>
-                  <span className="font-semibold tracking-[-1.2px] text-xl md:text-2xl text-orange-400">DUST</span>
+                  <span className="font-semibold tracking-[-1.1px] text-[22px]">Crypto</span>
+                  <span className="wordmark-dust font-bold tracking-[-1.1px] text-[22px]">DUST</span>
                 </div>
-                <div className="text-[8px] md:text-[9px] text-[#6b7280] -mt-0.5 tracking-[1px] hidden sm:block">MARKET VISUALIZER</div>
+                <div className="text-[9px] text-[#6b7280] mt-0.5 tracking-[1.4px] hidden lg:block">
+                  MARKET VISUALIZER
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-x-1.5 px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-white/5 text-[10px] md:text-xs border border-white/10">
-              <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-              <span className="text-emerald-400 font-medium tracking-widest">LIVE</span>
+            <div className="flex items-center gap-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-[10px] border border-emerald-500/25">
+              <div className="live-dot w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+              <span className="text-emerald-400 font-semibold tracking-[1.2px]">LIVE</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-x-2 text-sm">
-            {/* HIGHLIGHT BIG MOVERS - moved next to the left of the search input (top nav) */}
+          <div className="flex items-center gap-x-2 text-sm min-w-0">
+            {/* HIGHLIGHT BIG MOVERS — label collapses on narrower desktops instead of overflowing */}
             <button
               onClick={highlightBigMovers}
-              className={`px-4 md:px-5 py-1.5 md:py-2 text-sm font-medium rounded-3xl flex items-center gap-x-2 transition-all border active:scale-[0.985] h-8 md:h-9 ${
-                highlightUntil > Date.now() 
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-400 shadow-[0_0_20px_rgb(249,115,22,0.4)]' 
-                  : 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border-orange-500/20'
+              title="Highlight big movers for 45s (H)"
+              className={`premium-button px-3 xl:px-4 h-9 text-[13px] font-semibold rounded-2xl flex items-center gap-x-2 border flex-shrink-0 ${
+                highlightUntil > Date.now()
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-400 shadow-[0_0_20px_rgb(249,115,22,0.4)]'
+                  : 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border-orange-500/25'
               }`}
             >
-              <Zap className="w-4 h-4" /> 
-              {highlightUntil > Date.now() ? 'HIGHLIGHTING MOVERS' : 'HIGHLIGHT BIG MOVERS'}
+              <Zap className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden lg:inline whitespace-nowrap">
+                {highlightUntil > Date.now() ? 'Highlighting' : 'Big movers'}
+              </span>
             </button>
 
-            {/* Search - beautiful and prominent */}
-            <div className="relative group">
+            {/* Search — real icon + ⌘K hint (the old one showed a decorative "⌘" as the icon) */}
+            <div className="relative group flex-shrink min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7280] group-focus-within:text-[#67f6ff] transition-colors pointer-events-none" />
               <input
+                ref={searchRef}
                 type="text"
                 placeholder="Search coins..."
                 value={searchTerm}
@@ -487,146 +611,220 @@ export default function App() {
                   setSearchTerm(e.target.value)
                   setCurrentPage(0)
                 }}
-                className="bg-[#0b0b12] border border-[#25252f] rounded-2xl pl-8 pr-3 py-1.5 md:py-2 text-sm w-48 md:w-72 focus:outline-none focus:border-[#67f6ff] focus:bg-[#111118] transition-all placeholder:text-[#6b7280]"
+                className="bg-[#0b0b12] border border-[#25252f] rounded-2xl pl-9 pr-16 h-9 text-sm w-44 xl:w-64 focus:outline-none focus:border-[#67f6ff] focus:bg-[#111118] focus:w-64 xl:focus:w-72 transition-all placeholder:text-[#6b7280]"
               />
-              <div className="absolute left-3.5 top-2.5 text-[#6b7280] group-focus-within:text-[#67f6ff]">⌘</div>
+              {searchTerm ? (
+                <button
+                  onClick={() => { setSearchTerm(''); setCurrentPage(0) }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-white"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <span className="kbd absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none hidden xl:block">
+                  ⌘K
+                </span>
+              )}
             </div>
 
-            <button 
-              onClick={() => window.location.reload()} 
-              className="premium-button flex items-center gap-x-1.5 md:gap-x-2 px-3 md:px-4 h-8 md:h-9 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs md:text-sm"
+            <button
+              onClick={() => window.location.reload()}
+              title="Refresh market data"
+              aria-label="Refresh market data"
+              className="premium-button flex items-center justify-center w-9 h-9 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white flex-shrink-0"
             >
-              <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              <span className="font-medium hidden sm:inline">Refresh</span>
+              <RefreshCw className="w-4 h-4" />
             </button>
 
-            {/* Beautiful external links - enhanced premium style */}
-            <a 
-              href="https://app.provex.com" 
-              target="_blank" 
-              className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-orange-500/15 to-amber-500/15 hover:from-orange-500/25 hover:to-amber-500/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-300 hover:text-orange-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-orange-500/10 text-xs md:text-sm"
-            >
-              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
-                <img 
-                  src="https://app.provex.com/provex.webp" 
-                  alt="ProveX" 
-                  className="h-full w-full object-contain" 
-                />
-              </div>
-              <span className="font-semibold tracking-tight">ProveX</span>
-            </a>
+            <div className="w-px h-6 bg-white/10 mx-0.5 flex-shrink-0" />
 
-            <a 
-              href="https://libertyswap.finance" 
-              target="_blank" 
-              className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-cyan-500/15 to-teal-500/15 hover:from-cyan-500/25 hover:to-teal-500/25 border border-cyan-500/30 hover:border-cyan-500/50 text-cyan-300 hover:text-cyan-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-cyan-500/10 text-xs md:text-sm"
-            >
-              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
-                <img 
-                  src="https://libertyswap.finance/logo.svg" 
-                  alt="LibertySwap" 
-                  className="h-full w-full object-contain" 
-                />
-              </div>
-              <span className="font-semibold tracking-tight">LibertySwap</span>
-            </a>
+            {/* Partner links — icon-first pills. Labels appear when there's room,
+                so the bar stops overflowing on 1280–1440px screens. */}
+            <div className="flex items-center gap-x-1.5 flex-shrink-0">
+              {EXTERNAL_LINKS.map(link => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={link.label}
+                  className={`premium-button group flex items-center gap-x-2 h-9 px-1.5 2xl:pr-3.5 rounded-2xl bg-white/[0.04] border border-white/10 ${link.text} ${link.ring}`}
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-0.5 transition-transform group-hover:scale-105">
+                    <img src={link.img} alt="" className="h-full w-full object-contain" />
+                  </span>
+                  <span className="font-semibold tracking-tight text-[13px] hidden 2xl:inline whitespace-nowrap">
+                    {link.label}
+                  </span>
+                </a>
+              ))}
+            </div>
 
-            {/* Telegram Bot */}
-            <a 
-              href="https://t.me/iNFO_DUST" 
-              target="_blank" 
-              className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-blue-500/15 to-sky-500/15 hover:from-blue-500/25 hover:to-sky-500/25 border border-blue-500/30 hover:border-blue-500/50 text-blue-300 hover:text-blue-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-blue-500/10 text-xs md:text-sm"
-            >
-              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
-                <img 
-                  src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" 
-                  alt="Telegram" 
-                  className="h-full w-full object-contain" 
-                />
-              </div>
-              <span className="font-semibold tracking-tight">iNFO DUST</span>
-            </a>
+            <div className="w-px h-6 bg-white/10 mx-0.5 flex-shrink-0" />
 
-            {/* SimpleX Channel */}
-            <a 
-              href="https://smp16.simplex.im/c#k7z6aPXx-XHUGQE85X8R3fixZ7HITSmqC_eKlYsX9Y4" 
-              target="_blank" 
-              className="premium-button group flex items-center gap-x-2.5 md:gap-x-3 px-3.5 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-purple-500/15 to-violet-500/15 hover:from-purple-500/25 hover:to-violet-500/25 border border-purple-500/30 hover:border-purple-500/50 text-purple-300 hover:text-purple-200 transition-all active:scale-[0.985] hover:shadow-md hover:shadow-purple-500/10 text-xs md:text-sm"
-            >
-              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15 p-1 transition-all duration-200 group-hover:scale-105">
-                <img 
-                  src="https://upload.wikimedia.org/wikipedia/en/8/81/SimpleX_Logo.png" 
-                  alt="SimpleX" 
-                  className="h-full w-full object-contain" 
-                />
-              </div>
-              <span className="font-semibold tracking-tight">SimpleX</span>
-            </a>
-
-            {/* Donate Button - Support the project */}
+            {/* Donate */}
             <button
               onClick={() => setShowDonateModal(true)}
-              className="premium-button group flex items-center gap-x-2 px-4 md:px-5 h-8 md:h-9 rounded-2xl bg-gradient-to-r from-amber-500/15 to-yellow-500/15 hover:from-amber-500/25 hover:to-yellow-500/25 border border-amber-500/30 hover:border-amber-500/50 text-amber-300 hover:text-amber-200 transition-all active:scale-[0.985] text-xs md:text-sm"
+              className="premium-button flex items-center gap-x-2 px-3 h-9 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 text-amber-300 hover:text-amber-200 text-[13px] flex-shrink-0"
               title="Support the project with ETH"
             >
-              <span className="font-semibold tracking-tight">Donate ETH</span>
+              <Heart className="w-4 h-4" />
+              <span className="font-semibold tracking-tight hidden xl:inline">Donate</span>
             </button>
 
-            {/* Beautiful Export group */}
-            <div className="flex items-center bg-white/5 rounded-2xl border border-white/10 ml-1">
-              <button 
+            {/* Export group */}
+            <div className="flex items-center bg-white/5 rounded-2xl border border-white/10 h-9 overflow-hidden flex-shrink-0">
+              <button
                 onClick={() => {
-                  const canvas = document.querySelector('canvas') as HTMLCanvasElement
+                  const canvas = compositeCanvas()
                   if (canvas) {
                     const link = document.createElement('a')
-                    link.download = `cryptodust-${new Date().toISOString().slice(0,10)}.png`
+                    link.download = `cryptodust-${new Date().toISOString().slice(0, 10)}.png`
                     link.href = canvas.toDataURL('image/png')
                     link.click()
                   }
                 }}
-                className="premium-button px-4 py-1.5 text-xs flex items-center gap-1.5 hover:bg-white/10 rounded-l-2xl border-r border-white/10"
-                title="Download high-quality PNG"
+                className="h-full px-3 flex items-center gap-1.5 text-xs text-white/80 hover:text-white hover:bg-white/10 border-r border-white/10 transition-colors"
+                title="Download the visualization as PNG"
+                aria-label="Download the visualization as PNG"
               >
-                <span>Export PNG</span>
+                <Download className="w-4 h-4" />
               </button>
-              <button 
-                onClick={async () => {
-                  const canvas = document.querySelector('canvas') as HTMLCanvasElement
-                  if (canvas) {
-                    canvas.toBlob(async (blob) => {
-                      if (blob) {
-                        try {
-                          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-                        } catch {
-                          alert('Copy to clipboard failed. Try Export PNG instead.')
-                        }
-                      }
-                    })
-                  }
+              <button
+                onClick={() => {
+                  const canvas = compositeCanvas()
+                  if (!canvas) return
+                  canvas.toBlob(async (blob) => {
+                    if (!blob) return
+                    try {
+                      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+                      setCopiedCanvas(true)
+                      setTimeout(() => setCopiedCanvas(false), 1800)
+                    } catch {
+                      /* clipboard blocked — the download button above still works */
+                    }
+                  })
                 }}
-                className="premium-button px-3 py-1.5 text-xs hover:bg-white/10 rounded-r-2xl"
-                title="Copy to clipboard"
+                className="h-full px-3 flex items-center text-xs text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                title="Copy the visualization to clipboard"
+                aria-label="Copy the visualization to clipboard"
               >
-                Copy
+                {copiedCanvas
+                  ? <Check className="w-4 h-4 text-emerald-400" />
+                  : <Copy className="w-4 h-4" />}
               </button>
             </div>
           </div>
         </div>
       </nav>
 
+      {/* Slim mobile header — the app had no branding at all on phones. */}
+      <header className="nav-hairline md:hidden flex-shrink-0 bg-[#0a0a12]/80 backdrop-blur-xl z-50">
+        <div className="h-12 px-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <img src="/cryptodust-logo.png" alt="CryptoDUST" className="w-7 h-7 object-contain flex-shrink-0" />
+            <div className="flex items-baseline gap-1 leading-none">
+              <span className="font-semibold tracking-[-0.8px] text-lg">Crypto</span>
+              <span className="wordmark-dust font-bold tracking-[-0.8px] text-lg">DUST</span>
+            </div>
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 flex-shrink-0">
+              <span className="live-dot w-1 h-1 bg-emerald-400 rounded-full" />
+              <span className="text-emerald-400 text-[8px] font-semibold tracking-[1px]">LIVE</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {deferredPrompt && (
+              <button
+                onClick={handleInstallClick}
+                className="text-[11px] font-medium px-2.5 py-1.5 rounded-xl bg-orange-500/12 text-orange-300 border border-orange-500/30 active:bg-orange-500/25"
+              >
+                Install
+              </button>
+            )}
+            <button
+              onClick={() => setShowDonateModal(true)}
+              aria-label="Support the project"
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 active:bg-amber-500/20"
+            >
+              <Heart className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              aria-label="Refresh market data"
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white/70 active:bg-white/10"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
       {/* Global Market Stats - Premium cards (hidden on mobile to give maximum space to the planets) */}
-      <div className="border-b border-[#25252f] bg-[#0a0a12] flex-shrink-0 hidden md:block">
-        <div className="w-full px-5 py-3.5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+      <div className="border-b border-white/[0.06] bg-[#0a0a12]/70 backdrop-blur-md flex-shrink-0 hidden md:block">
+        <div className="w-full px-4 lg:px-5 py-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 text-sm">
             {[
-              { label: "TOTAL MARKET CAP", value: `$${(filteredTokens.reduce((sum, t) => sum + (t.market_cap || 0), 0) / 1e12).toFixed(2)}T` },
-              { label: "24H VOLUME", value: `$${(filteredTokens.reduce((sum, t) => sum + (t.total_volume || 0), 0) / 1e9).toFixed(1)}B` },
-              { label: "BTC DOMINANCE", value: "~52%" },
-              { label: "COINS VISIBLE", value: `${filteredTokens.length} / 600` },
+              {
+                label: 'TOTAL MARKET CAP',
+                value: `$${(marketStats.cap / 1e12).toFixed(2)}T`,
+                icon: Coins,
+                tint: 'text-emerald-400',
+                chip: 'bg-emerald-500/10 ring-emerald-400/25',
+                glow: 'hover:shadow-[0_0_24px_-8px_rgba(52,211,153,0.35)] hover:border-emerald-400/25',
+                hint: 'Sum of the tracked coins',
+              },
+              {
+                label: '24H VOLUME',
+                value: `$${(marketStats.vol / 1e9).toFixed(1)}B`,
+                icon: BarChart3,
+                tint: 'text-sky-400',
+                chip: 'bg-sky-500/10 ring-sky-400/25',
+                glow: 'hover:shadow-[0_0_24px_-8px_rgba(56,189,248,0.35)] hover:border-sky-400/25',
+                hint: 'Traded in the last 24 hours',
+              },
+              {
+                label: 'BTC DOMINANCE',
+                value: marketStats.dominance != null ? `${marketStats.dominance.toFixed(1)}%` : '—',
+                icon: Bitcoin,
+                tint: 'text-amber-400',
+                chip: 'bg-amber-500/10 ring-amber-400/25',
+                glow: 'hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.35)] hover:border-amber-400/25',
+                hint: 'BTC share of the tracked market cap',
+              },
+              {
+                label: 'COINS VISIBLE',
+                value: `${filteredTokens.length}`,
+                suffix: `/ ${tokens.length}`,
+                icon: Layers,
+                tint: 'text-violet-400',
+                chip: 'bg-violet-500/10 ring-violet-400/25',
+                glow: 'hover:shadow-[0_0_24px_-8px_rgba(167,139,250,0.35)] hover:border-violet-400/25',
+                hint: 'Matching the active filter and search',
+              },
             ].map((stat) => (
-              <div key={stat.label} className="stat-card rounded-2xl px-4 py-3">
-                <div className="text-[#6b7280] text-[10px] tracking-[0.5px] mb-1">{stat.label}</div>
-                <div className="font-semibold tabular-nums text-xl tracking-tighter">{stat.value}</div>
+              <div
+                key={stat.label}
+                className={`stat-card rounded-2xl px-4 py-2.5 flex items-center gap-3 ${stat.glow}`}
+                title={stat.hint}
+              >
+                <span className={`flex items-center justify-center w-8 h-8 rounded-xl ring-1 flex-shrink-0 ${stat.chip}`}>
+                  <stat.icon className={`w-4 h-4 ${stat.tint}`} />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[#6b7280] text-[10px] font-medium tracking-[0.8px] mb-0.5 truncate">
+                    {stat.label}
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-semibold tabular-nums text-[21px] tracking-[-0.5px] leading-none">
+                      {isLoading && !tokens.length ? '—' : stat.value}
+                    </span>
+                    {stat.suffix && (
+                      <span className="text-[#6b7280] text-xs tabular-nums">{stat.suffix}</span>
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -637,48 +835,53 @@ export default function App() {
           Hidden on mobile. On desktop: visibility is tied to the minimizable pages tabs panel state.
           When you minimize the pages panel (center arrow), these controls also hide to give maximum planet surface. */}
       {pagesPanelExpanded && (
-        <div className="border-b border-[#25252f] bg-[#111118] flex-shrink-0 hidden md:block">
-          <div className="w-full px-5 py-3.5">
-          {/* Timeframe & Metrics */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
-            <div className="control-group flex items-center rounded-3xl p-1">
-              <div className="px-3 text-xs font-medium text-[#6b7280] tracking-widest">SIZE BY</div>
-              {(['change_24h', 'market_cap', 'volume', 'price'] as const).map(m => (
+        <div className="border-b border-[#25252f] bg-gradient-to-b from-[#13131b] to-[#101017] flex-shrink-0 hidden md:block">
+          <div className="w-full px-4 lg:px-5 py-3 flex items-center gap-x-2.5 gap-y-2.5 flex-wrap">
+            {/* One 34px control height and one radius across the whole band — the pieces
+                used to range from py-1 to py-2 with rounded-2xl/3xl mixed together. */}
+            <div className="seg">
+              <span className="seg-label">Size</span>
+              {(['change_24h', 'market_cap', 'volume', 'price', 'liquidity'] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => setSizeMetric(m)}
-                  className={`px-4 py-1.5 rounded-2xl text-sm font-medium ${sizeMetric === m ? 'bg-white text-black' : 'hover:bg-white/5 text-white/90'}`}
+                  title={
+                    m === 'liquidity'
+                      ? 'DEX pool depth — the meaningful size metric for PulseChain tokens'
+                      : undefined
+                  }
+                  className={`seg-item ${sizeMetric === m ? 'seg-item-on' : ''}`}
                 >
-                  {m === 'change_24h' ? '24h %' : m === 'market_cap' ? 'Market Cap' : m.charAt(0).toUpperCase() + m.slice(1)}
+                  {m === 'change_24h' ? '24h %' : m === 'market_cap' ? 'Market cap' : m.charAt(0).toUpperCase() + m.slice(1)}
                 </button>
               ))}
             </div>
 
-            {/* TOP LABEL tab - controls what is shown at top of planets */}
-            <div className="control-group flex items-center rounded-3xl p-1 ml-2">
-              <div className="px-3 text-xs font-medium text-[#6b7280] tracking-widest">TOP</div>
+            <div className="seg">
+              <span className="seg-label">Label</span>
               {(['price', 'change_24h'] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => setTopLabel(m)}
-                  className={`px-4 py-1.5 rounded-2xl text-sm font-medium ${topLabel === m ? 'bg-white text-black' : 'hover:bg-white/5 text-white/90'}`}
+                  className={`seg-item ${topLabel === m ? 'seg-item-on' : ''}`}
                 >
-                  {m === 'price' ? 'Price' : '% CHANGE'}
+                  {m === 'price' ? 'Price' : '24h %'}
                 </button>
               ))}
             </div>
 
-            {/* Physics pause/resume — clean minimal control (good looking, not prominent/ugly) */}
+            <div className="w-px h-6 bg-white/[0.08]" />
+
             <button
               onClick={() => setPhysicsPaused(!physicsPaused)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-2xl flex items-center gap-x-1.5 transition-all border active:scale-[0.985] ${
+              className={`ctl ${
                 physicsPaused
                   ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/15'
-                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15'
+                  : 'bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
               }`}
-              title={physicsPaused ? "Resume physics simulation" : "Pause physics simulation"}
+              title={physicsPaused ? 'Resume physics simulation (Space)' : 'Pause physics simulation (Space)'}
             >
-              {physicsPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+              {physicsPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
               {physicsPaused ? 'Resume' : 'Pause'}
             </button>
 
@@ -692,86 +895,87 @@ export default function App() {
                   return next
                 })
               }}
-              className={`px-3 py-1.5 text-xs font-medium rounded-2xl flex items-center gap-x-1.5 transition-all border active:scale-[0.985] ${
+              className={`ctl ${
                 performanceMode
                   ? 'bg-amber-500/15 text-amber-300 border-amber-500/35 hover:bg-amber-500/20'
-                  : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
+                  : 'bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
               }`}
-              title={performanceMode ? 'Manual performance mode on — max savings' : 'Enable manual performance mode (smart perf auto-optimizes when idle)'}
+              title={
+                performanceMode
+                  ? 'Manual performance mode on — max savings'
+                  : 'Enable manual performance mode (smart perf auto-optimizes when idle)'
+              }
             >
-              <Gauge className="w-3 h-3" />
-              {performanceMode ? 'Perf ON' : 'Perf'}
+              <Gauge className="w-3.5 h-3.5" />
+              {performanceMode ? 'Perf on' : 'Perf'}
             </button>
-          </div>
 
-          {/* Quick Filters - More interesting styling */}
-          <div className="flex items-center gap-x-2 flex-wrap">
-            <div className="text-[10px] font-medium text-[#6b7280] tracking-[1px] mr-2 flex items-center gap-1.5">
-              QUICK FILTERS
-              {activePreset === 'pulsechain' && (
-                <>
-                  <span className="text-[9px] px-1.5 py-px rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">API TEST</span>
-                  <span className="text-[9px] text-violet-400/70 ml-1">(Market data limited on some tokens)</span>
-                </>
-              )}
-            </div>
+            <div className="w-px h-6 bg-white/[0.08]" />
+
+            {/* Filters sit on the same line now instead of a second stacked row */}
             {[
-              { label: 'Big Gainers', key: 'gainers' },
-              { label: 'Big Losers', key: 'losers' },
-              { label: 'High Volume', key: 'volume' },
+              { label: 'Gainers', key: 'gainers' },
+              { label: 'Losers', key: 'losers' },
+              { label: 'Volume', key: 'volume' },
               { label: 'Favorites', key: 'favorites' },
-              { label: 'Clear', key: null },
-            ].map(f => {
-              const isActive = activePreset === f.key
-
-              return (
-                <button
-                  key={f.key || 'clear'}
-                  onClick={() => {
-                    setActivePreset(f.key)
-                    setCurrentPage(0)
-                  }}
-                  className={`filter-chip px-4 py-1.5 text-xs rounded-3xl border font-medium transition-all ${
-                    isActive 
-                      ? 'bg-white text-black border-white shadow-sm'
-                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/80 hover:text-white'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              )
-            })}
-
-            {/* Portfolio value - live total USD of holdings in Favorites.
-                Shown left of Whales image (desktop) or as banner (mobile) when user has entered amounts for favorited coins. */}
-            {portfolioValue > 0 && (
-              <div 
-                className="text-sm md:text-base font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/30 mr-2 flex-shrink-0"
-                title="Total value of your holdings in Favorites (enter amounts in the Details panel)"
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => {
+                  setActivePreset(activePreset === f.key ? null : f.key)
+                  setCurrentPage(0)
+                }}
+                className={`filter-chip ctl ${
+                  activePreset === f.key
+                    ? 'bg-white text-black border-white font-semibold'
+                    : 'bg-white/[0.04] border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
               >
-                ${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
+                {f.label}
+              </button>
+            ))}
+
+            {activePreset && (
+              <button
+                onClick={() => { setActivePreset(null); setCurrentPage(0) }}
+                className="ctl bg-transparent border-transparent text-[#6b7280] hover:text-white px-2"
+                title="Clear filter"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
 
-            {/* Round button for Whales on Pulse - far right of the filters panel, larger, logo clearly visible */}
-            <button
-              onClick={() => setSelectedId('whales-on-pulse')}
-              className="ml-auto w-16 h-16 rounded-full border-2 border-purple-400 bg-sky-300 overflow-hidden relative hover:scale-105 active:scale-95 transition shadow flex-shrink-0 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse"
-              title="Whales on Pulse"
-            >
-              <img src="/wop.png" alt="" className="absolute inset-0 w-full h-full object-contain scale-[0.85]" />
-              <div className="absolute bottom-0 left-0 right-0 h-4 bg-[#050814]/80 flex items-center justify-center">
-                <span className="text-[6px] text-white font-bold tracking-tight">Whales on Pulse</span>
-              </div>
-            </button>
-          </div>
+            <div className="ml-auto flex items-center gap-x-2.5">
+              {portfolioValue > 0 && (
+                <div
+                  className="ctl bg-emerald-500/10 border-emerald-500/30 text-emerald-400 tabular-nums font-semibold cursor-default"
+                  title="Total value of your holdings in Favorites (enter amounts in the Details panel)"
+                >
+                  <span className="text-[9px] tracking-[1px] text-emerald-400/60 font-medium">PORTFOLIO</span>
+                  ${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              )}
 
+              <button
+                onClick={() => setSelectedId('whales-on-pulse')}
+                className="glow-special group flex items-center gap-2 h-[34px] pl-1 pr-3.5 rounded-2xl border bg-violet-500/[0.08] hover:bg-violet-500/15 transition-colors flex-shrink-0"
+                title="Whales on Pulse — whale & dry powder leaderboard"
+              >
+                <span className="w-[26px] h-[26px] rounded-full bg-sky-300 overflow-hidden flex-shrink-0 ring-1 ring-white/20">
+                  <img src="/wop.png" alt="" className="w-full h-full object-contain scale-95" />
+                </span>
+                <span className="text-[13px] font-semibold tracking-tight text-violet-100 whitespace-nowrap">
+                  Whales on Pulse
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
       )}
 
       {/* Main Area */}
-      <div className="flex-1 relative overflow-hidden bg-black">
+      {/* Transparent, not bg-black — the space backdrop lives behind this area */}
+      <div className="flex-1 relative overflow-hidden">
         {/* Desktop: Visualization with bubbles */}
         {!isMobile && (
           <Visualization 
@@ -802,10 +1006,12 @@ export default function App() {
           <div className="absolute top-0 left-0 right-0 z-[45] pointer-events-auto select-none">
             {pagesPanelExpanded ? (
               // Expanded: tabs row (left aligned) with page selectors + centered collapse arrow
-              <div className="relative flex items-center justify-start gap-x-1.5 bg-[#111118]/95 backdrop-blur-xl border-b border-[#25252f] px-4 py-1.5">
+              <div className="relative flex items-center justify-start gap-x-1.5 bg-[#0f0f17]/90 backdrop-blur-xl border-b border-white/[0.07] px-4 py-2">
                 {Array.from({ length: totalPages }).map((_, index) => {
                   const start = index * 100
-                  const end = Math.min(start + 100, filteredTokens.length)
+                  // Clamped to >= start: when fewer coins are loaded than the page
+                  // range, this used to render nonsense like "200–108".
+                  const end = Math.max(start, Math.min(start + 100, filteredTokens.length))
                   const isLastPage = index === totalPages - 1
                   const label = isLastPage ? 'PulseChain' : `${start}–${end}`
                   const isActive = currentPage === index
@@ -813,37 +1019,40 @@ export default function App() {
                     <button
                       key={index}
                       onClick={() => setCurrentPage(index)}
-                      className={`text-[10px] md:text-[11px] px-2.5 md:px-3 py-0.5 md:py-1 rounded-2xl border whitespace-nowrap transition-all ${isLastPage ? 'min-w-[108px] px-3' : 'min-w-[52px]'} ${
+                      className={`text-[11px] h-[26px] px-3 rounded-xl border whitespace-nowrap tabular-nums transition-colors ${isLastPage ? 'min-w-[104px] font-semibold' : 'min-w-[62px]'} ${
                         isActive
-                          ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
-                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white hover:bg-white/10'
-                      } ${isLastPage ? 'border-2 border-purple-400 shadow-[0_0_8px_#ff0000,0_0_16px_#00ff00,0_0_24px_#0000ff,0_0_32px_#ff00ff] animate-pulse' : ''}`}
+                          ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-semibold'
+                          : 'bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+                      } ${isLastPage && !isActive ? 'glow-special' : ''}`}
                     >
                       {label}
                     </button>
                   )
                 })}
-                {/* Centered arrow (in the center of the panel) to minimize */}
+
+                {/* Collapse handle — was a bare "▲" glyph in a circle */}
                 <button
                   onClick={() => setPagesPanelExpanded(false)}
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-5 h-5 flex items-center justify-center rounded-full bg-[#0a0a12] border border-white/30 text-[9px] leading-none text-white/70 hover:text-white hover:border-white/50 active:scale-95"
-                  title="Minimize tabs + Quick filters + Size by (more space for planets)"
+                  className="collapse-handle"
+                  title="Hide the toolbar for more planet space"
+                  aria-label="Hide the toolbar"
                 >
-                  ▲
+                  <span className="collapse-grip" />
                 </button>
               </div>
             ) : (
-              // Minimized: very thin bar so planets have maximum surface. Click anywhere on bar or the centered arrow to reopen.
-              <div 
-                className="h-[7px] bg-[#111118]/80 border-b border-[#25252f]/70 cursor-pointer"
+              // Minimized: thin bar so planets have maximum surface. Click anywhere to reopen.
+              <div
+                className="group h-[8px] bg-[#0f0f17]/70 border-b border-white/[0.06] cursor-pointer hover:bg-[#0f0f17] transition-colors"
                 onClick={() => setPagesPanelExpanded(true)}
-                title="Show tabs panel (also shows Quick filters and Size by)"
+                title="Show the toolbar"
               >
                 <button
-                  onClick={(e) => { e.stopPropagation(); setPagesPanelExpanded(true); }}
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-5 h-5 flex items-center justify-center rounded-full bg-[#111118] border border-white/30 text-[9px] leading-none text-white/70 hover:text-white hover:border-white/50 active:scale-95"
+                  onClick={(e) => { e.stopPropagation(); setPagesPanelExpanded(true) }}
+                  className="collapse-handle collapse-handle-down"
+                  aria-label="Show the toolbar"
                 >
-                  ▼
+                  <span className="collapse-grip" />
                 </button>
               </div>
             )}
@@ -853,85 +1062,80 @@ export default function App() {
         {/* Mobile: Simple list view instead of planets (due to touch issues) */}
         {isMobile && (
           <div className="h-full overflow-auto px-3 pt-2 pb-20 text-sm custom-scrollbar">
-            {/* Quick Filters + External Services on mobile */}
-            <div className="flex gap-2.5 overflow-x-auto pb-4 hide-scrollbar">
+            {/* Row 1 — real filters. Previously "Big Movers" was mixed in here but only
+                triggered the highlight effect, so its active state never matched. */}
+            <div className="flex gap-2 overflow-x-auto pb-2.5 hide-scrollbar scroll-fade-x">
               {[
                 { label: 'All', key: null },
-                { label: 'Big Movers', key: 'gainers' },
+                { label: 'Gainers', key: 'gainers' },
+                { label: 'Losers', key: 'losers' },
+                { label: 'Volume', key: 'volume' },
                 { label: 'Favorites', key: 'favorites' },
-                { label: 'Whales on Pulse', key: 'whales' },
-                { label: 'ProveX', url: 'https://app.provex.com' },
-                { label: 'LibertySwap', url: 'https://libertyswap.finance' },
-                { label: 'iNFO DUST', url: 'https://t.me/iNFO_DUST' },
-                { label: 'SimpleX', url: 'https://smp16.simplex.im/c#k7z6aPXx-XHUGQE85X8R3fixZ7HITSmqC_eKlYsX9Y4' },
-              ].map((item, idx) => {
-                // External link (ProveX / LibertySwap)
-                if (item.url) {
-                  return (
-                    <a
-                      key={idx}
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap bg-gradient-to-r from-orange-500/10 to-amber-500/10 border-orange-500/30 text-orange-300 active:from-orange-500/20 active:to-amber-500/20"
-                    >
-                      {item.label}
-                    </a>
-                  );
-                }
-
-                if (item.key === 'whales') {
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setSelectedId('whales-on-pulse');
-                        setCurrentPage(0);
-                      }}
-                      className="text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap bg-gradient-to-r from-orange-500/10 to-amber-500/10 border-orange-500/30 text-orange-300 active:from-orange-500/20 active:to-amber-500/20"
-                    >
-                      {item.label}
-                    </button>
-                  );
-                }
-
-                // Internal filter
+              ].map(f => {
+                const isActive = activePreset === f.key
                 return (
                   <button
-                    key={idx}
+                    key={f.label}
                     onClick={() => {
-                      if (item.key === null) {
-                        setActivePreset(null);
-                      } else if (item.label === 'Big Movers') {
-                        highlightBigMovers();
-                      } else if (item.key !== undefined) {
-                        setActivePreset(item.key);
-                      }
-                      setCurrentPage(0);
+                      setActivePreset(f.key)
+                      setCurrentPage(0)
                     }}
-                    className={`text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap transition-all ${
-                      (item.key === null && !activePreset) || activePreset === item.key
-                        ? 'bg-white text-black border-white'
+                    className={`filter-chip text-xs px-3.5 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 ${
+                      isActive
+                        ? 'bg-white text-black border-white font-semibold'
                         : 'bg-white/5 border-white/10 text-white/80'
                     }`}
                   >
-                    {item.label}
+                    {f.label}
                   </button>
-                );
+                )
               })}
-              {/* Minimal install button for mobile PWA - only shows when browser allows it */}
-              {isMobile && deferredPrompt && (
-                <button
-                  onClick={handleInstallClick}
-                  className="text-xs px-3 py-1.5 rounded-2xl border whitespace-nowrap bg-orange-500/10 text-orange-400 border-orange-500/20 active:bg-orange-500/20"
+
+              <button
+                onClick={highlightBigMovers}
+                className={`filter-chip text-xs px-3.5 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 flex items-center gap-1.5 ${
+                  highlightUntil > Date.now()
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-400'
+                    : 'bg-orange-500/10 border-orange-500/25 text-orange-300'
+                }`}
+              >
+                <Zap className="w-3 h-3" />
+                Big movers
+              </button>
+
+              <button
+                onClick={() => {
+                  setSelectedId('whales-on-pulse')
+                  setCurrentPage(0)
+                }}
+                className="glow-special filter-chip text-xs px-3.5 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 bg-violet-500/10 text-violet-200 flex items-center gap-1.5"
+              >
+                <img src="/wop.png" alt="" className="w-4 h-4 object-contain rounded-full" />
+                Whales on Pulse
+              </button>
+            </div>
+
+            {/* Row 2 — partner links, with their actual logos */}
+            <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar scroll-fade-x">
+              {EXTERNAL_LINKS.map(link => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`text-[11px] pl-1.5 pr-3 py-1.5 rounded-2xl border whitespace-nowrap flex-shrink-0 flex items-center gap-2 bg-white/[0.04] border-white/10 ${link.text} active:bg-white/10`}
                 >
-                  Install App
-                </button>
-              )}
+                  <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white/10 ring-1 ring-white/15 p-0.5">
+                    <img src={link.img} alt="" className="h-full w-full object-contain" />
+                  </span>
+                  <span className="font-medium">{link.label}</span>
+                  <ArrowUpRight className="w-3 h-3 opacity-60" />
+                </a>
+              ))}
             </div>
 
             {/* Mobile Search - full width, touch friendly, themed */}
-            <div className="sticky top-0 z-10 bg-[#0a0a12] py-1 -mx-3 px-3">
+            <div className="sticky top-0 z-10 bg-[#0a0a12]/85 backdrop-blur-md py-1 -mx-3 px-3">
               <div className="relative">
                 <input
                   type="text"
@@ -978,7 +1182,7 @@ export default function App() {
             <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
               {Array.from({ length: totalPages }).map((_, index) => {
                 const start = index * 100;
-                const end = Math.min(start + 100, filteredTokens.length);
+                const end = Math.max(start, Math.min(start + 100, filteredTokens.length));
                 const isLastPage = index === totalPages - 1;
                 const label = isLastPage ? 'PulseChain' : `${start}–${end}`;
                 return (
@@ -989,7 +1193,7 @@ export default function App() {
                       currentPage === index
                         ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
                         : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
-                    } ${isLastPage ? 'border-2 border-purple-400 shadow-[0_0_10px_#ff0000,0_0_20px_#00ff00,0_0_30px_#0000ff,0_0_40px_#ff00ff] animate-pulse' : ''}`}
+                    } ${isLastPage && currentPage !== index ? 'glow-special' : ''}`}
                   >
                     {label}
                   </button>
@@ -997,57 +1201,95 @@ export default function App() {
               })}
             </div>
 
+            {/* Portfolio value — moved ABOVE the list. It used to render after ~100 rows,
+                so on mobile you had to scroll to the bottom to ever see it. */}
+            {portfolioValue > 0 && (
+              <div className="mb-3 flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                <span className="text-[10px] tracking-[1px] text-emerald-400/80 font-medium">PORTFOLIO</span>
+                <span className="text-base font-semibold tabular-nums text-emerald-400">
+                  ${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+
             {/* Mobile List */}
-            <div className="space-y-1">
-              {currentPageTokens.map(coin => {
+            <div className="space-y-1.5">
+              {currentPageTokens.map((coin, idx) => {
                 const change = coin.price_change_percentage_24h || 0;
                 const isBigMover = Math.abs(change) > 6;
                 const isHighlightActive = highlightUntil > Date.now();
                 const isExtremeGainer = change > 60;
+                const isFav = favorites.includes(coin.id);
+                const isSelected = selectedId === coin.id;
 
                 let highlightClass = '';
 
                 if (isHighlightActive && isBigMover) {
-                  if (change > 0) {
-                    // Positive big mover → green blink
-                    highlightClass = 'bg-emerald-500/15 border-emerald-500/40 animate-pulse';
-                  } else {
-                    // Negative big mover → red blink
-                    highlightClass = 'bg-red-500/15 border-red-500/40 animate-pulse';
-                  }
+                  highlightClass = change > 0
+                    ? 'bg-emerald-500/15 border-emerald-500/40'
+                    : 'bg-red-500/15 border-red-500/40';
                 }
 
                 return (
-                  <div 
+                  <div
                     key={coin.id}
                     onClick={() => handleSelect(coin.id)}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-2xl border transition-all active:bg-white/5 ${
-                      highlightClass 
-                        ? highlightClass 
-                        : selectedId === coin.id 
-                          ? 'bg-white/5 border-[#67f6ff]' 
-                          : 'bg-white/5 border-white/10'
-                    } ${favorites.includes(coin.id) ? 'border-blue-500 border-2' : ''} ${isExtremeGainer ? 'shadow-[0_0_12px_#4ade80] border-emerald-400' : ''}`}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border transition-colors active:bg-white/10 ${
+                      highlightClass
+                        ? highlightClass
+                        : isSelected
+                          ? 'bg-[#67f6ff]/10 border-[#67f6ff]'
+                          : 'bg-white/[0.04] border-white/[0.08]'
+                    } ${isExtremeGainer
+                        ? 'shadow-[0_0_14px_-2px_rgba(74,222,128,0.55)] border-emerald-400/70'
+                        : change >= 0 ? 'row-edge-up' : 'row-edge-down'}`}
                   >
-                    <div className="flex items-center gap-3">
-                      {coin.image && (
-                        <img 
-                          src={coin.image} 
-                          alt="" 
-                          className="w-8 h-8 rounded-full flex-shrink-0" 
-                        />
-                      )}
-                      <div>
-                        <div className="font-semibold">{coin.symbol}</div>
-                        <div className="text-xs text-white">{formatPrice(coin.current_price)}</div>
+                    <span className="w-5 text-[10px] tabular-nums text-[#6b7280] flex-shrink-0 text-right">
+                      {currentPage * PAGE_SIZE + idx + 1}
+                    </span>
+
+                    {coin.image ? (
+                      <img
+                        src={coin.image}
+                        alt=""
+                        loading="lazy"
+                        className="w-9 h-9 rounded-full flex-shrink-0 ring-1 ring-white/10"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full flex-shrink-0 bg-white/5 ring-1 ring-white/10" />
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold uppercase tracking-tight">{coin.symbol}</span>
+                        {isFav && <span className="text-amber-400 text-xs leading-none">★</span>}
                       </div>
+                      <div className="text-[11px] text-[#9ca3af] truncate">{coin.name}</div>
                     </div>
-                    <div className="text-right">
-                      <div className={`text-sm font-medium ${(coin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'} ${isExtremeGainer ? 'text-emerald-300 drop-shadow-[0_0_3px_#4ade80]' : ''}`}>
-                        {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
+
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-semibold tabular-nums leading-tight">
+                        {formatPrice(coin.current_price)}
                       </div>
-                      <div className="text-xs text-white/90">
-                        {formatMarketValue(coin.market_cap)}
+                      <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                        {(() => {
+                          const v = valuationFor(coin)
+                          return (
+                            <span className={`text-[10px] tabular-nums ${v.tone}`}>
+                              {v.label && <span className="mr-1 opacity-70">{v.label}</span>}
+                              {v.value}
+                            </span>
+                          )
+                        })()}
+                        <span
+                          className={`text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md ${
+                            change >= 0
+                              ? 'text-emerald-400 bg-emerald-500/10'
+                              : 'text-red-400 bg-red-500/10'
+                          }`}
+                        >
+                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1055,10 +1297,15 @@ export default function App() {
               })}
             </div>
 
-            {/* Portfolio value on mobile - shown when >0, for favorites holdings */}
-            {isMobile && portfolioValue > 0 && (
-              <div className="mb-3 px-3 py-1.5 text-sm font-mono text-emerald-400 bg-emerald-500/10 rounded-xl border border-emerald-500/30 text-center">
-                Portfolio: ${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currentPageTokens.length === 0 && !isLoading && (
+              <div className="text-center py-14 px-6">
+                <div className="text-[#6b7280] text-sm mb-1">No coins match your filters</div>
+                <button
+                  onClick={() => { setSearchTerm(''); setActivePreset(null); setCurrentPage(0) }}
+                  className="text-[#67f6ff] text-xs active:underline"
+                >
+                  Reset filters
+                </button>
               </div>
             )}
           </div>
@@ -1068,10 +1315,13 @@ export default function App() {
 
         {/* Mobile Bottom Sheet - Richer info panel (only shown in mobile list view) */}
         {isMobile && selectedCoin && (
-          <div 
-            className={`fixed bottom-0 left-0 right-0 z-[70] bg-[#0f0f16] border-t border-[#25252f] rounded-t-3xl px-4 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] ${ (selectedCoin.price_change_percentage_24h || 0) > 60 ? 'shadow-[0_-8px_18px_#4ade80,0_-8px_30px_rgba(0,0,0,0.5)] border-t-emerald-400/60' : '' }`}
+          <div
+            className={`sheet-in fixed bottom-0 left-0 right-0 z-[70] bg-[#0f0f16] border-t border-[#25252f] rounded-t-3xl px-4 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] ${ (selectedCoin.price_change_percentage_24h || 0) > 60 ? 'shadow-[0_-8px_18px_#4ade80,0_-8px_30px_rgba(0,0,0,0.5)] border-t-emerald-400/60' : '' }`}
             style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
           >
+            {/* Grab handle — makes it read as a sheet */}
+            <div className="w-9 h-1 rounded-full bg-white/20 mx-auto mb-3" />
+
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -1093,38 +1343,41 @@ export default function App() {
                     {favorites.includes(selectedCoin.id) ? '★ Favorited' : '☆ Favorite'}
                   </button>
                 )}
-                <button 
-                  onClick={() => setSelectedId(null)} 
-                  className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
+                <button
+                  onClick={() => setSelectedId(null)}
+                  aria-label="Close"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 active:bg-white/10 text-white/70"
                 >
-                  Close
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-
-              {/* Mobile holdings input for favorited coins (mirrors desktop) */}
-              {!isWhales && favorites.includes(selectedCoin.id) && (
-                <div className="flex items-center gap-1.5 text-xs mt-2 mb-1">
-                  <span className="text-[#6b7280]">My holdings:</span>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    className="w-20 bg-black/50 border border-white/20 rounded px-1.5 py-0.5 text-right text-sm"
-                    value={holdings[selectedCoin.id] || ''}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value)
-                      updateHolding(selectedCoin.id, isFinite(val) ? val : 0)
-                    }}
-                  />
-                  <span className="text-[#9ca3af]">{selectedCoin.symbol}</span>
-                  {holdings[selectedCoin.id] > 0 && selectedCoin.current_price && (
-                    <span className="text-emerald-400 text-[10px]">
-                      = ${(holdings[selectedCoin.id] * selectedCoin.current_price).toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* Holdings input for favorited coins. Was nested inside the flex header above,
+                which made it a third row item instead of its own line. */}
+            {!isWhales && favorites.includes(selectedCoin.id) && (
+              <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/10">
+                <span className="text-[#6b7280] flex-shrink-0">My holdings</span>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="0"
+                  className="flex-1 min-w-0 bg-black/40 border border-white/15 rounded-lg px-2 py-1 text-right text-sm tabular-nums focus:outline-none focus:border-[#67f6ff]"
+                  value={holdings[selectedCoin.id] || ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value)
+                    updateHolding(selectedCoin.id, isFinite(val) ? val : 0)
+                  }}
+                />
+                <span className="text-[#9ca3af] flex-shrink-0">{selectedCoin.symbol}</span>
+                {holdings[selectedCoin.id] > 0 && selectedCoin.current_price && (
+                  <span className="text-emerald-400 text-[11px] font-semibold tabular-nums flex-shrink-0">
+                    ${(holdings[selectedCoin.id] * selectedCoin.current_price).toFixed(2)}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Price + 24h% (hidden for the special Whales on Pulse planet) */}
             {!isWhales && (
@@ -1138,17 +1391,40 @@ export default function App() {
               </div>
             )}
 
-            {/* Stats Grid (hidden for Whales on Pulse) */}
+            {/* Stats Grid (hidden for Whales on Pulse) — mirrors the desktop Details
+                panel: real market cap when a source has one, honestly-labelled FDV
+                when only a fully diluted figure exists, DEX liquidity when known. */}
             {!isWhales && (
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
-                <div className="flex justify-between border-b border-white/10 pb-1">
-                  <span className="text-[#6b7280]">Market Cap</span>
-                  <span className="font-medium">{formatMarketValue(selectedCoin.market_cap)}</span>
-                </div>
+                {(selectedCoin.market_cap ?? 0) > 0 ? (
+                  <div className="flex justify-between border-b border-white/10 pb-1">
+                    <span className="text-[#6b7280]">Market Cap</span>
+                    <span className="font-medium">{formatMarketValue(selectedCoin.market_cap)}</span>
+                  </div>
+                ) : (selectedCoin.fdv ?? 0) > 0 ? (
+                  <div className="flex justify-between border-b border-amber-500/20 pb-1">
+                    <span className="text-amber-400/80">FDV</span>
+                    <span className="font-medium">{formatMarketValue(selectedCoin.fdv)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between border-b border-white/10 pb-1">
+                    <span className="text-[#6b7280]">Market Cap</span>
+                    <span className="font-medium text-[#6b7280]">—</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-b border-white/10 pb-1">
                   <span className="text-[#6b7280]">24h Volume</span>
                   <span className="font-medium">{formatMarketValue(selectedCoin.total_volume)}</span>
                 </div>
+                {(selectedCoin.liquidity ?? 0) > 0 && (
+                  <div className="flex justify-between border-b border-cyan-500/20 pb-1 col-span-2">
+                    <span className="text-[#67f6ff]/80">DEX Liquidity</span>
+                    <span className="font-medium">
+                      {formatMarketValue(selectedCoin.liquidity)}
+                      <span className="ml-1.5 text-[9px] text-[#6b7280] uppercase">{selectedCoin.dexSource || 'dex'}</span>
+                    </span>
+                  </div>
+                )}
                 {selectedCoin.price_change_percentage_1h !== undefined && (
                   <div className="flex justify-between border-b border-white/10 pb-1 col-span-2">
                     <span className="text-[#6b7280]">1h Change</span>
@@ -1209,47 +1485,54 @@ export default function App() {
         {/* Details Panel - Opens automatically when you select a planet.
             Hidden on mobile to not block the visualization. */}
         {selectedCoin && (
-          <div className="absolute top-4 right-4 z-50 w-80 rounded-3xl border border-[#25252f] bg-[#111118]/95 backdrop-blur-2xl shadow-2xl overflow-hidden transition-all duration-200 hidden md:block">
-            <div className="px-5 pt-4 pb-3 border-b border-[#25252f] flex items-center justify-between bg-black/30">
-              <div className="font-semibold tracking-tight text-sm">DETAILS</div>
-              <button 
-                onClick={() => setSelectedId(null)} 
-                className="text-xs px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-[#6b7280] hover:text-white transition-colors"
-              >
-                Close
-              </button>
+          <div className="panel-accent pop-in absolute top-4 right-4 z-50 w-[336px] rounded-3xl overflow-hidden hidden md:block backdrop-blur-2xl">
+            <div className="px-5 pt-4 pb-4 border-b border-white/[0.07] bg-black/25">
+              <div className="flex items-center gap-3">
+                {selectedCoin.image && (
+                  <img src={selectedCoin.image} alt="" className="w-11 h-11 rounded-full ring-1 ring-white/10 flex-shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-xl tracking-tight uppercase">{selectedCoin.symbol}</span>
+                    {/* Skip the chain badge when it just repeats the coin name (BTC → "Bitcoin") */}
+                    {!isWhales && getBlockchain(selectedCoin).toLowerCase() !== selectedCoin.name.toLowerCase() && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/[0.08] border border-white/10 text-[#9ca3af] font-medium">
+                        {getBlockchain(selectedCoin)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[13px] text-[#9ca3af] truncate">{selectedCoin.name}</div>
+                </div>
+
+                {!isWhales && (
+                  <button
+                    onClick={() => toggleFavorite(selectedCoin.id)}
+                    className="text-2xl leading-none transition-transform hover:scale-110 active:scale-90 flex-shrink-0"
+                    title={favorites.includes(selectedCoin.id) ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/35">☆</span>}
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedId(null)}
+                  aria-label="Close details"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-[#6b7280] hover:text-white transition-colors flex-shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             <div className="p-5">
-              <div className="flex items-center gap-3 mb-4">
-                {selectedCoin.image && (
-                  <img src={selectedCoin.image} alt="" className="w-12 h-12 rounded-full ring-1 ring-white/10 flex-shrink-0" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-2xl tracking-tight">{selectedCoin.symbol}</div>
-                  <div className="text-sm text-[#9ca3af] truncate">{selectedCoin.name}</div>
-                </div>
-                {!isWhales && (
-                  <button 
-                    onClick={() => toggleFavorite(selectedCoin.id)}
-                    className="text-3xl leading-none transition-transform active:scale-90 ml-2"
-                    title={favorites.includes(selectedCoin.id) ? "Remove from favorites" : "Add to favorites"}
-                  >
-                    {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/40">☆</span>}
-                  </button>
-                )}
-              </div>
-
-              {/* Desktop-only: input holdings for this favorite (only shown if favorited).
-                  Amounts are used to compute the live portfolio value shown left of Whales image. */}
+              {/* Holdings for this favorite. Amounts feed the live portfolio total in the filter bar. */}
               {favorites.includes(selectedCoin.id) && (
-                <div className="mt-2 flex items-center gap-1.5 text-xs">
-                  <span className="text-white/50">My holdings:</span>
+                <div className="mb-4 flex items-center gap-2 text-xs px-3 py-2 rounded-xl bg-white/[0.04] border border-white/10">
+                  <span className="text-white/50 flex-shrink-0">Holdings</span>
                   <input
                     type="number"
                     step="any"
                     min="0"
-                    className="w-20 bg-black/50 border border-white/20 rounded px-1.5 py-0.5 text-right text-sm focus:outline-none focus:border-[#67f6ff]"
+                    className="flex-1 min-w-0 bg-black/40 border border-white/15 rounded-lg px-2 py-1 text-right text-sm tabular-nums focus:outline-none focus:border-[#67f6ff]"
                     value={holdings[selectedCoin.id] || ''}
                     onChange={(e) => {
                       const val = parseFloat(e.target.value)
@@ -1257,10 +1540,10 @@ export default function App() {
                     }}
                     placeholder="0"
                   />
-                  <span className="text-white/60">{selectedCoin.symbol}</span>
+                  <span className="text-white/60 flex-shrink-0">{selectedCoin.symbol}</span>
                   {holdings[selectedCoin.id] > 0 && selectedCoin.current_price && (
-                    <span className="text-emerald-400 text-[10px] font-mono">
-                      = ${(holdings[selectedCoin.id] * selectedCoin.current_price).toFixed(2)}
+                    <span className="text-emerald-400 text-[11px] font-semibold tabular-nums flex-shrink-0">
+                      ${(holdings[selectedCoin.id] * selectedCoin.current_price).toFixed(2)}
                     </span>
                   )}
                 </div>
@@ -1269,44 +1552,98 @@ export default function App() {
               <div className="space-y-3 text-sm">
                 {!isWhales && (
                   <>
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[#6b7280]">Price</span>
-                      <span className="font-semibold tabular-nums text-2xl tracking-tighter">
-                        {formatPrice(selectedCoin.current_price)}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[#6b7280]">24h Change</span>
-                      <span className={`font-semibold ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
+                    {/* Hero price + change pill */}
+                    <div className="flex items-end justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[10px] text-[#6b7280] tracking-[1px] mb-1">PRICE</div>
+                        <div className="font-semibold tabular-nums text-[26px] tracking-[-1px] leading-none truncate">
+                          {formatPrice(selectedCoin.current_price)}
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[13px] font-semibold tabular-nums px-2 py-1 rounded-lg flex-shrink-0 ${
+                          selectedCoin.price_change_percentage_24h >= 0
+                            ? 'text-emerald-400 bg-emerald-500/12 border border-emerald-500/25'
+                            : 'text-red-400 bg-red-500/12 border border-red-500/25'
+                        }`}
+                      >
+                        {selectedCoin.price_change_percentage_24h > 0 ? '+' : ''}
+                        {(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
                       </span>
                     </div>
 
                     {/* Mini Sparkline — desktop visual polish (idea 4) */}
-                    <div className="pt-1 pb-2 border-t border-white/10">
-                      <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-0.5">
-                        <span>24h TREND</span>
-                        <span className="tabular-nums">{selectedCoin.price_change_percentage_24h > 0 ? '↑' : '↓'} simulated</span>
+                    <div className="pt-2 pb-1 border-t border-white/[0.07]">
+                      <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
+                        <span className="tracking-[1px]">24H TREND</span>
+                        <span title="Shape generated from the 24h change — not tick data">simulated</span>
                       </div>
-                      <MiniSparkline coin={selectedCoin} />
+                      <MiniSparkline coin={selectedCoin} width={288} height={52} />
                     </div>
 
-                    {/* Market Cap */}
-                    <div className="flex justify-between items-baseline pt-2 border-t border-white/10">
-                      <span className="text-[#6b7280]">Market Cap</span>
-                      <span className="font-medium">
-                        {formatMarketValue(selectedCoin.market_cap)}
-                      </span>
+                    {/* Market cap when it is a real circulating figure. For most PulseChain
+                        tokens no source has circulating supply, so DexScreener's fully
+                        diluted value is shown under its own name instead of being passed
+                        off as a market cap. */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      {(selectedCoin.market_cap ?? 0) > 0 ? (
+                        <div className="rounded-xl bg-white/[0.03] border border-white/[0.07] px-3 py-2">
+                          <div className="text-[9px] text-[#6b7280] tracking-[0.8px] mb-0.5">MARKET CAP</div>
+                          <div className="font-semibold tabular-nums text-[13px]">
+                            {formatMarketValue(selectedCoin.market_cap)}
+                          </div>
+                        </div>
+                      ) : (selectedCoin.fdv ?? 0) > 0 ? (
+                        <div
+                          className="rounded-xl bg-amber-500/[0.06] border border-amber-500/20 px-3 py-2"
+                          title="Fully diluted valuation (total supply × price). No source publishes a circulating supply for this token, so this is not a market cap."
+                        >
+                          <div className="text-[9px] text-amber-400/80 tracking-[0.8px] mb-0.5">FDV</div>
+                          <div className="font-semibold tabular-nums text-[13px]">
+                            {formatMarketValue(selectedCoin.fdv)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl bg-white/[0.03] border border-white/[0.07] px-3 py-2">
+                          <div className="text-[9px] text-[#6b7280] tracking-[0.8px] mb-0.5">MARKET CAP</div>
+                          <div className="font-semibold tabular-nums text-[13px] text-[#6b7280]">—</div>
+                        </div>
+                      )}
+
+                      <div className="rounded-xl bg-white/[0.03] border border-white/[0.07] px-3 py-2">
+                        <div className="text-[9px] text-[#6b7280] tracking-[0.8px] mb-0.5">24H VOLUME</div>
+                        <div className="font-semibold tabular-nums text-[13px]">
+                          {formatMarketValue(selectedCoin.total_volume)}
+                        </div>
+                      </div>
+
+                      {(selectedCoin.liquidity ?? 0) > 0 && (
+                        <div
+                          className="col-span-2 rounded-xl bg-cyan-500/[0.05] border border-cyan-500/20 px-3 py-2 flex items-center justify-between"
+                          title={`Total USD liquidity in the deepest pool${selectedCoin.dexSource ? ` on ${selectedCoin.dexSource}` : ''}`}
+                        >
+                          <div>
+                            <div className="text-[9px] text-[#67f6ff]/80 tracking-[0.8px] mb-0.5">DEX LIQUIDITY</div>
+                            <div className="font-semibold tabular-nums text-[13px]">
+                              {formatMarketValue(selectedCoin.liquidity)}
+                            </div>
+                          </div>
+                          <span className="text-[9px] text-[#6b7280] uppercase tracking-wide">
+                            {selectedCoin.dexSource || 'dexscreener'}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* 24h Volume */}
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[#6b7280]">24h Volume</span>
-                      <span className="font-medium">
-                        {formatMarketValue(selectedCoin.total_volume)}
-                      </span>
-                    </div>
+                    <a
+                      href={`https://www.coingecko.com/en/coins/${selectedCoin.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1 text-[11px] text-[#67f6ff]/80 hover:text-[#67f6ff] transition-colors"
+                    >
+                      View on CoinGecko
+                      <ArrowUpRight className="w-3 h-3" />
+                    </a>
                   </>
                 )}
 
@@ -1316,9 +1653,9 @@ export default function App() {
                   </div>
                 )}
 
-                {activePreset === 'pulsechain' && !isWhales && (
+                {activePreset === 'pulsechain' && !isWhales && (selectedCoin.market_cap ?? 0) <= 0 && (
                   <div className="text-[10px] text-violet-400/60 pt-1">
-                    Note: Many PulseChain tokens have limited market data on CoinGecko
+                    No source publishes circulating supply for this token — FDV (total supply × price) is shown instead.
                   </div>
                 )}
               </div>
@@ -1388,17 +1725,19 @@ export default function App() {
           onClick={() => setIsMarketOpen(!isMarketOpen)}
           className={`w-full flex items-center justify-between px-3 md:px-5 py-1.5 md:py-3 text-[10px] md:text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}
         >
-          <div className="flex items-center gap-x-1.5 md:gap-x-3">
-            <span className="text-[#67f6ff] text-sm md:text-base">📋</span>
-            <span className="font-semibold tracking-[-0.3px] text-[10px] md:text-sm">Market</span>
-            <span className="text-[#6b7280] text-[9px] md:text-[10px] px-1.5 md:px-2 py-px rounded-full bg-white/5 border border-white/10 tabular-nums">
+          <div className="flex items-center gap-x-2 md:gap-x-2.5">
+            <Layers className="w-3.5 h-3.5 md:w-4 md:h-4 text-[#67f6ff]" />
+            <span className="font-semibold tracking-[-0.3px] text-[11px] md:text-sm">Market table</span>
+            <span className="text-[#9ca3af] text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-full bg-white/5 border border-white/10 tabular-nums">
               {filteredTokens.length}
             </span>
           </div>
 
-          <div className="flex items-center gap-x-1 text-[#6b7280] text-[10px]">
-            <span className="hidden sm:inline">Page {currentPage + 1}</span>
-            <span className={`transition-transform duration-200 ${isMarketOpen ? 'rotate-180' : ''}`}>▼</span>
+          <div className="flex items-center gap-x-2 text-[#6b7280] text-[10px]">
+            <span className="hidden sm:inline tabular-nums">
+              Page {currentPage + 1} / {totalPages}
+            </span>
+            <span className={`transition-transform duration-200 inline-block ${isMarketOpen ? 'rotate-180' : ''}`}>▼</span>
           </div>
         </button>
       </div>
@@ -1473,9 +1812,13 @@ export default function App() {
           {/* Minimal Privacy link for app stores - only mobile drawer */}
           {isMobile && (
             <div className="px-4 pb-2 text-[10px] text-[#6b7280]">
-              <a href="#" onClick={() => alert('Privacy Policy: We do not store personal data. Prices are fetched from CoinGecko.')} className="underline">
+              {/* Was an <a href="#">, which jumped the page to the top on tap. */}
+              <button
+                onClick={() => alert('Privacy Policy: We do not store personal data. Prices are fetched from CoinGecko.')}
+                className="underline underline-offset-2 active:text-white"
+              >
                 Privacy Policy
-              </a>
+              </button>
             </div>
           )}
 
@@ -1531,71 +1874,102 @@ export default function App() {
               })}
             </div>
 
-            <table className="w-full text-xs">
+            <table className="w-full text-xs market-table">
               <thead>
-                <tr className="text-[#6b7280] border-b border-[#25252f] sticky top-0 bg-[#0a0a12]">
-                  <th className="text-left pb-2 font-normal">Coin</th>
-                  <th className="text-right pb-2 font-normal">Price</th>
-                  <th className="text-right pb-2 font-normal">24h %</th>
-                  <th className="text-right pb-2 font-normal hidden md:table-cell">Volume</th>
-                  <th className="text-center pb-2 font-normal w-10">★</th>
+                <tr className="sticky top-0 z-10 bg-[#0a0a12]">
+                  <th className="text-left w-8">#</th>
+                  <th className="text-left">Coin</th>
+                  <th className="text-right">Price</th>
+                  <th className="text-right w-20">24h</th>
+                  <th className="text-right hidden lg:table-cell">Volume</th>
+                  <th className="text-right hidden md:table-cell">Valuation</th>
+                  <th className="text-center w-10" aria-label="Favorite" />
                 </tr>
               </thead>
               <tbody>
-                {currentPageTokens.map(coin => {
+                {currentPageTokens.map((coin, idx) => {
                   const chain = getBlockchain(coin);
                   const isPulseChain = chain === 'PulseChain';
+                  const change = coin.price_change_percentage_24h || 0;
+                  const val = valuationFor(coin);
 
                   return (
-                    <tr 
-                      key={coin.id} 
+                    <tr
+                      key={coin.id}
                       onClick={() => handleSelect(coin.id)}
-                      className={`market-row cursor-pointer border-b border-white/5 last:border-none ${selectedId === coin.id ? 'selected bg-white/5' : ''}`}
+                      className={`market-row group/row cursor-pointer ${selectedId === coin.id ? 'selected' : ''}`}
                     >
-                      <td className="py-2.5 font-medium text-white/90">
-                        <div className="flex items-center gap-1.5">
-                          {coin.image && (
-                            <img 
-                              src={coin.image} 
-                              alt="" 
-                              className="w-5 h-5 rounded-full flex-shrink-0" 
-                            />
+                      <td className="text-[10px] tabular-nums text-[#6b7280]">
+                        {isLastPageForTokens ? MAIN_SECTION_SIZE + idx + 1 : currentPage * PAGE_SIZE + idx + 1}
+                      </td>
+
+                      {/* Symbol + name stacked, with the chain badge and the outbound link
+                          pushed out of the way instead of all four crammed onto one line. */}
+                      <td>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {coin.image ? (
+                            <img src={coin.image} alt="" loading="lazy" className="w-6 h-6 rounded-full flex-shrink-0 ring-1 ring-white/10" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full flex-shrink-0 bg-white/5 ring-1 ring-white/10" />
                           )}
-                          <span>{coin.symbol}</span>
-                          <span className={`text-[7px] px-1 py-px rounded font-medium ${isPulseChain ? 'bg-violet-500/20 text-violet-300' : 'bg-white/10 text-[#9ca3af]'}`}>
-                            {chain}
-                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-white/90 uppercase">{coin.symbol}</span>
+                              {/* Skipped when it just repeats the coin name, e.g. BTC / "Bitcoin" / "Bitcoin" */}
+                              {chain.toLowerCase() !== coin.name.toLowerCase() && (
+                                <span className={`text-[8px] px-1.5 py-px rounded font-medium ${isPulseChain ? 'bg-violet-500/20 text-violet-300' : 'bg-white/[0.07] text-[#8b93a1]'}`}>
+                                  {chain}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-[#6b7280] truncate max-w-[180px]">{coin.name}</div>
+                          </div>
                           <a
                             href={`https://www.coingecko.com/en/coins/${coin.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[7px] rounded bg-[#67f6ff]/10 hover:bg-[#67f6ff]/20 text-[#67f6ff] font-medium"
+                            className="ml-1 text-[#6b7280] hover:text-[#67f6ff] opacity-0 group-hover/row:opacity-100 transition-opacity"
                             title="View on CoinGecko"
+                            aria-label="View on CoinGecko"
                           >
-                            View
-                            <span className="text-[9px]">↗</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
                           </a>
                         </div>
                       </td>
-                      <td className="py-2.5 text-right font-medium tabular-nums text-white/90">
+
+                      <td className="text-right font-semibold tabular-nums text-white/90">
                         {formatPrice(coin.current_price)}
                       </td>
-                      <td className={`py-2.5 text-right font-medium ${(coin.price_change_percentage_24h||0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {(coin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(coin.price_change_percentage_24h || 0).toFixed(1)}%
+
+                      <td className="text-right">
+                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-[11px] font-semibold tabular-nums ${
+                          change >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'
+                        }`}>
+                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                        </span>
                       </td>
-                      <td className="py-2.5 text-right hidden md:table-cell text-[#9ca3af] tabular-nums">
+
+                      <td className="text-right hidden lg:table-cell text-[#9ca3af] tabular-nums">
                         {formatMarketValue(coin.total_volume)}
                       </td>
-                      <td className="py-2.5 text-center">
+
+                      <td className={`text-right hidden md:table-cell tabular-nums ${val.tone}`}>
+                        {val.label && <span className="mr-1 text-[9px] opacity-70">{val.label}</span>}
+                        {val.value}
+                      </td>
+                      <td className="text-center">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             toggleFavorite(coin.id)
                           }}
-                          className="text-xl leading-none active:scale-90"
+                          className="text-lg leading-none transition-transform hover:scale-110 active:scale-90"
+                          aria-label={favorites.includes(coin.id) ? 'Remove from favorites' : 'Add to favorites'}
                         >
-                          {favorites.includes(coin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/40">☆</span>}
+                          {favorites.includes(coin.id)
+                            ? <span className="text-amber-400">★</span>
+                            : <span className="text-white/25 hover:text-white/60">☆</span>}
                         </button>
                       </td>
                     </tr>
@@ -1616,26 +1990,41 @@ export default function App() {
         </div>
       )}
 
-      {/* Error / Loading */}
+      {/* Error toast — was `absolute` inside a non-positioned flex root, so it anchored
+          unpredictably. `fixed` puts it where it's meant to be. */}
       {error && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-4 py-1.5 rounded-2xl">
-          Price data issue — using cached values
+        <div className="fade-in fixed bottom-16 left-1/2 -translate-x-1/2 z-[75] flex items-center gap-2 bg-red-500/12 backdrop-blur-md border border-red-500/30 text-red-300 text-xs px-4 py-2 rounded-2xl shadow-lg">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+          Price feed issue — showing cached values
         </div>
       )}
+
       {isLoading && tokens.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a12]/80 text-sm">
-          Loading coins from CoinGecko...
+        <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center gap-5 bg-[#0a0a12]">
+          <img
+            src="/cryptodust-logo.png"
+            alt=""
+            className="w-14 h-14 object-contain drop-shadow-[0_0_16px_rgba(251,191,36,0.35)]"
+          />
+          <div className="flex items-baseline gap-1">
+            <span className="font-semibold tracking-[-1px] text-[22px]">Crypto</span>
+            <span className="font-semibold tracking-[-1px] text-[22px] text-orange-400">DUST</span>
+          </div>
+          <div className="w-36 h-0.5 rounded-full bg-white/10 overflow-hidden">
+            <div className="skeleton h-full w-full rounded-full" />
+          </div>
+          <div className="text-[11px] text-[#6b7280] tracking-wide">Loading market data…</div>
         </div>
       )}
 
       {/* RampNow Buy Modal - Correctly placed inside root container */}
       {showRampModal && selectedCoin && (
         <div 
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" 
+          className="fade-in fixed inset-0 z-[80] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
           onClick={() => setShowRampModal(false)}
         >
-          <div 
-            className="w-full max-w-md rounded-3xl border border-[#25252f] bg-[#111118] overflow-hidden"
+          <div
+            className="panel-accent pop-in w-full max-w-md rounded-3xl overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             <div className="px-6 pt-6 pb-4">
@@ -1693,11 +2082,11 @@ export default function App() {
       {/* Donate Modal - Ethereum support for the project */}
       {showDonateModal && (
         <div 
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" 
+          className="fade-in fixed inset-0 z-[80] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
           onClick={() => setShowDonateModal(false)}
         >
-          <div 
-            className="w-full max-w-md rounded-3xl border border-[#25252f] bg-[#111118] overflow-hidden"
+          <div
+            className="panel-accent pop-in w-full max-w-md rounded-3xl overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             <div className="px-6 pt-6 pb-5">
@@ -1720,32 +2109,26 @@ export default function App() {
 
               <div className="bg-[#0a0a12] rounded-2xl p-4 mb-4 border border-white/10">
                 <div className="text-xs text-[#6b7280] mb-1.5">Ethereum Address</div>
-                <div className="font-mono text-sm break-all text-white tracking-tight">
-                  0x38be95f628ed004a000ddf8724142a95e3c4b492
+                <div className="font-mono text-sm break-all text-white tracking-tight select-all">
+                  {DONATION_ADDRESS}
                 </div>
               </div>
 
+              {/* Was mutating the button's innerText directly (fights React) and fell back
+                  to alert(). Now it's plain state. */}
               <button
-                onClick={async (e) => {
+                onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText("0x38be95f628ed004a000ddf8724142a95e3c4b492")
-                    
-                    const btn = e.currentTarget as HTMLButtonElement
-                    const originalText = btn.innerText
-                    btn.innerText = "✓ Copied!"
-                    setTimeout(() => {
-                      if (btn && btn.innerText === "✓ Copied!") {
-                        btn.innerText = originalText
-                      }
-                    }, 2000)
+                    await navigator.clipboard.writeText(DONATION_ADDRESS)
+                    setCopiedAddress(true)
+                    setTimeout(() => setCopiedAddress(false), 2000)
                   } catch {
-                    // Fallback: show the address
-                    alert("0x38be95f628ed004a000ddf8724142a95e3c4b492")
+                    /* clipboard blocked — the address above is selectable */
                   }
                 }}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-semibold text-base active:scale-[0.985] transition-all"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-semibold text-base active:scale-[0.985] transition-all flex items-center justify-center gap-2"
               >
-                Copy Ethereum Address
+                {copiedAddress ? <><Check className="w-4 h-4" /> Copied!</> : 'Copy Ethereum Address'}
               </button>
 
               <p className="text-center text-[11px] text-[#6b7280] mt-3">

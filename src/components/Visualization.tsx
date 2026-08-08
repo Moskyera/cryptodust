@@ -24,7 +24,7 @@ interface VisualizationProps {
   onSelect?: (id: string | null) => void
   favorites?: string[]
   highlightUntil?: number
-  sizeMetric?: 'market_cap' | 'volume' | 'price' | 'change_24h'
+  sizeMetric?: 'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity'
   topLabel?: 'price' | 'change_24h'
   paused?: boolean
   onTogglePaused?: () => void
@@ -137,6 +137,10 @@ export function Visualization({
 
     if (sizeMetric === 'volume') {
       base = 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10
+    } else if (sizeMetric === 'liquidity') {
+      // DEX pool depth. Scaled around $100k rather than $100M because PulseChain
+      // liquidity lives three orders of magnitude below the majors' market caps.
+      base = 28 + Math.log10(Math.max(1, coin.liquidity || 1e5) / 1e5) * 11
     } else if (sizeMetric === 'price') {
       base = 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
     } else if (sizeMetric === 'change_24h') {
@@ -756,8 +760,10 @@ export function Visualization({
       pausedTimeRef.current = 0
     }
 
-    ctx.fillStyle = '#0a0a12'
-    ctx.fillRect(0, 0, w, h)
+    // Transparent clear instead of an opaque fill: the space backdrop (nebula +
+    // starfield) is CSS behind the canvas, so planets float over it. Exports
+    // re-composite onto #0a0a12 in App.tsx since PNGs need the dark background.
+    ctx.clearRect(0, 0, w, h)
 
     // ==================== DRAW EVERYTHING ====================
     bubbles.forEach((b) => {
@@ -1787,45 +1793,51 @@ export function Visualization({
       />
       {/* Floating labels removed — text is now rendered inside the planets via canvas */}
 
-      <div 
-        className="absolute left-3 md:left-4 hud px-3 py-1.5 md:px-4 md:py-2 rounded-2xl text-[10px] md:text-xs flex items-center gap-x-2 md:gap-x-4 z-30"
+      <div
+        className="absolute left-3 md:left-4 hud px-3 py-1.5 md:px-3.5 md:py-2 rounded-2xl text-[10px] md:text-[11px] flex items-center gap-x-2.5 md:gap-x-3 z-30"
         style={{ top: `${Math.max(12, topOffset + 6)}px` }}
       >
-        <div>Visible: <span className="font-semibold tabular-nums">{tokens.length}</span></div>
-        <div className="w-px h-3 bg-white/20 hidden md:block" />
-        <div 
-          onClick={onTogglePaused}
-          className={`cursor-pointer transition-colors ${paused ? 'text-red-400 hover:text-red-300' : 'text-emerald-400 hover:text-emerald-300'}`}
-          title="Click to pause or resume physics"
-        >
-          {paused ? '▶ Resume' : '⏸ Pause'}
+        <div className="text-white/70">
+          Visible <span className="font-semibold tabular-nums text-white ml-0.5">{tokens.length}</span>
         </div>
-        <div className="text-[#6b7280] hidden md:block">•</div>
-        <div className="text-white/70 hidden md:block text-[10px]">Drag to fling • Arrows / Space / H / F / ESC</div>
+
+        <div className="w-px h-3 bg-white/15" />
+
+        <button
+          onClick={onTogglePaused}
+          className={`flex items-center gap-1 transition-colors ${
+            paused ? 'text-red-400 hover:text-red-300' : 'text-emerald-400 hover:text-emerald-300'
+          }`}
+          title="Pause or resume the physics simulation (Space)"
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${paused ? 'bg-red-400' : 'bg-emerald-400'}`} />
+          {paused ? 'Paused' : 'Live'}
+        </button>
+
+        <div className="w-px h-3 bg-white/15 hidden lg:block" />
+
+        <div className="text-white/45 hidden lg:flex items-center gap-1.5">
+          Drag to fling
+          <span className="text-white/20">·</span>
+          <span className="kbd">←→</span>
+          <span className="kbd">Space</span>
+          <span className="kbd">H</span>
+          <span className="kbd">F</span>
+          <span className="kbd">Esc</span>
+        </div>
       </div>
 
       {tokens.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center text-[#6b7280] text-sm z-10">
-          Loading coins from CoinGecko...
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-[#6b7280] text-sm z-10">
+          <div className="w-28 h-0.5 rounded-full bg-white/10 overflow-hidden">
+            <div className="skeleton h-full w-full rounded-full" />
+          </div>
+          Loading coins from CoinGecko…
         </div>
       )}
 
-      {selectedId && (
-        <div className="absolute bottom-3 right-3 md:bottom-4 md:right-4 bg-[#111118] border border-[#25252f] rounded-2xl p-3 md:p-4 text-sm z-30 w-56 md:w-72">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-xs md:text-sm">Selected</div>
-              <div className="font-medium">{tokens.find(t => t.id === selectedId)?.symbol}</div>
-            </div>
-            <button 
-              onClick={() => setSelectedId(null)}
-              className="text-[10px] md:text-xs px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[#6b7280] hover:text-white"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
+      {/* The old bottom-right "Selected" box duplicated the Details panel that App
+          already renders for the same selection, so it's gone. */}
     </div>
   )
 }

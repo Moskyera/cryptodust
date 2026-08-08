@@ -2,14 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =====================================================
+   CryptoDUST — Design tokens
+   Same dark cyberpunk philosophy, just consistent.
+   ===================================================== */
 :root {
   --bg: #0a0a12;
+  --bg-elev: #0f0f17;
   --panel: #111118;
+  --panel-2: #14141d;
   --border: #25252f;
+  --border-soft: rgba(255, 255, 255, 0.08);
+
+  --text: #f4f5f9;
+  --text-dim: #9ca3af;
+  --text-mute: #6b7280;
+
+  --accent: #67f6ff;
+  --accent-soft: rgba(103, 246, 255, 0.14);
+  --violet: #a78bfa;
+  --brand: #fb923c;
+  --up: #4ade80;
+  --down: #f87171;
+
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html, body, #root {
-  background-color: #0a0a12;
+  background-color: var(--bg);
   margin: 0;
   padding: 0;
   height: 100%;
@@ -17,16 +42,123 @@ html, body, #root {
 }
 
 body {
-  font-family: 'Inter', system_ui, sans-serif;
+  /* NOTE: was 'system_ui' (invalid — underscore), so the whole stack fell back to
+     the generic sans-serif. This is the single biggest visual fix in the app. */
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI Variable Text',
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'tnum';
 }
 
-/* Full-screen immersive canvas container — now correctly fills only the available visualization area */
+::selection {
+  background: rgba(103, 246, 255, 0.28);
+  color: #fff;
+}
+
+/* Keyboard accessibility — the app is keyboard driven (arrows / space / H / F / ESC)
+   but had no visible focus at all. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* =====================================================
+   Space backdrop — the atmosphere layer behind everything.
+   The canvas clears to transparent, so this shows through under the planets;
+   on mobile it sits behind the list. position:fixed keeps it composited
+   (no repaint on scroll), and the twinkle animates opacity only (GPU-cheap).
+   ===================================================== */
+.app-shell {
+  isolation: isolate;
+  background: transparent;
+}
+
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 700px at 18% -12%, rgba(167, 139, 250, 0.16), transparent 62%),
+    radial-gradient(1300px 800px at 88% 112%, rgba(103, 246, 255, 0.12), transparent 60%),
+    radial-gradient(800px 500px at 78% -8%, rgba(251, 146, 60, 0.07), transparent 55%),
+    radial-gradient(1000px 900px at 50% 50%, #0e0e19, var(--bg) 75%);
+}
+
+/* Two repeating star tiles at prime-ish sizes so the repetition never lines up.
+   Layer one: fine dust. Layer two: fewer, brighter, slightly cyan stars. */
+.app-backdrop::before,
+.app-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.app-backdrop::before {
+  background-image:
+    radial-gradient(1.5px 1.5px at 21px 33px, rgba(255, 255, 255, 0.95), transparent 55%),
+    radial-gradient(1px 1px at 97px 141px, rgba(255, 255, 255, 0.7), transparent 55%),
+    radial-gradient(1.5px 1.5px at 163px 67px, rgba(255, 255, 255, 0.8), transparent 55%),
+    radial-gradient(1px 1px at 41px 199px, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(1px 1px at 219px 173px, rgba(255, 255, 255, 0.7), transparent 55%),
+    radial-gradient(1px 1px at 131px 241px, rgba(255, 255, 255, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 251px 89px, rgba(255, 255, 255, 0.6), transparent 55%),
+    radial-gradient(1px 1px at 71px 107px, rgba(255, 255, 255, 0.45), transparent 55%);
+  background-size: 271px 263px;
+  animation: twinkleA 9s ease-in-out infinite alternate;
+}
+
+.app-backdrop::after {
+  background-image:
+    radial-gradient(2px 2px at 53px 61px, rgba(214, 249, 255, 1), transparent 55%),
+    radial-gradient(2.5px 2.5px at 197px 167px, rgba(255, 255, 255, 0.9), transparent 55%),
+    radial-gradient(2px 2px at 313px 101px, rgba(196, 181, 253, 0.85), transparent 55%),
+    radial-gradient(2px 2px at 109px 277px, rgba(214, 249, 255, 0.75), transparent 55%),
+    radial-gradient(2.5px 2.5px at 353px 311px, rgba(255, 255, 255, 0.65), transparent 55%),
+    radial-gradient(2px 2px at 269px 233px, rgba(253, 224, 71, 0.6), transparent 55%);
+  background-size: 431px 397px;
+  animation: twinkleB 13s ease-in-out infinite alternate;
+}
+
+@keyframes twinkleA {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+@keyframes twinkleB {
+  from { opacity: 0.9; }
+  to { opacity: 0.4; }
+}
+
+/* Full-screen immersive canvas container — transparent so the backdrop shows */
 .viz-container {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #0a0a12;
+  background: transparent;
   overflow: hidden;
+}
+
+/* Depth: the toolbar band used to butt straight into the canvas with only a 1px
+   border. A soft inner shadow at the top plus a corner vignette makes the chrome
+   read as sitting above the scene. Pointer-events off so dragging planets still works. */
+.viz-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  box-shadow:
+    inset 0 14px 24px -14px rgb(0 0 0 / 0.9),
+    inset 0 0 140px -70px rgb(0 0 0 / 0.55);
 }
 
 canvas {
@@ -35,149 +167,461 @@ canvas {
   height: 100%;
 }
 
-/* Beautiful DOM bubble labels - no ugly white boxes */
-.bubble-label {
-  position: absolute;
-  pointer-events: none;
-  z-index: 20;
-  transform: translate(-50%, 0);
-  background: rgba(15, 15, 22, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 4px 10px 5px;
-  box-shadow: 0 8px 20px -6px rgb(0 0 0 / 0.65),
-              0 0 0 1px rgba(255,255,255,0.025) inset;
-  backdrop-filter: blur(10px);
-  min-width: 58px;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.bubble-label .symbol {
-  color: #fde047;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9), 0 0 8px rgb(234 179 8 / 0.32);
-  font-size: 13px;
-  line-height: 1;
-}
-
-.bubble-label .price {
-  color: #f1f5f9;
-  font-weight: 600;
-  text-shadow: 0 1px 2.5px rgb(0 0 0 / 0.85);
-  font-size: 10.5px;
-}
-
-.bubble-label .change {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.bubble-label .change-up {
-  color: #4ade80;
-  text-shadow: 0 0 6px rgb(74 222 128 / 0.4);
-}
-
-.bubble-label .change-down {
-  color: #f87171;
-  text-shadow: 0 0 6px rgb(248 113 113 / 0.4);
-}
-
-/* HUD elements */
+/* =====================================================
+   Surfaces
+   ===================================================== */
 .hud {
-  background: rgba(17, 17, 24, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(15, 15, 23, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 8px 26px -14px rgb(0 0 0 / 0.9);
 }
 
-/* Premium UI enhancements */
+.panel {
+  background: linear-gradient(180deg, rgba(23, 23, 33, 0.96), rgba(15, 15, 23, 0.96));
+  border: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 24px 60px -20px rgb(0 0 0 / 0.85),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
 .stat-card {
-  background: rgba(17, 17, 24, 0.6);
-  border: 1px solid rgba(255,255,255,0.06);
-  transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+  position: relative;
+  background: linear-gradient(180deg, rgba(23, 23, 33, 0.7), rgba(15, 15, 23, 0.55));
+  border: 1px solid var(--border-soft);
+  transition: transform 0.22s var(--ease), border-color 0.22s var(--ease),
+    background-color 0.22s var(--ease);
+  overflow: hidden;
+}
+
+/* Hairline highlight along the top edge — cheap way to make cards read as glass */
+.stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
 }
 
 .stat-card:hover {
-  background: rgba(17, 17, 24, 0.8);
-  border-color: rgba(255,255,255,0.12);
-  transform: translateY(-1px);
-}
-
-.filter-chip {
-  transition: all 0.15s cubic-bezier(0.23, 1, 0.32, 1);
-  font-weight: 500;
-}
-
-.filter-chip.active {
-  box-shadow: 0 0 0 1px #67f6ff;
-  transform: scale(1.02);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .control-group {
-  background: #0b0b12;
-  border: 1px solid #25252f;
-  transition: border-color 0.2s ease;
+  background: rgba(11, 11, 18, 0.9);
+  border: 1px solid var(--border);
+  transition: border-color 0.2s var(--ease);
 }
 
 .control-group:hover {
-  border-color: #3f3f4a;
+  border-color: #3a3a46;
 }
 
+/* =====================================================
+   Toolbar primitives.
+   The controls band used to mix py-1 / py-1.5 / py-2 with rounded-2xl and
+   rounded-3xl, so nothing lined up. Everything in the band is 34px tall now.
+   ===================================================== */
+.ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.15s var(--ease), color 0.15s var(--ease),
+    border-color 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+.ctl:active {
+  transform: scale(0.98);
+}
+
+/* Segmented control */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 14px;
+  background: rgba(8, 8, 13, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.seg-label {
+  padding: 0 9px 0 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  user-select: none;
+}
+
+.seg-item {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.62);
+  white-space: nowrap;
+  transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.seg-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.seg-item-on,
+.seg-item-on:hover {
+  background: #fff;
+  color: #000;
+  font-weight: 600;
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.4),
+    0 0 14px -3px rgba(103, 246, 255, 0.5);
+}
+
+/* Active filter chips get the same cool halo so "on" reads instantly */
+.filter-chip.bg-white {
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.4),
+    0 0 16px -4px rgba(103, 246, 255, 0.45);
+}
+
+/* =====================================================
+   Interactive bits
+   ===================================================== */
 .premium-button {
-  transition: all 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease),
+    background-color 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 
 .premium-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3);
+  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.55);
 }
 
 .premium-button:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.985);
 }
 
-/* Table polish inside the new Market Drawer */
+.filter-chip {
+  transition: transform 0.15s var(--ease), background-color 0.15s var(--ease),
+    color 0.15s var(--ease), border-color 0.15s var(--ease);
+  font-weight: 500;
+}
+
+.filter-chip:active {
+  transform: scale(0.97);
+}
+
+/* =====================================================
+   Brand + chrome accents
+   ===================================================== */
+/* "DUST" — molten gradient with a soft ember glow */
+.wordmark-dust {
+  background: linear-gradient(115deg, #fdba74 0%, #fb923c 38%, #f59e0b 70%, #fbbf24 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 12px rgba(251, 146, 60, 0.35));
+}
+
+/* Nav bottom edge: a faint aurora line instead of a flat grey border */
+.nav-hairline {
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nav-hairline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 2%,
+    rgba(251, 146, 60, 0.35) 18%,
+    rgba(103, 246, 255, 0.4) 50%,
+    rgba(167, 139, 250, 0.35) 82%,
+    transparent 98%
+  );
+}
+
+/* Accent-bordered glass panel (details, modals): gradient border via two backgrounds */
+.panel-accent {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(23, 23, 33, 0.97), rgba(15, 15, 23, 0.97)) padding-box,
+    linear-gradient(150deg, rgba(103, 246, 255, 0.35), rgba(167, 139, 250, 0.28) 45%, rgba(255, 255, 255, 0.06)) border-box;
+  box-shadow:
+    0 24px 60px -20px rgb(0 0 0 / 0.85),
+    0 0 44px -18px rgba(103, 246, 255, 0.25);
+}
+
+/* Collapse affordance for the page-tabs bar — a grip, not a text arrow */
+.collapse-handle {
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 18px;
+  border-radius: 0 0 10px 10px;
+  background: #0f0f17;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: none;
+  transition: background-color 0.15s var(--ease);
+}
+
+.collapse-handle:hover {
+  background: #16161f;
+}
+
+.collapse-handle-down {
+  bottom: -13px;
+}
+
+.collapse-grip {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.28);
+  transition: background-color 0.15s var(--ease);
+}
+
+.collapse-handle:hover .collapse-grip {
+  background: var(--accent);
+}
+
+/* Keyboard shortcut hint badge (search field) */
+.kbd {
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 5px;
+  color: var(--text-mute);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* =====================================================
+   "Special" accent — replaces the four-colour RGB shadow stack.
+   Same intent (this thing is special, look at it), coherent palette.
+   ===================================================== */
+.glow-special {
+  border-color: rgba(167, 139, 250, 0.65) !important;
+  box-shadow:
+    0 0 0 1px rgba(167, 139, 250, 0.35),
+    0 0 14px -2px rgba(167, 139, 250, 0.55),
+    0 0 30px -6px rgba(103, 246, 255, 0.4);
+  animation: aura 3.2s ease-in-out infinite;
+}
+
+@keyframes aura {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(167, 139, 250, 0.3),
+      0 0 12px -3px rgba(167, 139, 250, 0.45),
+      0 0 26px -8px rgba(103, 246, 255, 0.32);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(167, 139, 250, 0.5),
+      0 0 20px -2px rgba(167, 139, 250, 0.7),
+      0 0 44px -6px rgba(103, 246, 255, 0.5);
+  }
+}
+
+/* Live dot */
+.live-dot {
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+  animation: livePing 2.4s var(--ease) infinite;
+}
+
+@keyframes livePing {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
+  70% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+
+/* =====================================================
+   Panels / drawer motion
+   ===================================================== */
+.market-table th {
+  padding: 0 10px 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  border-bottom: 1px solid var(--border);
+  /* The sticky header sat on a transparent row, so scrolled content showed through */
+  background: var(--bg);
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.market-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+.market-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .market-row {
-  transition: background-color 0.1s ease;
+  transition: background-color 0.12s ease;
 }
 
 .market-row:hover {
-  background-color: rgba(255,255,255,0.03);
+  background-color: rgba(255, 255, 255, 0.035);
 }
 
 .market-row.selected {
-  background-color: rgba(103, 246, 255, 0.08);
-  border-left: 2px solid #67f6ff;
+  background-color: var(--accent-soft);
 }
 
-/* Beautiful slide-up Market Drawer */
+/* Selection marker on the first cell only — box-shadow on a <tr> is not painted
+   consistently across browsers, which is why the old inset bar never showed. */
+.market-row.selected td:first-child {
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
+
 .market-drawer {
-  box-shadow: 0 -20px 60px -15px rgb(0 0 0 / 0.6);
+  box-shadow: 0 -24px 70px -18px rgb(0 0 0 / 0.75);
+  animation: slideUp 0.26s var(--ease);
 }
 
-/* Nice scrollbar for the drawer table area */
+@keyframes slideUp {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.sheet-in {
+  animation: sheetIn 0.24s var(--ease);
+}
+
+@keyframes sheetIn {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.pop-in {
+  animation: popIn 0.18s var(--ease);
+}
+
+@keyframes popIn {
+  from { transform: translateY(-6px) scale(0.985); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Loading shimmer */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.09) 37%,
+    rgba(255, 255, 255, 0.04) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+/* =====================================================
+   Scrollbars
+   ===================================================== */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.03);
+  background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.15);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.28);
+  background: rgba(103, 246, 255, 0.45);
+  background-clip: content-box;
 }
 
-/* Hide scrollbar but keep functionality (used for mobile quick filters) */
+/* Mobile list rows: a coloured leading edge tied to the 24h direction.
+   Inset shadows follow the border-radius, so the rounded corners stay clean. */
+.row-edge-up {
+  box-shadow: inset 3px 0 0 0 rgba(74, 222, 128, 0.55);
+}
+
+.row-edge-down {
+  box-shadow: inset 3px 0 0 0 rgba(248, 113, 113, 0.5);
+}
+
+/* Hide scrollbar but keep functionality (mobile quick filters / tabs) */
 .hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;     /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 .hide-scrollbar::-webkit-scrollbar {
-  display: none;             /* Chrome, Safari, Opera */
+  display: none;
+}
+
+/* Edge fade for horizontally scrolling chip rows */
+.scroll-fade-x {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 18px), transparent 100%);
+}
+
+/* Respect users who don't want motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

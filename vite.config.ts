@@ -29,6 +29,19 @@ export default defineConfig({
             },
           },
           {
+            // Google Fonts (Inter) — keep the app looking right offline
+            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // Cache images (coin logos)
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif)$/i,
             handler: 'CacheFirst',

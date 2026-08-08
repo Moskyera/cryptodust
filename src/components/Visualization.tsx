@@ -36,6 +36,22 @@ interface VisualizationProps {
   marketTableOpen?: boolean  // desktop: pause canvas while market table overlay is open
 }
 
+// Canvas logos must load CORS-clean or they taint the canvas and break the
+// Export PNG / Copy features. CoinGecko's image CDN sends CORS headers only on
+// requests that carry an Origin (Vary: Origin behind Cloudflare), and the same
+// URLs are fetched as plain <img> by the list views — so the no-CORS variant
+// poisons caches and the canvas's crossOrigin load randomly fails, which is why
+// many PulseChain logos rendered as blank tinted spheres. In production every
+// canvas logo therefore loads through our same-origin /api/img proxy.
+const PROXY_CANVAS_IMAGES = import.meta.env.PROD
+
+function canvasLogoSrc(url: string): string {
+  if (PROXY_CANVAS_IMAGES && url.startsWith('https://')) {
+    return `/api/img?url=${encodeURIComponent(url)}`
+  }
+  return url
+}
+
 const DESKTOP_FPS_IDLE_MS = 1000 / 30
 const DESKTOP_FPS_ACTIVE_MS = 1000 / 60
 const COLLISION_CELL_SIZE = 120
@@ -976,8 +992,13 @@ export function Visualization({
       // Kick off the logo download once; the sprite upgrades on a later frame
       if (!logoReady && coin.image && !imageCache.current.has(coin.id)) {
         const newImg = new Image()
-        newImg.crossOrigin = 'anonymous'
-        newImg.src = coin.image
+        const src = canvasLogoSrc(coin.image)
+        // The proxy is same-origin, so no crossOrigin needed (and none of its
+        // cache pitfalls). Direct CDN loads (dev) still need the CORS request.
+        if (src === coin.image && src.startsWith('https://')) {
+          newImg.crossOrigin = 'anonymous'
+        }
+        newImg.src = src
         imageCache.current.set(coin.id, newImg)
       }
 

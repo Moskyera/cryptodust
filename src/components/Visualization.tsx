@@ -177,6 +177,80 @@ export function Visualization({
   const animationRef = useRef<number>()
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
 
+  // =====================================================
+  // Pre-composed "logo IS the planet" sprites.
+  // Each coin renders once into an offscreen canvas: dark backing disc,
+  // full-bleed logo, sphere shading (top-left light / bottom-right limb) and a
+  // specular glint. The frame loop then does a single drawImage per planet —
+  // cheaper than the old per-frame logo scaling with shadows, and it is what
+  // makes the art read as a 3D ball instead of a sticker on a disc.
+  // =====================================================
+  const spriteCache = useRef<Map<string, HTMLCanvasElement>>(new Map())
+  const SPRITE_D = 192 // hi-res master, downscaled at draw time (max planet Ø is 170px)
+
+  const getPlanetSprite = (
+    id: string,
+    img: HTMLImageElement | null,
+    isGainer: boolean
+  ): HTMLCanvasElement | null => {
+    // Logo sprites are per coin. Logo-less planets (image still loading, or the
+    // CDN blocked it via CORS) share just two tinted spheres — dark green for
+    // gainers, dark red for losers — so the 24h colour signal survives even
+    // when the artwork never arrives.
+    const key = img ? `${id}:logo` : (isGainer ? 'plain:up' : 'plain:down')
+    const cached = spriteCache.current.get(key)
+    if (cached) return cached
+
+    const c = document.createElement('canvas')
+    c.width = SPRITE_D
+    c.height = SPRITE_D
+    const sctx = c.getContext('2d')
+    if (!sctx) return null
+
+    const d = SPRITE_D
+    sctx.beginPath()
+    sctx.arc(d / 2, d / 2, d / 2, 0, Math.PI * 2)
+    sctx.clip()
+
+    // Dark neutral body: invisible under opaque square art, and a clean
+    // "dark planet" base under transparent, irregularly-shaped logos.
+    sctx.fillStyle = '#14141d'
+    sctx.fillRect(0, 0, d, d)
+
+    if (img) {
+      // Cover-fit. CoinGecko serves square canvases, so this fills the disc
+      // edge-to-edge without cropping the artwork.
+      const scale = Math.max(d / img.width, d / img.height)
+      const w = img.width * scale
+      const h = img.height * scale
+      sctx.drawImage(img, (d - w) / 2, (d - h) / 2, w, h)
+    } else {
+      // No artwork: tint the body with the move direction
+      sctx.fillStyle = isGainer ? 'rgba(34, 197, 94, 0.30)' : 'rgba(244, 63, 94, 0.28)'
+      sctx.fillRect(0, 0, d, d)
+    }
+
+    // Sphere shading — one gradient does highlight and limb darkening,
+    // wrapping whatever is underneath around the ball.
+    const shade = sctx.createRadialGradient(d * 0.36, d * 0.32, d * 0.10, d * 0.5, d * 0.5, d * 0.72)
+    shade.addColorStop(0, 'rgba(255,255,255,0.16)')
+    shade.addColorStop(0.38, 'rgba(255,255,255,0.02)')
+    shade.addColorStop(0.72, 'rgba(0,0,0,0.18)')
+    shade.addColorStop(1, 'rgba(0,0,0,0.48)')
+    sctx.fillStyle = shade
+    sctx.fillRect(0, 0, d, d)
+
+    // Specular glint top-left
+    const spec = sctx.createRadialGradient(d * 0.32, d * 0.26, 0, d * 0.32, d * 0.26, d * 0.2)
+    spec.addColorStop(0, 'rgba(255,255,255,0.32)')
+    spec.addColorStop(1, 'rgba(255,255,255,0)')
+    sctx.fillStyle = spec
+    sctx.fillRect(0, 0, d, d)
+
+    spriteCache.current.set(key, c)
+    return c
+  }
+
   // Drag-to-fling state (for smooth grab & throw interaction)
   const draggingIdRef = useRef<string | null>(null)
   const mouseRef = useRef({ x: 0, y: 0 })
@@ -873,7 +947,8 @@ export function Visualization({
         ctx.fill()
       }
 
-      // Solid planet disk
+      // The logo IS the planet: one pre-composed sphere sprite per coin
+      // (backing disc + full-bleed logo + sphere shading + specular).
       let drawRadius = r;
       let alpha = simplifyForDrag ? 0.85 : 0.95;
 
@@ -883,11 +958,50 @@ export function Visualization({
         alpha = 1.0;
       }
 
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = baseColor
+      const logoImg = imageCache.current.get(coin.id)
+      const logoReady = !!(logoImg && logoImg.complete && logoImg.naturalWidth > 0)
+      const sprite = getPlanetSprite(coin.id, logoReady ? logoImg! : null, isGainer)
+
+      ctx.globalAlpha = alpha
+      if (sprite) {
+        ctx.drawImage(sprite, x - drawRadius, y - drawRadius, drawRadius * 2, drawRadius * 2)
+      } else {
+        // No 2D context for sprite building (should never happen) — flat disc fallback
+        ctx.fillStyle = baseColor
+        ctx.beginPath()
+        ctx.arc(x, y, drawRadius, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      // Kick off the logo download once; the sprite upgrades on a later frame
+      if (!logoReady && coin.image && !imageCache.current.has(coin.id)) {
+        const newImg = new Image()
+        newImg.crossOrigin = 'anonymous'
+        newImg.src = coin.image
+        imageCache.current.set(coin.id, newImg)
+      }
+
+      // The 24h% signal used to be the disc colour; it now lives on the rim.
+      // Brightness and thickness scale with the size of the move, so a +40%
+      // planet visibly burns while a +1% barely glows.
+      const rimAlpha = Math.min(0.95, 0.4 + absChange / 18)
+      const rimW = Math.max(1.5, Math.min(4, 1.5 + absChange / 12))
+      ctx.globalAlpha = rimAlpha
+      ctx.strokeStyle = baseColor
+      ctx.lineWidth = rimW
       ctx.beginPath()
-      ctx.arc(x, y, drawRadius, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.arc(x, y, drawRadius - rimW / 2 + 0.5, 0, Math.PI * 2)
+      ctx.stroke()
+
+      // Soft outer haze doubling the rim — quality planets only
+      if (!simplifyForDrag && drawQuality >= 1) {
+        ctx.globalAlpha = rimAlpha * 0.28
+        ctx.lineWidth = rimW * 2.4
+        ctx.beginPath()
+        ctx.arc(x, y, drawRadius + rimW * 0.7, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      ctx.globalAlpha = 1
 
       // Extra subtle glow on mobile when planet is selected (better visual feedback)
       if (isMobile && selectedId === coin.id && !simplifyForDrag) {
@@ -896,60 +1010,7 @@ export function Visualization({
         ctx.beginPath()
         ctx.arc(x, y, drawRadius * 1.35, 0, Math.PI * 2)
         ctx.fill()
-      }
-
-      // Real coin logo — VERY LARGE (80-85% of planet interior), perfectly centered and dominant
-      if (!simplifyForDrag) {
-        const img = imageCache.current.get(coin.id)
-        if (img && img.complete && img.naturalWidth > 0) {
-          // 82-85% of planet diameter for dominant logo
-          const maxLogoDiameter = r * 1.68
-          const imgAspect = img.width / img.height
-
-          let drawW, drawH
-          if (imgAspect > 1) {
-            drawW = maxLogoDiameter
-            drawH = maxLogoDiameter / imgAspect
-          } else {
-            drawH = maxLogoDiameter
-            drawW = maxLogoDiameter * imgAspect
-          }
-
-          // Center logo to occupy 80-85% dominant, positioned to leave top space for % text
-          const logoCenterY = y + r * 0.10
-          const logoX = x - drawW / 2
-          const logoY = logoCenterY - drawH / 2
-
-          ctx.save()
-          ctx.globalAlpha = 0.96
-
-          const allowLogoShadow =
-            !effectivePerfLite &&
-            (allowPriorityEffects(coin.id) || r > 25)
-
-          if (allowLogoShadow) {
-            ctx.shadowColor = 'rgba(0,0,0,0.55)'
-            ctx.shadowBlur = 6
-            ctx.shadowOffsetX = 1
-            ctx.shadowOffsetY = 1
-          }
-
-          // Clip slightly inside the planet so logo stays dominant but contained
-          ctx.beginPath()
-          ctx.arc(x, y, r * 0.94, 0, Math.PI * 2)
-          ctx.clip()
-
-          ctx.drawImage(img, logoX, logoY, drawW, drawH)
-          ctx.restore()
-        } else if (coin.image && !imageCache.current.has(coin.id)) {
-          const newImg = new Image()
-          newImg.crossOrigin = 'anonymous'
-          newImg.src = coin.image
-          newImg.onload = () => {
-            imageCache.current.set(coin.id, newImg)
-          }
-          imageCache.current.set(coin.id, newImg)
-        }
+        ctx.globalAlpha = 1
       }
 
       // TOP label inside planet (above logo): conditional on topLabel

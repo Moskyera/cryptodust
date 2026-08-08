@@ -38,6 +38,14 @@ export interface TokenPrice {
   market_cap?: number
   total_volume?: number
   image?: string
+
+  // --- DexScreener extras, only set for PulseChain tokens (see backfillFromDexScreener) ---
+  /** Fully diluted valuation. NOT a circulating market cap — must be labelled "FDV" in the UI. */
+  fdv?: number
+  /** Total USD liquidity in the deepest DEX pair. The honest size metric for these tokens. */
+  liquidity?: number
+  /** Where fdv/liquidity came from, so the UI can attribute it. */
+  dexSource?: string
 }
 
 // ==================== COINGECKO FETCH ====================
@@ -52,6 +60,10 @@ function mapCoinGeckoCoin(coin: any): TokenPrice {
     symbol: coin.symbol.toUpperCase(),
     name: coin.name,
     current_price: coin.current_price ?? 0,
+    // CoinGecko populates fully_diluted_valuation even for the 44 PulseChain tokens
+    // whose market_cap is 0 — verified against the live category endpoint. This field
+    // costs nothing: it is already in every /coins/markets payload we fetch.
+    fdv: coin.fully_diluted_valuation ?? undefined,
     price_change_percentage_24h: change24h,
     price_change_percentage_1h:
       coin.price_change_percentage_1h ?? coin.price_change_percentage_1h_in_currency,
@@ -87,6 +99,27 @@ function mergeTokenData(existing: TokenPrice, incoming: TokenPrice): TokenPrice 
     merged.current_price = existing.current_price
   }
 
+  // market_cap / total_volume had no such guard, so a supplemental fetch that returned
+  // null for them silently wiped good values from the main list.
+  if ((incoming.market_cap == null || incoming.market_cap === 0) && (existing.market_cap ?? 0) > 0) {
+    merged.market_cap = existing.market_cap
+  }
+
+  if ((incoming.total_volume == null || incoming.total_volume === 0) && (existing.total_volume ?? 0) > 0) {
+    merged.total_volume = existing.total_volume
+  }
+
+  // Same guard for the enrichment fields — a later fetch without them must not erase
+  // what an earlier source already provided.
+  if ((incoming.fdv == null || incoming.fdv === 0) && (existing.fdv ?? 0) > 0) {
+    merged.fdv = existing.fdv
+  }
+
+  if ((incoming.liquidity == null || incoming.liquidity === 0) && (existing.liquidity ?? 0) > 0) {
+    merged.liquidity = existing.liquidity
+    merged.dexSource = existing.dexSource
+  }
+
   return merged
 }
 
@@ -101,30 +134,100 @@ async function fetchCoinGecko(
     return fetch(proxyUrl)
   }
 
-  const headers: HeadersInit = {}
   const apiKey = usePulseKey ? COINGECKO_PULSE_DEMO_KEY : COINGECKO_API_KEY
 
+  // The key goes in the query string, not the x-cg-demo-api-key header: a custom
+  // header forces a CORS preflight, and when CoinGecko rate-limits, the OPTIONS
+  // response carries no CORS headers — so dev-mode 429s surfaced as opaque
+  // "Failed to fetch" errors that no retry could distinguish or recover from.
+  // A plain GET with a query param is a "simple request" and skips preflight.
+  let finalUrl = url
   if (apiKey) {
-    headers['x-cg-demo-api-key'] = apiKey
+    finalUrl += `${url.includes('?') ? '&' : '?'}x_cg_demo_api_key=${apiKey}`
   }
 
-  return fetch(url, { headers })
+  return fetch(finalUrl)
+}
+
+// =====================================================
+// Last-good cache: a transient failure in any one source must never shrink the
+// coin list mid-session. Without this, one failed category fetch during a 5-minute
+// SWR refresh dropped the PulseChain tab from ~107 coins to ~27 until the next cycle.
+// =====================================================
+const lastGoodResults = new Map<string, TokenPrice[]>()
+
+async function withLastGood(
+  key: string,
+  fetcher: () => Promise<TokenPrice[]>
+): Promise<TokenPrice[]> {
+  const result = await fetcher()
+  if (result.length > 0) {
+    lastGoodResults.set(key, result)
+    return result
+  }
+
+  const cached = lastGoodResults.get(key)
+  if (cached?.length) {
+    console.warn(
+      `[CryptoDUST] ${key} returned nothing — reusing ${cached.length} tokens from the previous refresh.`
+    )
+    return cached
+  }
+  return result
+}
+
+/**
+ * CoinGecko's free tier throttles bursts, and the PulseChain calls run last in the
+ * sequence, so they were the ones that got 429'd. A single failure silently emptied
+ * the whole PulseChain tab (it collapsed from ~107 coins to ~26) because every
+ * catch here returns []. Retrying on 429/5xx makes the tab stable.
+ */
+async function fetchCoinGeckoWithRetry(
+  url: string,
+  options: { usePulseKey?: boolean; retries?: number; label?: string } = {}
+): Promise<Response | null> {
+  const { usePulseKey = false, retries = 3, label = 'request' } = options
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchCoinGecko(url, { usePulseKey })
+      if (res.ok) return res
+
+      const retryable = res.status === 429 || res.status >= 500
+      if (!retryable || attempt === retries) {
+        console.warn(`[CoinGecko] ${label} failed: ${res.status}`)
+        return null
+      }
+
+      // 1.2s, 2.4s, 4.8s — enough to clear CoinGecko's per-minute window
+      const waitMs = 1200 * Math.pow(2, attempt)
+      console.warn(`[CoinGecko] ${label} got ${res.status}, retrying in ${waitMs}ms`)
+      await new Promise(resolve => setTimeout(resolve, waitMs))
+    } catch (error) {
+      if (attempt === retries) {
+        console.warn(`[CoinGecko] ${label} threw:`, error)
+        return null
+      }
+      await new Promise(resolve => setTimeout(resolve, 1200 * Math.pow(2, attempt)))
+    }
+  }
+
+  return null
 }
 
 async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPrice[]> {
   const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
 
+  // Without a retry a single transient 429 wiped all 250 coins of this page, which
+  // is how the app could end up rendering ~108 coins instead of ~600.
+  const res = await fetchCoinGeckoWithRetry(url, { label: `main list page ${page}` })
+  if (!res) return []
+
   try {
-    const res = await fetchCoinGecko(url)
-
-    if (!res.ok) {
-      throw new Error(`CoinGecko API error: ${res.status}`)
-    }
-
     const data = await res.json()
     return data.map(mapCoinGeckoCoin)
   } catch (error) {
-    console.warn(`CoinGecko page ${page} fetch failed:`, error)
+    console.warn(`CoinGecko page ${page} parse failed:`, error)
     return []
   }
 }
@@ -132,11 +235,13 @@ async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPri
 // Special PulseChain tokens we still want to ensure are included
 // (especially native PLS which may not always rank high in the category)
 const SPECIAL_PULSECHAIN_IDS = [
-  'pulsechain',           // PLS
-  'hex-pulsechain',       // pHEX / eHEX on PulseChain
-  'pulsex',               // PLSX
-  'incentive',            // INC
-  'pcock'                 // PCOCK
+  'pulsechain',              // PLS
+  'hex-pulsechain',          // pHEX / eHEX on PulseChain
+  'pulsex',                  // PLSX
+  'pulsex-incentive-token',  // INC — 'incentive' is not a real CoinGecko id, so the
+                             // old entry fetched nothing and INC only ever arrived
+                             // via the ecosystem category
+  'pcock'                    // PCOCK
 ]
 
 // User-requested coins to appear in the 400-500 page/tab
@@ -188,8 +293,8 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
-    const res = await fetchCoinGecko(url, { usePulseKey: true })
-    if (!res.ok) return []
+    const res = await fetchCoinGeckoWithRetry(url, { usePulseKey: true, label: 'special PulseChain tokens' })
+    if (!res) return []
 
     const data = await res.json()
     return data.map(mapCoinGeckoCoin)
@@ -205,8 +310,8 @@ async function fetchSpecialCoins(): Promise<TokenPrice[]> {
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
-    const res = await fetchCoinGecko(url)
-    if (!res.ok) return []
+    const res = await fetchCoinGeckoWithRetry(url, { label: 'HAC / HACD' })
+    if (!res) return []
 
     const data = await res.json()
     return data.map(mapCoinGeckoCoin)
@@ -229,16 +334,12 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
     // Fetch a good number (250) so we have plenty of Pulse coins to pick the top ~98 from
     // (sorted by market cap). The tab will show only the first 98.
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
-    const res = await fetchCoinGecko(url, { usePulseKey: true });
+    const res = await fetchCoinGeckoWithRetry(url, {
+      usePulseKey: true,
+      label: 'PulseChain ecosystem category',
+    });
 
-    if (!res.ok) {
-      if (res.status === 429) {
-        console.warn('[CoinGecko Pulse] Rate limit hit on category endpoint.');
-      } else {
-        console.warn(`[CoinGecko Pulse] Category fetch failed: ${res.status}`);
-      }
-      return [];
-    }
+    if (!res) return [];
 
     const data = await res.json();
     let tokens: TokenPrice[] = data.map(mapCoinGeckoCoin);
@@ -263,16 +364,12 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
 
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
-    const res = await fetchCoinGecko(url, { usePulseKey: true });
+    const res = await fetchCoinGeckoWithRetry(url, {
+      usePulseKey: true,
+      label: 'curated PulseChain tokens',
+    });
 
-    if (!res.ok) {
-      if (res.status === 429) {
-        console.warn('[CoinGecko Pulse] Rate limit hit while fetching curated PulseChain tokens.');
-      } else {
-        console.warn(`[CoinGecko Pulse] Curated list fetch failed: ${res.status}`);
-      }
-      return [];
-    }
+    if (!res) return [];
 
     const data = await res.json();
 
@@ -290,7 +387,255 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
   }
 }
 
-// Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko. 
+// =====================================================
+// COINPAPRIKA — market cap / volume backfill
+//
+// Measured against CoinGecko on 2026-08-06:
+//   - Prices and 24h volumes match CoinGecko closely (PLS: $0.000008848 vs
+//     $0.00000885, volume 32,846 vs 32,881), so there is nothing to gain there.
+//   - Market cap is where it wins: CoinGecko returns 0 for the biggest PulseChain
+//     coins (PLS, PLSX, HEX, INC), while CoinPaprika has real values
+//     ($131M / $157M / $212M / $18.6M). Those coins render as dust in the
+//     "Size by: Market Cap" mode without this.
+//
+// So CoinPaprika is used ONLY to fill gaps, never to overwrite a value CoinGecko
+// already provided, and never for price.
+//
+// The map is explicit on purpose. Matching by symbol looks tempting but is wrong:
+// CoinPaprika's top list resolves BASE -> Base Protocol, MAGIC -> Magic (Arbitrum),
+// LUCKY -> Lucky Dog, TRIO -> Trio (Ordinals), PLN -> Plearn — all different coins.
+// =====================================================
+const PAPRIKA_ID_MAP: Record<string, string> = {
+  'pulsechain': 'pls-pulsechain',
+  'pulsex': 'plsx-pulsex',
+  'hex-pulsechain': 'hex-hex-from-pulsechain',
+  'pulsex-incentive-token': 'inc-incentive',
+  'the-grays-currency': 'ptgc-the-grays-currency',
+  'wrapped-pulse-wpls': 'wpls-wrapped-pulse',
+  'pulsechain-peacock': 'pcock-pulsechain-peacock',
+}
+// Checked and deliberately left out: Liquid Loans, Phiat, PowerCity and the Maximus
+// tokens do not exist on CoinPaprika at all; Icosa, 9inch and Coin Mafia are there
+// but report a market cap of 0, so they would add nothing.
+
+interface PaprikaQuote {
+  market_cap?: number
+  volume_24h?: number
+}
+
+async function fetchPaprikaTicker(paprikaId: string): Promise<PaprikaQuote | null> {
+  try {
+    const res = await fetch(`https://api.coinpaprika.com/v1/tickers/${paprikaId}?quotes=USD`)
+    if (!res.ok) return null
+
+    const data = await res.json()
+    const usd = data?.quotes?.USD
+    if (!usd) return null
+
+    return { market_cap: usd.market_cap, volume_24h: usd.volume_24h }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fills in market cap / volume for the mapped coins that CoinGecko left empty.
+ * Mutates nothing that already has a value, and never touches price.
+ */
+async function backfillFromCoinPaprika(tokens: TokenPrice[]): Promise<number> {
+  const gaps = tokens.filter(
+    t => PAPRIKA_ID_MAP[t.id] && ((t.market_cap ?? 0) <= 0 || (t.total_volume ?? 0) <= 0)
+  )
+
+  if (gaps.length === 0) return 0
+
+  const results = await Promise.all(
+    gaps.map(async token => ({ token, quote: await fetchPaprikaTicker(PAPRIKA_ID_MAP[token.id]) }))
+  )
+
+  let filled = 0
+  for (const { token, quote } of results) {
+    if (!quote) continue
+
+    let touched = false
+    if ((token.market_cap ?? 0) <= 0 && (quote.market_cap ?? 0) > 0) {
+      token.market_cap = quote.market_cap
+      touched = true
+    }
+    if ((token.total_volume ?? 0) <= 0 && (quote.volume_24h ?? 0) > 0) {
+      token.total_volume = quote.volume_24h
+      touched = true
+    }
+    if (touched) filled++
+  }
+
+  if (filled > 0) {
+    console.log(`[CryptoDUST] CoinPaprika filled market data for ${filled} coin(s).`)
+  }
+  return filled
+}
+
+// =====================================================
+// DEXSCREENER — FDV + liquidity for the PulseChain long tail
+//
+// Verified from the browser on 2026-08-06 (not from a server — CORS was the whole
+// question, and api.dexscreener.com does answer a cross-origin fetch, no key needed):
+//
+//   - chainId "pulsechain" is covered; 33 of the 44 gap tokens resolve.
+//   - The response has BOTH marketCap and fdv. For almost every PulseChain token the
+//     two are identical, i.e. DexScreener has no circulating supply and is reporting a
+//     FULLY DILUTED valuation. It is therefore stored as `fdv`, never as `market_cap`.
+//     Concretely: DexScreener says PLSX is $1.06B; its real circulating cap is ~$157M.
+//   - FDV on an illiquid token is close to meaningless: AXIS reports $359M FDV against
+//     $10k of liquidity (a 35,000x ratio, versus a 45x median). Sizing bubbles by that
+//     would make AXIS the second-largest planet on the tab. Liquidity is the honest
+//     metric here, so it is captured too and offered as its own "Size by" option.
+//
+// PulseChain is an Ethereum fork, so a token address exists on BOTH chains and the
+// endpoint returns pairs for both — every response MUST be filtered to chainId
+// 'pulsechain' or you get the Ethereum token's numbers. This bit us with HEX.
+// =====================================================
+
+// CoinGecko id -> PulseChain contract address.
+// Harvested via DexScreener search and then gated: an address was only accepted when
+// the pair's USD price was within 12% of CoinGecko's price for that id. That check is
+// what keeps same-symbol clones out (PulseChain has several duplicate tickers).
+const PULSECHAIN_TOKEN_ADDRESSES: Record<string, string> = {
+  'pulsex': '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab',                  // PLSX
+  'hex-pulsechain': '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39',          // HEX
+  'pulsex-incentive-token': '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d',  // INC
+  'axis-alive': '0x8BDB63033b02C15f113De51EA1C3a96Af9e8ecb5',              // AXIS
+  'texan': '0xcFCFfE432A48dB53F59c301422d2EdD77B2A88d7',                   // TEXAN
+  't-i-m-e-dividend': '0xCA35638A3fdDD02fEC597D8c1681198C06b23F58',        // TIME
+  '9mm': '0x7b39712Ef45F7dcED2bBDF11F3D5046bA61dA719',                     // 9MM
+  'liquid-loans': '0x9159f1D2a9f51998Fc9Ab03fbd8f265ab14A1b3B',            // LOAN
+  'phiat-protocol': '0x96E035ae0905EFaC8F733f133462f971Cfa45dB1',          // PHIAT
+  'icosa': '0xfc4913214444aF5c715cc9F7b52655e788A569ed',                   // ICSA
+  'phame': '0x8854bC985fB5725F872c8856bEA11B917cAEb2fE',                   // PHAME
+  'tetra': '0xAeC4C07537B03E3E62fc066EC62401Aed5Fdd361',                   // TETRAP
+  '9inch': '0x3ca80d83277e721171284667829c686527B8b3c5',                   // 9INCH
+  'maximus-lucky': '0x6B0956258fF7bd7645aa35369B55B61b8e6d6140',           // LUCKY
+  'pulseln': '0xa685C45fd071DF23278069Db9137e124564897D0',                 // PLN
+  'hexfire': '0xf330cb1d41052dbC74D3325376Cb82E99454e501',                 // FIRE
+  'coast-cst': '0x600136dA8cc6D1Ea07449514604dc4ab7098dB82',               // CST
+  'powercity-earn-protocol': '0xb513038BbFdF9D40B676F41606f4F61D4b02c4A2', // EARN
+  'maximus-base': '0xe9f84d418B008888A992Ff8c6D22389C2C3504e0',            // BASE
+  'phux-governance-token': '0x9663c2d75ffd5F4017310405fCe61720aF45B829',   // PHUX
+  'flex': '0x9c6fA17D92898B684676993828143596894AA2A6',                    // FLEX
+  'maximus-trio': '0xF55cD1e399e1cc3D95303048897a680be3313308',            // TRIO
+  'love-io': '0xb55EE890426341FE45EE6dc788D2D93d25B59063',                 // LOVE
+  'apin-pulse': '0xBb101431d43b0E1fc31f000bf96826794806e0b4',              // APC
+  'powercity-watt': '0xDfdc2836FD2E63Bba9f0eE07901aD465Bff4DE71',          // WATT
+  'big-bonus-coin': '0x8b4cfb020aF9AcAd95AD80020cE8f67FBB2C700E',          // BBC
+  'rhinofi-2': '0x6C6D7De6C5f366a1995ed5f1e273C5B3760C6043',               // RHINO
+  'alien': '0x1B7B541BeA3aF39292FCe08649e4C4e1BEE408a1',                   // ALIEN
+  'nuts': '0x97f7259931f98CC64EbCd993fdE03d71716f3E07',                    // NUTS
+  'daytona-finance': '0x9F8182aD65c53Fd78bd07648a1b3DDcB675c6772',         // TONI
+  'impls-finance': '0x5f63BC3d5bd234946f18d24e98C324f629D9d60e',           // IMPLS
+  'hocus-pocus-finance': '0xd22E78C22D7E77229d60cc9fC57b0E294F54488E',     // HOC
+  'pulse-drip': '0xeB2CEed77147893Ba8B250c796c2d4EF02a72B68',              // PDRIP
+}
+// Deliberately absent (checked, no confident PulseChain match on DexScreener):
+// PLS (native coin, no token contract — CoinPaprika covers it), the bridged DAI/HEX/USDC
+// wrappers, COLA, PRS, MONAT, MAGIC, SOIL, X, $MAFIA, and PARTY (its only pair priced 23%
+// away from CoinGecko, so the safety gate rejected it rather than risk a wrong token).
+// All of these still get an FDV — CoinGecko ships fully_diluted_valuation for every one
+// of them in the payloads we already fetch; DexScreener is only needed for liquidity.
+
+const DEXSCREENER_BATCH_SIZE = 30
+
+/**
+ * Uses /tokens/v1/{chain}/{addresses}, not the older /latest/dex/tokens.
+ * The legacy route caps its response at 30 PAIRS in total, not per token — 10 addresses
+ * came back as 30 pairs covering only 6 tokens, so most requested tokens were silently
+ * absent. The v1 route returns the top pair per token (10 addresses -> 10 tokens) and is
+ * scoped to one chain, which also removes the Ethereum/PulseChain address collision.
+ */
+async function fetchDexScreenerBatch(addresses: string[]): Promise<any[]> {
+  try {
+    const res = await fetch(
+      `https://api.dexscreener.com/tokens/v1/pulsechain/${addresses.join(',')}`
+    )
+    if (!res.ok) {
+      console.warn(`[DexScreener] batch failed: ${res.status}`)
+      return []
+    }
+    const data = await res.json()
+    return Array.isArray(data) ? data : []
+  } catch (error) {
+    console.warn('[DexScreener] batch threw:', error)
+    return []
+  }
+}
+
+/**
+ * Adds fdv + liquidity (and volume, only where CoinGecko had none) to the PulseChain
+ * tokens we have a verified address for. Two batched requests for the whole set.
+ *
+ * Never writes market_cap — see the note above on why DexScreener's value is an FDV.
+ */
+async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
+  const targets = tokens.filter(t => PULSECHAIN_TOKEN_ADDRESSES[t.id])
+  if (targets.length === 0) return 0
+
+  const addresses = targets.map(t => PULSECHAIN_TOKEN_ADDRESSES[t.id])
+  const batches: string[][] = []
+  for (let i = 0; i < addresses.length; i += DEXSCREENER_BATCH_SIZE) {
+    batches.push(addresses.slice(i, i + DEXSCREENER_BATCH_SIZE))
+  }
+
+  const pairGroups = await Promise.all(batches.map(fetchDexScreenerBatch))
+
+  // Keep the deepest pair per token address. The chain check is belt-and-braces: the
+  // v1 route is already scoped to pulsechain, but the same address also exists on
+  // Ethereum (PulseChain is a fork) and mixing them up silently shows Ethereum prices.
+  const deepest = new Map<string, any>()
+  for (const pair of pairGroups.flat()) {
+    if (pair?.chainId && pair.chainId !== 'pulsechain') continue
+    const key = pair?.baseToken?.address?.toLowerCase()
+    if (!key) continue
+    const current = deepest.get(key)
+    if (!current || (pair.liquidity?.usd || 0) > (current.liquidity?.usd || 0)) {
+      deepest.set(key, pair)
+    }
+  }
+
+  let filled = 0
+  for (const token of targets) {
+    const pair = deepest.get(PULSECHAIN_TOKEN_ADDRESSES[token.id].toLowerCase())
+    if (!pair) continue
+
+    const fdv = pair.fdv ?? pair.marketCap
+    const liquidity = pair.liquidity?.usd
+
+    // FDV only as a fallback: CoinGecko's fully_diluted_valuation (captured in
+    // mapCoinGeckoCoin) is the primary source. Where the two disagree, DexScreener's
+    // supply figure is usually the wrong one — measured: $MAFIA 50x low, WPLS 17x low,
+    // ICSA 2x high — because it only sees what's in the pools it indexes.
+    if ((token.fdv ?? 0) <= 0 && fdv > 0) token.fdv = fdv
+
+    // Liquidity is DexScreener's unique, trustworthy contribution: actual pool depth.
+    if (liquidity > 0) token.liquidity = liquidity
+
+    // Volume only as a fallback — CoinGecko aggregates every venue, DexScreener sees
+    // one pair, so CoinGecko's number is the better one whenever it exists.
+    if ((token.total_volume ?? 0) <= 0 && (pair.volume?.h24 ?? 0) > 0) {
+      token.total_volume = pair.volume.h24
+    }
+
+    if (fdv > 0 || liquidity > 0) {
+      token.dexSource = pair.dexId || 'dexscreener'
+      filled++
+    }
+  }
+
+  if (filled > 0) {
+    console.log(`[CryptoDUST] DexScreener added FDV/liquidity for ${filled} PulseChain token(s).`)
+  }
+  return filled
+}
+
+// Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko.
 // HAC and HACD are inserted at positions 498-499 (end of 400-500 tab) via splice.
 // The tail (500+) contains ONLY Pulse coins fetched from Pulse sources (ecosystem category + curated + special),
 // limited to ~98. No leaks from previous tabs. Impact on 0-499 is zero.
@@ -298,11 +643,11 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
       Promise.all([
-        fetchCoinGeckoPage(1),
-        fetchCoinGeckoPage(2),
+        withLastGood('main page 1', () => fetchCoinGeckoPage(1)),
+        withLastGood('main page 2', () => fetchCoinGeckoPage(2)),
       ]),
-      fetchSpecialPulseChainTokens(),
-      fetchSpecialCoins()
+      withLastGood('special Pulse tokens', fetchSpecialPulseChainTokens),
+      withLastGood('HAC/HACD', fetchSpecialCoins),
     ])
 
     let all = mainPages.flat().slice(0, 500)
@@ -326,7 +671,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     // Fetched efficiently in one call using the ids= parameter
     // ============================================
     try {
-      const curatedPulse = await fetchCuratedPulseChainTokens()
+      const curatedPulse = await withLastGood('curated Pulse tokens', fetchCuratedPulseChainTokens)
 
       for (const token of curatedPulse) {
         const index = all.findIndex(t => t.id === token.id)
@@ -346,7 +691,7 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
     // Source: https://www.coingecko.com/en/categories/pulsechain-ecosystem
     // ============================================
     try {
-      const pulseEcosystem = await fetchPulseChainEcosystemTokens()
+      const pulseEcosystem = await withLastGood('Pulse ecosystem category', fetchPulseChainEcosystemTokens)
 
       for (const token of pulseEcosystem) {
         const index = all.findIndex(t => t.id === token.id)
@@ -405,13 +750,40 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
       }
     }
 
-    // Limit the PulseChain tab to ~90-98 coins (as requested). Take the first ones
-    // (higher priority / larger market cap Pulse coins first).
-    const PULSE_TAIL_LIMIT = 98
+    // The old limit was 98 while the Pulse sources return ~107, so the tab was
+    // silently dropping the smallest coins every load. The cap is now just a
+    // sanity bound, and truncation is reported instead of being invisible.
+    const PULSE_TAIL_LIMIT = 200
     const limitedPulseTail = pulseTail.slice(0, PULSE_TAIL_LIMIT)
 
-    // First 500 (with HAC/HACD at 498-499) + ~98 pure Pulse coins.
+    if (pulseTail.length > PULSE_TAIL_LIMIT) {
+      console.warn(
+        `[CryptoDUST] PulseChain tab truncated: ${pulseTail.length} coins found, showing ${PULSE_TAIL_LIMIT}.`
+      )
+    }
+
+    // Backfill BEFORE sorting — otherwise PLS/PLSX/HEX sort as if they were worth
+    // nothing. CoinPaprika first because it supplies real circulating market caps;
+    // DexScreener only ever adds FDV/liquidity alongside them.
+    await backfillFromCoinPaprika(limitedPulseTail)
+    await backfillFromDexScreener(limitedPulseTail)
+
+    // The tab was ordered by whatever order the three source fetches happened to
+    // append in, which buried PLS (#69) and PLSX (#74) below far smaller tokens
+    // despite the sources being requested as market_cap_desc. Sort it for real.
+    //
+    // Tokens with a real market cap rank on that. Everything else falls back to DEX
+    // liquidity rather than FDV: FDV would put AXIS ($359M FDV / $10k liquidity)
+    // above HEX, which is not a useful ordering for anyone.
+    const rank = (t: TokenPrice) => t.market_cap || t.liquidity || 0
+    limitedPulseTail.sort((a, b) => rank(b) - rank(a))
+
+    // First 500 (with HAC/HACD at 498-499) + every Pulse coin the sources returned.
     const result = [...mainSection, ...limitedPulseTail]
+
+    console.log(
+      `[CryptoDUST] ${result.length} coins ready (${mainSection.length} main + ${limitedPulseTail.length} PulseChain).`
+    )
     return result
   } catch (error) {
     console.error('Failed to fetch coins', error)

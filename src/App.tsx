@@ -144,11 +144,56 @@ const EXTERNAL_LINKS = [
 
 const DONATION_ADDRESS = '0x38be95f628ed004a000ddf8724142a95e3c4b492'
 
+// Named views: one click sets a meaningful size+label combination instead of
+// asking the user to assemble it from two abstract controls.
+type SizeMetricOption = 'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity' | 'ath'
+type TopLabelOption = 'price' | 'change_24h'
+
+const VIEWS: Array<{
+  key: string
+  label: string
+  size: SizeMetricOption
+  top: TopLabelOption
+  hint: string
+}> = [
+  { key: 'movers', label: '🔥 Movers', size: 'change_24h', top: 'price', hint: 'Planet size follows the 24h move — the default pulse of the market' },
+  { key: 'market', label: '💰 Market', size: 'market_cap', top: 'price', hint: 'Planet size follows market cap — the classic weight map' },
+  { key: 'liquidity', label: '💧 Liquidity', size: 'liquidity', top: 'price', hint: 'Planet size follows DEX pool depth — the honest metric for galaxy tokens' },
+  { key: 'ath', label: '🏔 ATH', size: 'ath', top: 'price', hint: 'Planet size follows distance from the all-time high — peaks vs graveyard' },
+]
+
 export default function App() {
   const { tokens, sections, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity' | 'ath'>('change_24h')
-  const [topLabel, setTopLabel] = useState<'price' | 'change_24h'>('price')
+  // View state persists so every visit resumes where the user left off
+  const [sizeMetric, setSizeMetric] = useState<SizeMetricOption>(() => {
+    try {
+      const saved = localStorage.getItem('cryptodust_size_metric')
+      if (saved && ['market_cap', 'volume', 'price', 'change_24h', 'liquidity', 'ath'].includes(saved)) {
+        return saved as SizeMetricOption
+      }
+    } catch { /* ignore */ }
+    return 'change_24h'
+  })
+  const [topLabel, setTopLabel] = useState<TopLabelOption>(() => {
+    try {
+      const saved = localStorage.getItem('cryptodust_top_label')
+      if (saved === 'price' || saved === 'change_24h') return saved
+    } catch { /* ignore */ }
+    return 'price'
+  })
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('cryptodust_size_metric', sizeMetric)
+      localStorage.setItem('cryptodust_top_label', topLabel)
+    } catch { /* ignore */ }
+  }, [sizeMetric, topLabel])
+
+  // Which named view (if any) matches the current combination
+  const activeView = VIEWS.find(v => v.size === sizeMetric && v.top === topLabel)?.key ?? 'custom'
+  const [showViewCustom, setShowViewCustom] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
   // PWA Install prompt - only for mobile, minimal non-intrusive addition
@@ -1010,78 +1055,118 @@ export default function App() {
           <div className="w-full px-4 lg:px-5 py-3 flex items-center gap-x-2.5 gap-y-2.5 flex-wrap">
             {/* One 34px control height and one radius across the whole band — the pieces
                 used to range from py-1 to py-2 with rounded-2xl/3xl mixed together. */}
+            {/* Named views replace the old Size(6) + Label(2) control pair: users
+                pick an intent, not a metric combination. "Custom" reopens the raw
+                controls for power users. */}
             <div className="seg">
-              <span className="seg-label">Size</span>
-              {(['change_24h', 'market_cap', 'volume', 'price', 'liquidity', 'ath'] as const).map(m => (
+              <span className="seg-label">View</span>
+              {VIEWS.map(v => (
                 <button
-                  key={m}
-                  onClick={() => setSizeMetric(m)}
-                  title={
-                    m === 'liquidity'
-                      ? 'DEX pool depth — the meaningful size metric for PulseChain tokens'
-                      : m === 'ath'
-                        ? 'Distance from all-time high — big planets are near their peak, dust is deep below it'
-                        : undefined
-                  }
-                  className={`seg-item ${sizeMetric === m ? 'seg-item-on' : ''}`}
+                  key={v.key}
+                  onClick={() => {
+                    setSizeMetric(v.size)
+                    setTopLabel(v.top)
+                    setShowViewCustom(false)
+                  }}
+                  title={v.hint}
+                  className={`seg-item ${activeView === v.key ? 'seg-item-on' : ''}`}
                 >
-                  {m === 'change_24h' ? '24h %' : m === 'market_cap' ? 'Market cap' : m === 'ath' ? 'ATH' : m.charAt(0).toUpperCase() + m.slice(1)}
+                  {v.label}
                 </button>
               ))}
-            </div>
-
-            <div className="seg">
-              <span className="seg-label">Label</span>
-              {(['price', 'change_24h'] as const).map(m => (
+              <div className="relative">
                 <button
-                  key={m}
-                  onClick={() => setTopLabel(m)}
-                  className={`seg-item ${topLabel === m ? 'seg-item-on' : ''}`}
+                  onClick={() => { setShowViewCustom(s => !s); setShowSettings(false) }}
+                  className={`seg-item ${activeView === 'custom' ? 'seg-item-on' : ''}`}
+                  title="Pick size metric and planet label separately"
                 >
-                  {m === 'price' ? 'Price' : '24h %'}
+                  Custom
                 </button>
-              ))}
+                {showViewCustom && (
+                  <>
+                    <div className="fixed inset-0 z-[48]" onClick={() => setShowViewCustom(false)} />
+                    <div className="popover left-1/2 -translate-x-1/2">
+                      <div className="popover-title">Planet size</div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {(['change_24h', 'market_cap', 'volume', 'price', 'liquidity', 'ath'] as const).map(m => (
+                          <button
+                            key={m}
+                            onClick={() => setSizeMetric(m)}
+                            className={`seg-item ${sizeMetric === m ? 'seg-item-on' : ''}`}
+                          >
+                            {m === 'change_24h' ? '24h %' : m === 'market_cap' ? 'Market cap' : m === 'ath' ? 'ATH' : m.charAt(0).toUpperCase() + m.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="popover-title">Top label</div>
+                      <div className="flex gap-1">
+                        {(['price', 'change_24h'] as const).map(m => (
+                          <button
+                            key={m}
+                            onClick={() => setTopLabel(m)}
+                            className={`seg-item ${topLabel === m ? 'seg-item-on' : ''}`}
+                          >
+                            {m === 'price' ? 'Price' : '24h %'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="w-px h-6 bg-white/[0.08]" />
-
-            <button
-              onClick={() => setPhysicsPaused(!physicsPaused)}
-              className={`ctl ${
-                physicsPaused
-                  ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/15'
-                  : 'bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
-              }`}
-              title={physicsPaused ? 'Resume physics simulation (Space)' : 'Pause physics simulation (Space)'}
-            >
-              {physicsPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-              {physicsPaused ? 'Resume' : 'Pause'}
-            </button>
-
-            <button
-              onClick={() => {
-                setPerformanceMode(prev => {
-                  const next = !prev
-                  try {
-                    localStorage.setItem('cryptodust_performance_mode', next ? '1' : '0')
-                  } catch { /* ignore */ }
-                  return next
-                })
-              }}
-              className={`ctl ${
-                performanceMode
-                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/35 hover:bg-amber-500/20'
-                  : 'bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
-              }`}
-              title={
-                performanceMode
-                  ? 'Manual performance mode on — max savings'
-                  : 'Enable manual performance mode (smart perf auto-optimizes when idle)'
-              }
-            >
-              <Gauge className="w-3.5 h-3.5" />
-              {performanceMode ? 'Perf on' : 'Perf'}
-            </button>
+            {/* Pause + Perf are set-and-forget — they live in a gear now */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowSettings(s => !s); setShowViewCustom(false) }}
+                className={`ctl px-2.5 ${
+                  showSettings || physicsPaused || performanceMode
+                    ? 'bg-white/10 text-white border-white/20'
+                    : 'bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
+                }`}
+                title="Settings — physics & performance"
+                aria-label="Settings"
+              >
+                <Gauge className="w-4 h-4" />
+              </button>
+              {showSettings && (
+                <>
+                  <div className="fixed inset-0 z-[48]" onClick={() => setShowSettings(false)} />
+                  <div className="popover left-0">
+                    <button
+                      onClick={() => setPhysicsPaused(!physicsPaused)}
+                      className={`ctl w-full justify-start mb-1.5 ${
+                        physicsPaused
+                          ? 'bg-red-500/10 text-red-400 border-red-500/30'
+                          : 'bg-white/[0.04] text-white/80 border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {physicsPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                      {physicsPaused ? 'Resume physics' : 'Pause physics'}
+                      <span className="kbd ml-auto">Space</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPerformanceMode(prev => {
+                          const next = !prev
+                          try { localStorage.setItem('cryptodust_performance_mode', next ? '1' : '0') } catch { /* ignore */ }
+                          return next
+                        })
+                      }}
+                      className={`ctl w-full justify-start ${
+                        performanceMode
+                          ? 'bg-amber-500/15 text-amber-300 border-amber-500/35'
+                          : 'bg-white/[0.04] text-white/80 border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      <Gauge className="w-3.5 h-3.5" />
+                      {performanceMode ? 'Performance mode on' : 'Performance mode'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="w-px h-6 bg-white/[0.08]" />
 

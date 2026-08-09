@@ -3,7 +3,7 @@ import { Visualization } from './components/Visualization'
 import { usePrices, type TokenPrice } from './lib/prices'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
-  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing,
+  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv,
 } from 'lucide-react'
 import { isPushSupported, getPushSubscription, enablePushAlerts, disablePushAlerts, syncPushPrefs } from './lib/push'
 
@@ -147,7 +147,7 @@ const DONATION_ADDRESS = '0x38be95f628ed004a000ddf8724142a95e3c4b492'
 export default function App() {
   const { tokens, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity'>('change_24h')
+  const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity' | 'ath'>('change_24h')
   const [topLabel, setTopLabel] = useState<'price' | 'change_24h'>('price')
   const [isMobile, setIsMobile] = useState(false)
 
@@ -267,6 +267,60 @@ export default function App() {
     const coin = new URLSearchParams(window.location.search).get('coin')
     if (coin) setSelectedId(coin)
   }, [])
+
+  // ---- OBS overlay mode (?overlay=1) — chrome-free, transparent planets for streamers.
+  // Optional: &page=0..5 picks the tab, &metric=change_24h|market_cap|volume|price|liquidity|ath.
+  const overlayMode = React.useMemo(
+    () => new URLSearchParams(window.location.search).get('overlay') === '1',
+    []
+  )
+
+  React.useEffect(() => {
+    if (!overlayMode) return
+    const params = new URLSearchParams(window.location.search)
+    const page = parseInt(params.get('page') || '', 10)
+    if (Number.isFinite(page) && page >= 0 && page <= 5) setCurrentPage(page)
+    const metric = params.get('metric')
+    if (metric && ['change_24h', 'market_cap', 'volume', 'price', 'liquidity', 'ath'].includes(metric)) {
+      setSizeMetric(metric as any)
+    }
+    // Transparent page so OBS "Browser Source" composites only the planets.
+    // #root carries the dark background from index.css and must clear too.
+    document.documentElement.style.background = 'transparent'
+    document.body.style.background = 'transparent'
+    const root = document.getElementById('root')
+    if (root) root.style.background = 'transparent'
+  }, [overlayMode])
+
+  // ---- TV / Ambient mode: fullscreen, chrome hidden, pages auto-cycle ----
+  const [tvMode, setTvMode] = useState(false)
+
+  const enterTvMode = () => {
+    setTvMode(true)
+    document.documentElement.requestFullscreen?.().catch(() => { /* fullscreen optional */ })
+  }
+  const exitTvMode = () => {
+    setTvMode(false)
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => { /* ignore */ })
+  }
+
+  React.useEffect(() => {
+    if (!tvMode) return
+    // Leaving browser fullscreen (Esc) also leaves TV mode
+    const onFsChange = () => { if (!document.fullscreenElement) setTvMode(false) }
+    document.addEventListener('fullscreenchange', onFsChange)
+
+    // Ambient rotation: next page every 45s, with a movers highlight each time
+    const cycle = setInterval(() => {
+      setCurrentPage(p => (p + 1) % 6)
+      setHighlightUntil(Date.now() + 20000)
+    }, 45000)
+
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange)
+      clearInterval(cycle)
+    }
+  }, [tvMode])
 
   // Very careful PWA install handler - only triggers if browser offers it
   const handleInstallClick = async () => {
@@ -592,8 +646,34 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [isMobile]) // minimal deps — live values come from refs
 
+  // OBS overlay: nothing but planets on a transparent page. Streamers add
+  // https://www.cryptodust.xyz/?overlay=1&page=5 as an OBS Browser Source.
+  if (overlayMode) {
+    return (
+      <div className="h-[100dvh] w-screen overflow-hidden" style={{ background: 'transparent' }}>
+        <Visualization
+          tokens={currentPageTokens}
+          selectedId={null}
+          onSelect={() => { /* non-interactive on stream */ }}
+          favorites={[]}
+          highlightUntil={highlightUntil}
+          sizeMetric={sizeMetric}
+          topLabel={topLabel}
+          paused={false}
+          planetScale={1}
+          isMobile={false}
+          isPulsechain={currentPage === 5}
+          topOffset={0}
+          performanceMode={false}
+          marketTableOpen={false}
+          overlay
+        />
+      </div>
+    )
+  }
+
   return (
-    <div className="app-shell relative h-[100dvh] w-screen text-white overflow-hidden flex flex-col">   {/* 100dvh is much better on mobile than h-screen */}
+    <div className={`app-shell relative h-[100dvh] w-screen text-white overflow-hidden flex flex-col ${tvMode ? 'tv-on' : ''}`}>   {/* 100dvh is much better on mobile than h-screen */}
       {/* Space backdrop — nebula tints + two twinkling star layers. Fixed and
           composited, so it costs nothing on scroll; the transparent canvas lets
           the planets float over it. Shared by desktop and mobile. */}
@@ -736,6 +816,16 @@ export default function App() {
               <span className="font-semibold tracking-tight hidden xl:inline">Donate</span>
             </button>
 
+            {/* TV / Ambient mode — fullscreen planets, auto-cycling pages */}
+            <button
+              onClick={enterTvMode}
+              className="premium-button flex items-center justify-center w-9 h-9 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white flex-shrink-0"
+              title="TV mode — fullscreen ambient view, pages rotate every 45s (Esc to exit)"
+              aria-label="Enter TV mode"
+            >
+              <Tv className="w-4 h-4" />
+            </button>
+
             {/* Export group */}
             <div className="flex items-center bg-white/5 rounded-2xl border border-white/10 h-9 overflow-hidden flex-shrink-0">
               <button
@@ -839,7 +929,7 @@ export default function App() {
       </header>
 
       {/* Global Market Stats - Premium cards (hidden on mobile to give maximum space to the planets) */}
-      <div className="border-b border-white/[0.06] bg-[#0a0a12]/70 backdrop-blur-md flex-shrink-0 hidden md:block">
+      <div className="tv-hide border-b border-white/[0.06] bg-[#0a0a12]/70 backdrop-blur-md flex-shrink-0 hidden md:block">
         <div className="w-full px-4 lg:px-5 py-3">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 text-sm">
             {[
@@ -912,24 +1002,26 @@ export default function App() {
           Hidden on mobile. On desktop: visibility is tied to the minimizable pages tabs panel state.
           When you minimize the pages panel (center arrow), these controls also hide to give maximum planet surface. */}
       {pagesPanelExpanded && (
-        <div className="border-b border-[#25252f] bg-gradient-to-b from-[#13131b] to-[#101017] flex-shrink-0 hidden md:block">
+        <div className="tv-hide border-b border-[#25252f] bg-gradient-to-b from-[#13131b] to-[#101017] flex-shrink-0 hidden md:block">
           <div className="w-full px-4 lg:px-5 py-3 flex items-center gap-x-2.5 gap-y-2.5 flex-wrap">
             {/* One 34px control height and one radius across the whole band — the pieces
                 used to range from py-1 to py-2 with rounded-2xl/3xl mixed together. */}
             <div className="seg">
               <span className="seg-label">Size</span>
-              {(['change_24h', 'market_cap', 'volume', 'price', 'liquidity'] as const).map(m => (
+              {(['change_24h', 'market_cap', 'volume', 'price', 'liquidity', 'ath'] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => setSizeMetric(m)}
                   title={
                     m === 'liquidity'
                       ? 'DEX pool depth — the meaningful size metric for PulseChain tokens'
-                      : undefined
+                      : m === 'ath'
+                        ? 'Distance from all-time high — big planets are near their peak, dust is deep below it'
+                        : undefined
                   }
                   className={`seg-item ${sizeMetric === m ? 'seg-item-on' : ''}`}
                 >
-                  {m === 'change_24h' ? '24h %' : m === 'market_cap' ? 'Market cap' : m.charAt(0).toUpperCase() + m.slice(1)}
+                  {m === 'change_24h' ? '24h %' : m === 'market_cap' ? 'Market cap' : m === 'ath' ? 'ATH' : m.charAt(0).toUpperCase() + m.slice(1)}
                 </button>
               ))}
             </div>
@@ -1053,6 +1145,22 @@ export default function App() {
       {/* Main Area */}
       {/* Transparent, not bg-black — the space backdrop lives behind this area */}
       <div className="flex-1 relative overflow-hidden">
+        {/* TV mode chrome: watermark + exit, floating over the planets */}
+        {tvMode && (
+          <>
+            <div className="absolute bottom-4 left-4 z-[46] flex items-center gap-2 opacity-60 pointer-events-none select-none">
+              <img src="/cryptodust-logo.png" alt="" className="w-6 h-6 object-contain" />
+              <span className="text-sm font-semibold tracking-tight">Crypto<span className="wordmark-dust">DUST</span></span>
+            </div>
+            <button
+              onClick={exitTvMode}
+              className="absolute top-4 right-4 z-[46] flex items-center gap-1.5 px-3 h-8 rounded-xl bg-black/40 border border-white/15 text-white/60 hover:text-white text-xs backdrop-blur-md transition-colors"
+              title="Exit TV mode"
+            >
+              <X className="w-3.5 h-3.5" /> Exit
+            </button>
+          </>
+        )}
         {/* Desktop: Visualization with bubbles */}
         {!isMobile && (
           <Visualization 
@@ -1080,7 +1188,7 @@ export default function App() {
             When expanding: planets in the way get pushed down via topOffset in physics.
             This state also controls visibility of the upper "Size by" + Quick Filters bar. */}
         {!isMobile && (
-          <div className="absolute top-0 left-0 right-0 z-[45] pointer-events-auto select-none">
+          <div className="tv-hide absolute top-0 left-0 right-0 z-[45] pointer-events-auto select-none">
             {pagesPanelExpanded ? (
               // Expanded: tabs row (left aligned) with page selectors + centered collapse arrow
               <div className="relative flex items-center justify-start gap-x-1.5 bg-[#0f0f17]/90 backdrop-blur-xl border-b border-white/[0.07] px-4 py-2">
@@ -1797,7 +1905,7 @@ export default function App() {
       {/* Mobile info panel moved inside visualization as absolute overlay — prevents canvas resize when opening, which was causing planets to "disappear" to the right/bottom */}
 
       {/* Bottom Market Tab — very thin & minimal on mobile to maximize planet space */}
-      <div className="border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40">
+      <div className="tv-hide border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40">
         <button
           onClick={() => setIsMarketOpen(!isMarketOpen)}
           className={`w-full flex items-center justify-between px-3 md:px-5 py-1.5 md:py-3 text-[10px] md:text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}

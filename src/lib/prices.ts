@@ -794,6 +794,31 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
   }
 }
 
+// =====================================================
+// Compact price formatting for micro-prices.
+// "$0.000" tells a PLS holder nothing. The subscript convention CoinGecko and
+// DexScreener use — $0.0₅885 = five zeros then 885, i.e. 0.00000885 — shows the
+// real price in a handful of characters. Unicode subscript digits render fine
+// in both DOM text and canvas fillText.
+// =====================================================
+const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉'
+
+export function formatCompactPrice(price: number | null | undefined): string {
+  if (!price || price <= 0) return '$0'
+  if (price >= 1000) return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 0 })
+  if (price >= 1) return '$' + price.toFixed(2)
+  if (price >= 0.01) return '$' + price.toFixed(4)
+
+  // Number of zeros between the decimal point and the first significant digit
+  const zeros = Math.floor(-Math.log10(price))
+  if (zeros <= 3) return '$' + price.toFixed(zeros + 3)
+
+  // 3 significant digits, trailing zeros trimmed: 0.00000885 -> "885"
+  const digits = String(Math.round(price * Math.pow(10, zeros + 3))).replace(/0+$/, '') || '0'
+  const sub = String(zeros).split('').map(d => SUBSCRIPT_DIGITS[+d]).join('')
+  return `$0.0${sub}${digits}`
+}
+
 // ==================== MAIN HOOK ====================
 export function usePrices() {
   const { data: tokens = [], error, isLoading } = useSWR(

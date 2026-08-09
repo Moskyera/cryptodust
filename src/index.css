@@ -392,6 +392,31 @@ canvas {
     0 0 44px -18px rgba(103, 246, 255, 0.25);
 }
 
+/* Toolbar popovers (Custom view, Settings) */
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 49;
+  min-width: 240px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(23, 23, 33, 0.98), rgba(15, 15, 23, 0.98)) padding-box,
+    linear-gradient(150deg, rgba(103, 246, 255, 0.3), rgba(167, 139, 250, 0.22) 45%, rgba(255, 255, 255, 0.06)) border-box;
+  box-shadow: 0 20px 50px -16px rgb(0 0 0 / 0.85);
+  animation: popIn 0.16s var(--ease);
+}
+
+.popover-title {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 6px;
+}
+
 /* Collapse affordance for the page-tabs bar — a grip, not a text arrow */
 .collapse-handle {
   position: absolute;

@@ -654,6 +654,7 @@ export interface EcosystemSection {
 const EXTRA_ECOSYSTEMS = [
   { key: 'base', label: 'Base', category: 'base-ecosystem', limit: 100 },
   { key: 'solana', label: 'Solana', category: 'solana-ecosystem', limit: 100 },
+  { key: 'bnb', label: 'BNB', category: 'binance-smart-chain', limit: 100 },
 ]
 
 async function fetchEcosystemCategory(category: string, label: string): Promise<TokenPrice[]> {

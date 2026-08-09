@@ -167,6 +167,22 @@ canvas {
   height: 100%;
 }
 
+/* OBS overlay mode: fully transparent, no vignette — only planets composite */
+.viz-overlay {
+  background: transparent;
+}
+
+.viz-overlay::after {
+  display: none;
+}
+
+/* TV / Ambient mode: all chrome vanishes, planets own the screen */
+.tv-on nav,
+.tv-on header,
+.tv-on .tv-hide {
+  display: none !important;
+}
+
 /* =====================================================
    Surfaces
    ===================================================== */

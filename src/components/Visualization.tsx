@@ -24,7 +24,9 @@ interface VisualizationProps {
   onSelect?: (id: string | null) => void
   favorites?: string[]
   highlightUntil?: number
-  sizeMetric?: 'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity'
+  sizeMetric?: 'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity' | 'ath'
+  /** OBS streamer mode: transparent container, no HUD chip, no vignette */
+  overlay?: boolean
   topLabel?: 'price' | 'change_24h'
   paused?: boolean
   onTogglePaused?: () => void
@@ -141,6 +143,7 @@ export function Visualization({
   isMobile: explicitIsMobile,
   isPulsechain = false,
   topOffset: topOffsetProp = 0,
+  overlay = false,
   performanceMode = false,
   marketTableOpen = false,
 }: VisualizationProps) {
@@ -157,6 +160,11 @@ export function Visualization({
       // DEX pool depth. Scaled around $100k rather than $100M because PulseChain
       // liquidity lives three orders of magnitude below the majors' market caps.
       base = 28 + Math.log10(Math.max(1, coin.liquidity || 1e5) / 1e5) * 11
+    } else if (sizeMetric === 'ath') {
+      // Distance from the all-time high: at ATH → big planet, -95% → dust.
+      // Makes "near new highs" vs "the graveyard" readable as a landscape.
+      const athPct = Math.max(-100, Math.min(0, coin.ath_change_percentage ?? -80))
+      base = 52 + athPct * 0.38
     } else if (sizeMetric === 'price') {
       base = 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
     } else if (sizeMetric === 'change_24h') {
@@ -1862,7 +1870,7 @@ export function Visualization({
   }
 
   return (
-    <div className="viz-container">
+    <div className={`viz-container ${overlay ? 'viz-overlay' : ''}`}>
       <canvas
         ref={canvasRef}
         style={{ touchAction: 'none' }}   // critical for direct, non-laggy touch on mobile
@@ -1875,6 +1883,7 @@ export function Visualization({
       />
       {/* Floating labels removed — text is now rendered inside the planets via canvas */}
 
+      {!overlay && (
       <div
         className="absolute left-3 md:left-4 hud px-3 py-1.5 md:px-3.5 md:py-2 rounded-2xl text-[10px] md:text-[11px] flex items-center gap-x-2.5 md:gap-x-3 z-30"
         style={{ top: `${Math.max(12, topOffset + 6)}px` }}
@@ -1908,6 +1917,7 @@ export function Visualization({
           <span className="kbd">Esc</span>
         </div>
       </div>
+      )}
 
       {tokens.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-[#6b7280] text-sm z-10">

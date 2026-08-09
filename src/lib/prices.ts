@@ -638,11 +638,48 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
   return filled
 }
 
+// =====================================================
+// MULTI-CHAIN GALAXIES
+// Extra ecosystem tabs after PulseChain, each fed by its CoinGecko category.
+// Coins already shown in the top-500 or an earlier section are skipped so ids
+// stay unique across the flat list (React keys + selection depend on that).
+// =====================================================
+export interface EcosystemSection {
+  key: string
+  label: string
+  start: number
+  end: number
+}
+
+const EXTRA_ECOSYSTEMS = [
+  { key: 'base', label: 'Base', category: 'base-ecosystem', limit: 100 },
+  { key: 'solana', label: 'Solana', category: 'solana-ecosystem', limit: 100 },
+]
+
+async function fetchEcosystemCategory(category: string, label: string): Promise<TokenPrice[]> {
+  // 250 per category, not 100: the category's top ranks overlap heavily with the
+  // main top-500 list and get deduped away — the tab is built from what remains.
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=${category}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
+  const res = await fetchCoinGeckoWithRetry(url, { usePulseKey: true, label: `${label} ecosystem` })
+  if (!res) return []
+  try {
+    const data = await res.json()
+    return Array.isArray(data) ? data.map(mapCoinGeckoCoin) : []
+  } catch {
+    return []
+  }
+}
+
 // Fetch top 500 coins (2 pages of 250) + PulseChain Ecosystem + user specials via CoinGecko.
 // HAC and HACD are inserted at positions 498-499 (end of 400-500 tab) via splice.
 // The tail (500+) contains ONLY Pulse coins fetched from Pulse sources (ecosystem category + curated + special),
 // limited to ~98. No leaks from previous tabs. Impact on 0-499 is zero.
-async function fetchAllCoins(): Promise<TokenPrice[]> {
+export interface MarketData {
+  tokens: TokenPrice[]
+  sections: EcosystemSection[]
+}
+
+async function fetchAllCoins(): Promise<MarketData> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
       Promise.all([
@@ -783,14 +820,32 @@ async function fetchAllCoins(): Promise<TokenPrice[]> {
 
     // First 500 (with HAC/HACD at 498-499) + every Pulse coin the sources returned.
     const result = [...mainSection, ...limitedPulseTail]
+    const sections: EcosystemSection[] = [
+      { key: 'pulsechain', label: 'PulseChain', start: mainSection.length, end: result.length },
+    ]
+
+    // Extra galaxy tabs (Base, Solana, ...) — fetched sequentially to stay
+    // gentle on the rate limit; each dedups against everything already shown.
+    for (const eco of EXTRA_ECOSYSTEMS) {
+      const fetched = await withLastGood(`${eco.label} ecosystem`, () =>
+        fetchEcosystemCategory(eco.category, eco.label)
+      )
+      const shown = new Set(result.map(t => t.id))
+      const fresh = fetched.filter(t => !shown.has(t.id)).slice(0, eco.limit)
+      if (fresh.length === 0) continue
+      const start = result.length
+      result.push(...fresh)
+      sections.push({ key: eco.key, label: eco.label, start, end: result.length })
+    }
 
     console.log(
-      `[CryptoDUST] ${result.length} coins ready (${mainSection.length} main + ${limitedPulseTail.length} PulseChain).`
+      `[CryptoDUST] ${result.length} coins ready (${mainSection.length} main + ` +
+      sections.map(s => `${s.end - s.start} ${s.label}`).join(' + ') + ').'
     )
-    return result
+    return { tokens: result, sections }
   } catch (error) {
     console.error('Failed to fetch coins', error)
-    return []
+    return { tokens: [], sections: [] }
   }
 }
 
@@ -821,8 +876,9 @@ export function formatCompactPrice(price: number | null | undefined): string {
 
 // ==================== MAIN HOOK ====================
 export function usePrices() {
-  const { data: tokens = [], error, isLoading } = useSWR(
-    'coingecko-prices',
+  const { data, error, isLoading } = useSWR<MarketData>(
+    // Key bumped: the cached shape changed from TokenPrice[] to MarketData
+    'coingecko-markets-v2',
     fetchAllCoins,
     {
       refreshInterval: REFRESH_INTERVAL,
@@ -832,7 +888,8 @@ export function usePrices() {
   )
 
   return {
-    tokens,
+    tokens: data?.tokens ?? [],
+    sections: data?.sections ?? [],
     isLoading,
     error,
     lastUpdated: Date.now(),

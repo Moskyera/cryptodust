@@ -145,7 +145,7 @@ const EXTERNAL_LINKS = [
 const DONATION_ADDRESS = '0x38be95f628ed004a000ddf8724142a95e3c4b492'
 
 export default function App() {
-  const { tokens, isLoading, error } = usePrices()
+  const { tokens, sections, isLoading, error } = usePrices()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sizeMetric, setSizeMetric] = useState<'market_cap' | 'volume' | 'price' | 'change_24h' | 'liquidity' | 'ath'>('change_24h')
   const [topLabel, setTopLabel] = useState<'price' | 'change_24h'>('price')
@@ -279,7 +279,7 @@ export default function App() {
     if (!overlayMode) return
     const params = new URLSearchParams(window.location.search)
     const page = parseInt(params.get('page') || '', 10)
-    if (Number.isFinite(page) && page >= 0 && page <= 5) setCurrentPage(page)
+    if (Number.isFinite(page) && page >= 0 && page <= 9) setCurrentPage(page) // clamped to real pages later
     const metric = params.get('metric')
     if (metric && ['change_24h', 'market_cap', 'volume', 'price', 'liquidity', 'ath'].includes(metric)) {
       setSizeMetric(metric as any)
@@ -312,7 +312,7 @@ export default function App() {
 
     // Ambient rotation: next page every 45s, with a movers highlight each time
     const cycle = setInterval(() => {
-      setCurrentPage(p => (p + 1) % 6)
+      setCurrentPage(p => (p + 1) % Math.max(1, totalPages))
       setHighlightUntil(Date.now() + 20000)
     }, 45000)
 
@@ -320,6 +320,9 @@ export default function App() {
       document.removeEventListener('fullscreenchange', onFsChange)
       clearInterval(cycle)
     }
+    // deps: totalPages is declared later in the component (TDZ in the deps
+    // array); the interval closure reads it lazily, which is safe — by the
+    // time TV mode is entered the sections have loaded.
   }, [tvMode])
 
   // Very careful PWA install handler - only triggers if browser offers it
@@ -509,13 +512,29 @@ export default function App() {
   const PAGE_SIZE = 100
   const MAIN_PAGES = 5 // 0–500, in pages of 100
   const MAIN_SECTION_SIZE = MAIN_PAGES * PAGE_SIZE
-  // Was Math.ceil(600 / 100), which also implied a hard 600-coin ceiling on the
-  // PulseChain tab. The tab now shows whatever the Pulse sources actually return.
-  const totalPages = MAIN_PAGES + 1
-  const isLastPageForTokens = currentPage === totalPages - 1
-  const currentPageTokens = isLastPageForTokens
-    ? filteredTokens.slice(MAIN_SECTION_SIZE) // every Pulse coin, not a fixed 98
-    : filteredTokens.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
+
+  // Pages = five top-500 slices + one galaxy tab per ecosystem section
+  // (PulseChain, Base, Solana, ... — whatever prices.ts delivered).
+  const pageDefs = React.useMemo(() => {
+    const defs: Array<{ label: string; start: number; end: number; key?: string }> = []
+    for (let i = 0; i < MAIN_PAGES; i++) {
+      const start = i * PAGE_SIZE
+      const end = Math.max(start, Math.min(start + PAGE_SIZE, Math.min(filteredTokens.length, MAIN_SECTION_SIZE)))
+      defs.push({ label: `${start}–${end}`, start, end: start + PAGE_SIZE })
+    }
+    for (const s of sections) {
+      defs.push({ label: s.label, start: s.start, end: s.end, key: s.key })
+    }
+    // Before the first fetch resolves there are no sections yet — keep a
+    // placeholder PulseChain tab so the layout doesn't jump.
+    if (sections.length === 0) defs.push({ label: 'PulseChain', start: MAIN_SECTION_SIZE, end: Infinity, key: 'pulsechain' })
+    return defs
+  }, [filteredTokens.length, sections])
+
+  const totalPages = pageDefs.length
+  const safePage = Math.min(currentPage, totalPages - 1)
+  const activePageDef = pageDefs[safePage]
+  const currentPageTokens = filteredTokens.slice(activePageDef.start, activePageDef.end)
 
   // No planet scale boosts (as requested).
   const baseScale = isMobile ? 0.45 : 1
@@ -647,7 +666,7 @@ export default function App() {
           paused={false}
           planetScale={1}
           isMobile={false}
-          isPulsechain={currentPage === 5}
+          isPulsechain={activePageDef.key === 'pulsechain'}
           topOffset={0}
           performanceMode={false}
           marketTableOpen={false}
@@ -1177,25 +1196,20 @@ export default function App() {
             {pagesPanelExpanded ? (
               // Expanded: tabs row (left aligned) with page selectors + centered collapse arrow
               <div className="relative flex items-center justify-start gap-x-1.5 bg-[#0f0f17]/90 backdrop-blur-xl border-b border-white/[0.07] px-4 py-2">
-                {Array.from({ length: totalPages }).map((_, index) => {
-                  const start = index * 100
-                  // Clamped to >= start: when fewer coins are loaded than the page
-                  // range, this used to render nonsense like "200–108".
-                  const end = Math.max(start, Math.min(start + 100, filteredTokens.length))
-                  const isLastPage = index === totalPages - 1
-                  const label = isLastPage ? 'PulseChain' : `${start}–${end}`
-                  const isActive = currentPage === index
+                {pageDefs.map((def, index) => {
+                  const isGalaxy = !!def.key
+                  const isActive = safePage === index
                   return (
                     <button
-                      key={index}
+                      key={def.key || def.label}
                       onClick={() => setCurrentPage(index)}
-                      className={`text-[11px] h-[26px] px-3 rounded-xl border whitespace-nowrap tabular-nums transition-colors ${isLastPage ? 'min-w-[104px] font-semibold' : 'min-w-[62px]'} ${
+                      className={`text-[11px] h-[26px] px-3 rounded-xl border whitespace-nowrap tabular-nums transition-colors ${isGalaxy ? 'min-w-[76px] font-semibold' : 'min-w-[62px]'} ${
                         isActive
                           ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-semibold'
                           : 'bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                      } ${isLastPage && !isActive ? 'glow-special' : ''}`}
+                      } ${def.key === 'pulsechain' && !isActive ? 'glow-special' : ''} ${isGalaxy && def.key !== 'pulsechain' && !isActive ? 'border-violet-400/30 text-violet-200/70' : ''}`}
                     >
-                      {label}
+                      {def.label}
                     </button>
                   )
                 })}
@@ -1350,22 +1364,19 @@ export default function App() {
             {/* Pages - better spacing and touch targets on mobile */}
             {/* Always 6 tabs (same as desktop) */}
             <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
-              {Array.from({ length: totalPages }).map((_, index) => {
-                const start = index * 100;
-                const end = Math.max(start, Math.min(start + 100, filteredTokens.length));
-                const isLastPage = index === totalPages - 1;
-                const label = isLastPage ? 'PulseChain' : `${start}–${end}`;
+              {pageDefs.map((def, index) => {
+                const isGalaxy = !!def.key
                 return (
                   <button
-                    key={index}
+                    key={def.key || def.label}
                     onClick={() => setCurrentPage(index)}
-                    className={`text-[11px] px-3.5 py-1.5 rounded-2xl border whitespace-nowrap ${isLastPage ? 'min-w-[160px] px-4' : 'min-w-[72px]'} ${
-                      currentPage === index
+                    className={`text-[11px] px-3.5 py-1.5 rounded-2xl border whitespace-nowrap ${isGalaxy ? 'min-w-[110px] px-4 font-semibold' : 'min-w-[72px]'} ${
+                      safePage === index
                         ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
                         : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
-                    } ${isLastPage && currentPage !== index ? 'glow-special' : ''}`}
+                    } ${def.key === 'pulsechain' && safePage !== index ? 'glow-special' : ''} ${isGalaxy && def.key !== 'pulsechain' && safePage !== index ? 'border-violet-400/30 text-violet-200/80' : ''}`}
                   >
-                    {label}
+                    {def.label}
                   </button>
                 );
               })}
@@ -1415,7 +1426,7 @@ export default function App() {
                         : change >= 0 ? 'row-edge-up' : 'row-edge-down'}`}
                   >
                     <span className="w-5 text-[10px] tabular-nums text-[#6b7280] flex-shrink-0 text-right">
-                      {currentPage * PAGE_SIZE + idx + 1}
+                      {activePageDef.start + idx + 1}
                     </span>
 
                     {coin.image ? (
@@ -2023,25 +2034,19 @@ export default function App() {
           <div className="flex-1 overflow-auto px-5 pt-3 pb-6 text-sm custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>
             {/* Page tabs inside drawer */}
             <div className="flex items-center gap-x-1.5 flex-wrap mb-3">
-              {Array.from({ length: totalPages }).map((_, index) => {
-                const start = index * 100
-                const end = Math.min(start + 100, filteredTokens.length)
-                const isLast = index === totalPages - 1
-                const label = isLast ? 'PulseChain' : `${start}–${end}`
-                return (
-                  <button
-                    key={start}
-                    onClick={() => setCurrentPage(index)}
-                    className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
-                      currentPage === index
-                        ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
-                        : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
+              {pageDefs.map((def, index) => (
+                <button
+                  key={def.key || def.label}
+                  onClick={() => setCurrentPage(index)}
+                  className={`px-3.5 py-1 text-[11px] rounded-2xl border font-medium transition-all ${
+                    safePage === index
+                      ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
+                  } ${def.key && def.key !== 'pulsechain' && safePage !== index ? 'border-violet-400/30 text-violet-200/80' : ''}`}
+                >
+                  {def.label}
+                </button>
+              ))}
             </div>
 
             <table className="w-full text-xs market-table">
@@ -2070,7 +2075,7 @@ export default function App() {
                       className={`market-row group/row cursor-pointer ${selectedId === coin.id ? 'selected' : ''}`}
                     >
                       <td className="text-[10px] tabular-nums text-[#6b7280]">
-                        {isLastPageForTokens ? MAIN_SECTION_SIZE + idx + 1 : currentPage * PAGE_SIZE + idx + 1}
+                        {activePageDef.start + idx + 1}
                       </td>
 
                       {/* Symbol + name stacked, with the chain badge and the outbound link

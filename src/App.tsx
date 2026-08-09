@@ -89,12 +89,6 @@ const PULSECHAIN_IDS = new Set([
   'unity-3', 'coin-mafia', 't-i-m-e-dividendimpls-finance', 'teddy-bear', 'doubt'
 ])
 
-// Explicitly excluded PulseChain coins (removed from filter and data)
-const PULSECHAIN_EXCLUDED_IDS = new Set([
-  'pulseium',
-  'go'
-])
-
 // Special featured planet shown ONLY in the PulseChain tab.
 // Uses the original logo from whalesonpulse.com and links out to the whales leaderboard.
 // Rendered larger than other planets with special radiant visuals (per user request).
@@ -294,7 +288,7 @@ export default function App() {
         if (result === 'ok') {
           setPushEnabled(true)
           if (favorites.length === 0) {
-            alert('Alerts are on! Star (★) some coins — you get notified when a favorite moves more than 10% in 24h.')
+            alert('Alerts are on! Star (★) some coins: you get notified when a favorite moves more than 10% in 24h.')
           }
         } else if (result === 'denied') {
           alert('Notifications are blocked for this site. Allow them in your browser settings and try again.')
@@ -404,10 +398,13 @@ export default function App() {
   }
 
   // Simple filter logic + search + pagination (~500 top + ~98 Pulse coins for the PulseChain tab)
-  const filteredTokens = React.useMemo(() => {
-    let result = [...tokens]
+  // Search + preset filtering. IMPORTANT: this must run on a PAGE SLICE, never
+  // on the full list before slicing — section boundaries (PulseChain/Base/...)
+  // are absolute offsets into the unfiltered array, so filtering first shifted
+  // every index and the galaxy tabs showed coins from other chains.
+  const applyMarketFilters = React.useCallback((list: TokenPrice[]) => {
+    let result = [...list]
 
-    // Search
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
       result = result.filter(t =>
@@ -416,7 +413,6 @@ export default function App() {
       )
     }
 
-    // Presets
     if (activePreset === 'gainers') {
       result = result.filter(t => (t.price_change_percentage_24h || 0) > 5)
     } else if (activePreset === 'losers') {
@@ -425,29 +421,17 @@ export default function App() {
       result = result.sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0))
     } else if (activePreset === 'favorites') {
       result = result.filter(t => favorites.includes(t.id))
-    } else if (activePreset === 'pulsechain') {
-      // Filter to only PulseChain ecosystem tokens
-      // Uses the official CoinGecko "pulsechain-ecosystem" category data
-      result = result.filter(t => {
-        const id = t.id.toLowerCase()
-        const symbol = t.symbol.toLowerCase()
-        const name = t.name.toLowerCase()
-
-        // Exclude specific unwanted coins
-        if (PULSECHAIN_EXCLUDED_IDS.has(id)) return false
-
-        return (
-          PULSECHAIN_IDS.has(id) ||
-          PULSECHAIN_IDS.has(symbol) ||
-          id.includes('pulse') ||
-          symbol.includes('pulse') ||
-          name.includes('pulse')
-        )
-      })
     }
 
-    return result // top ~500 (HAC at 498-499) + up to ~98 pure Pulse coins (from Pulse sources) for the tab
-  }, [tokens, activePreset, searchTerm, favorites])
+    return result
+  }, [activePreset, searchTerm, favorites])
+
+  // Global filtered view — feeds the stats band and result counters only,
+  // never the page slicing.
+  const filteredTokens = React.useMemo(
+    () => applyMarketFilters(tokens),
+    [tokens, applyMarketFilters]
+  )
 
   // Portfolio value: live USD total for favorited coins where user has entered holdings
   const portfolioValue = React.useMemo(() => {
@@ -483,7 +467,7 @@ export default function App() {
 
   // Smart formatter for market cap and volume (handles K / M / B)
   function formatMarketValue(value: number | null | undefined): string {
-    if (!value || value <= 0) return '—';
+    if (!value || value <= 0) return '';
 
     if (value >= 1_000_000_000) {
       return `$${(value / 1_000_000_000).toFixed(2)}B`;
@@ -509,7 +493,7 @@ export default function App() {
     if ((coin.liquidity ?? 0) > 0) {
       return { label: 'Liq', value: formatMarketValue(coin.liquidity), tone: 'text-[#67f6ff]/70' }
     }
-    return { label: '', value: '—', tone: 'text-[#6b7280]' }
+    return { label: '', value: '', tone: 'text-[#6b7280]' }
   }
 
   // Price formatter that shows enough decimals for very small coins
@@ -564,7 +548,7 @@ export default function App() {
     const defs: Array<{ label: string; start: number; end: number; key?: string }> = []
     for (let i = 0; i < MAIN_PAGES; i++) {
       const start = i * PAGE_SIZE
-      const end = Math.max(start, Math.min(start + PAGE_SIZE, Math.min(filteredTokens.length, MAIN_SECTION_SIZE)))
+      const end = Math.max(start, Math.min(start + PAGE_SIZE, Math.min(tokens.length, MAIN_SECTION_SIZE)))
       defs.push({ label: `${start}–${end}`, start, end: start + PAGE_SIZE })
     }
     for (const s of sections) {
@@ -574,12 +558,18 @@ export default function App() {
     // placeholder PulseChain tab so the layout doesn't jump.
     if (sections.length === 0) defs.push({ label: 'PulseChain', start: MAIN_SECTION_SIZE, end: Infinity, key: 'pulsechain' })
     return defs
-  }, [filteredTokens.length, sections])
+  }, [tokens.length, sections])
 
   const totalPages = pageDefs.length
   const safePage = Math.min(currentPage, totalPages - 1)
   const activePageDef = pageDefs[safePage]
-  const currentPageTokens = filteredTokens.slice(activePageDef.start, activePageDef.end)
+  // Slice the UNFILTERED list (boundaries are absolute), then filter within the
+  // page — so "Gainers" on the PulseChain tab means Pulse gainers, and a galaxy
+  // tab can never leak coins from another chain.
+  const currentPageTokens = React.useMemo(
+    () => applyMarketFilters(tokens.slice(activePageDef.start, activePageDef.end)),
+    [tokens, activePageDef, applyMarketFilters]
+  )
 
   // No planet scale boosts (as requested).
   const baseScale = isMobile ? 0.45 : 1
@@ -847,7 +837,7 @@ export default function App() {
                     : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
                 }`}
                 title={pushEnabled
-                  ? 'Price alerts on — your favorites alert at ±10% / 24h. Click to disable.'
+                  ? 'Price alerts on: your favorites alert at ±10% / 24h. Click to disable.'
                   : 'Enable price alerts for your favorite coins (±10% / 24h)'}
                 aria-label="Toggle price alerts"
               >
@@ -1002,7 +992,7 @@ export default function App() {
               },
               {
                 label: 'BTC DOMINANCE',
-                value: marketStats.dominance != null ? `${marketStats.dominance.toFixed(1)}%` : '—',
+                value: marketStats.dominance != null ? `${marketStats.dominance.toFixed(1)}%` : '',
                 icon: Bitcoin,
                 tint: 'text-amber-400',
                 chip: 'bg-amber-500/10 ring-amber-400/25',
@@ -1034,7 +1024,7 @@ export default function App() {
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="font-semibold tabular-nums text-[21px] tracking-[-0.5px] leading-none">
-                      {isLoading && !tokens.length ? '—' : stat.value}
+                      {isLoading && !tokens.length ? '…' : stat.value}
                     </span>
                     {stat.suffix && (
                       <span className="text-[#6b7280] text-xs tabular-nums">{stat.suffix}</span>
@@ -1179,10 +1169,7 @@ export default function App() {
             ].map(f => (
               <button
                 key={f.key}
-                onClick={() => {
-                  setActivePreset(activePreset === f.key ? null : f.key)
-                  setCurrentPage(0)
-                }}
+                onClick={() => setActivePreset(activePreset === f.key ? null : f.key)}
                 className={`filter-chip ctl ${
                   activePreset === f.key
                     ? 'bg-white text-black border-white font-semibold'
@@ -1195,7 +1182,7 @@ export default function App() {
 
             {activePreset && (
               <button
-                onClick={() => { setActivePreset(null); setCurrentPage(0) }}
+                onClick={() => setActivePreset(null)}
                 className="ctl bg-transparent border-transparent text-[#6b7280] hover:text-white px-2"
                 title="Clear filter"
               >
@@ -1264,7 +1251,7 @@ export default function App() {
             onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
             planetScale={planetScale}
             isMobile={isMobile}
-            isPulsechain={activePreset === 'pulsechain'}
+            isPulsechain={activePageDef.key === 'pulsechain'}
             topOffset={desktopTopOffset}
             performanceMode={performanceMode}
             marketTableOpen={isMarketOpen}
@@ -1675,7 +1662,7 @@ export default function App() {
                 ) : (
                   <div className="flex justify-between border-b border-white/10 pb-1">
                     <span className="text-[#6b7280]">Market Cap</span>
-                    <span className="font-medium text-[#6b7280]">—</span>
+                    <span className="font-medium text-[#6b7280]"></span>
                   </div>
                 )}
                 <div className="flex justify-between border-b border-white/10 pb-1">
@@ -1872,7 +1859,7 @@ export default function App() {
                       ) : (
                         <div className="rounded-xl bg-white/[0.03] border border-white/[0.07] px-3 py-2">
                           <div className="text-[9px] text-[#6b7280] tracking-[0.8px] mb-0.5">MARKET CAP</div>
-                          <div className="font-semibold tabular-nums text-[13px] text-[#6b7280]">—</div>
+                          <div className="font-semibold tabular-nums text-[13px] text-[#6b7280]"></div>
                         </div>
                       )}
 
@@ -1919,9 +1906,9 @@ export default function App() {
                   </div>
                 )}
 
-                {activePreset === 'pulsechain' && !isWhales && (selectedCoin.market_cap ?? 0) <= 0 && (
+                {activePageDef.key === 'pulsechain' && !isWhales && (selectedCoin.market_cap ?? 0) <= 0 && (
                   <div className="text-[10px] text-violet-400/60 pt-1">
-                    No source publishes circulating supply for this token — FDV (total supply × price) is shown instead.
+                    No source publishes circulating supply for this token, so FDV (total supply × price) is shown instead.
                   </div>
                 )}
               </div>
@@ -2054,7 +2041,7 @@ export default function App() {
             {[
               { label: 'Big Movers', key: null }, // reuse highlight
               { label: 'Gainers', key: 'gainers' },
-              { label: 'PulseChain', key: 'pulsechain' },
+              { label: 'PulseChain', key: 'page:pulsechain' },
               { label: 'Favorites', key: 'favorites' },
             ].map((f, idx) => (
               <button
@@ -2062,6 +2049,9 @@ export default function App() {
                 onClick={() => {
                   if (f.key === null) {
                     highlightBigMovers()
+                  } else if (f.key === 'page:pulsechain') {
+                    const idx = pageDefs.findIndex(d => d.key === 'pulsechain')
+                    if (idx >= 0) { setActivePreset(null); setCurrentPage(idx) }
                   } else {
                     setActivePreset(f.key)
                     setCurrentPage(0)
@@ -2255,7 +2245,7 @@ export default function App() {
       {error && (
         <div className="fade-in fixed bottom-16 left-1/2 -translate-x-1/2 z-[75] flex items-center gap-2 bg-red-500/12 backdrop-blur-md border border-red-500/30 text-red-300 text-xs px-4 py-2 rounded-2xl shadow-lg">
           <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
-          Price feed issue — showing cached values
+          Price feed issue: showing cached values
         </div>
       )}
 

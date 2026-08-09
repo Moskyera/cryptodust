@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
-import { usePrices, type TokenPrice } from './lib/prices'
+import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
   X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv,
@@ -465,24 +465,9 @@ export default function App() {
   }
 
   // Price formatter that shows enough decimals for very small coins
-  function formatPrice(price: number | null | undefined): string {
-    if (!price || price <= 0) return '$0';
-
-    if (price >= 1000) {
-      return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 0 });
-    } else if (price >= 1) {
-      return '$' + price.toFixed(2);
-    } else if (price >= 0.01) {
-      return '$' + price.toFixed(4);
-    } else if (price >= 0.0001) {
-      return '$' + price.toFixed(6);
-    } else if (price >= 0.000001) {
-      return '$' + price.toFixed(8);
-    } else {
-      // Extremely small prices (common on some PulseChain tokens)
-      return '$' + price.toExponential(2);
-    }
-  }
+  // Subscript-zeros notation everywhere ($0.0₅885 instead of $0.00000885 walls
+  // or unreadable exponentials) — the same convention CoinGecko/DexScreener use.
+  const formatPrice = formatCompactPrice
 
   const handleSelect = (id: string | null) => {
     if (id === null) {

@@ -47,7 +47,9 @@ const fmtPrice = (p: number) => {
   if (p >= 1000) return '$' + Math.round(p).toLocaleString('en-US')
   if (p >= 1) return '$' + p.toFixed(2)
   if (p >= 0.0001) return '$' + p.toFixed(6)
-  return '$' + p.toExponential(2)
+  // Full decimals for micro-prices, CoinGecko-notification style
+  const zeros = Math.floor(-Math.log10(p))
+  return '$' + p.toFixed(Math.min(12, zeros + 3))
 }
 
 export default async function handler(req: any, res: any) {

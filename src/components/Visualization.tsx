@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import type { TokenPrice } from '../lib/prices'
+import { formatCompactPrice } from '../lib/prices'
 
 interface Bubble {
   id: string
@@ -1058,11 +1059,13 @@ export function Visualization({
           ctx.strokeStyle = '#000000'
           ctx.lineWidth = Math.max(3, r * 0.06)
 
+          // Micro-prices used to collapse to "$0.000" here — useless for PLS
+          // and most PulseChain tokens. formatCompactPrice renders $0.0₅885.
           let priceStr
           if (price >= 10000) priceStr = '$' + price.toFixed(0)
           else if (price >= 1000) priceStr = '$' + price.toFixed(0)
           else if (price >= 10) priceStr = '$' + price.toFixed(1)
-          else priceStr = '$' + price.toFixed(3)
+          else priceStr = formatCompactPrice(price)
 
           ctx.strokeText(priceStr, x, topY)
           ctx.fillText(priceStr, x, topY)
@@ -1257,21 +1260,8 @@ export function Visualization({
         const badgePrice = coin.current_price || 0
         const badgeChg = coin.price_change_percentage_24h || 0
 
-        // Better price formatting for very small coins (common in PulseChain)
-        let priceLabel: string
-        if (badgePrice >= 1000) {
-          priceLabel = '$' + badgePrice.toFixed(0)
-        } else if (badgePrice >= 1) {
-          priceLabel = '$' + badgePrice.toFixed(2)
-        } else if (badgePrice >= 0.01) {
-          priceLabel = '$' + badgePrice.toFixed(4)
-        } else if (badgePrice >= 0.0001) {
-          priceLabel = '$' + badgePrice.toFixed(6)
-        } else if (badgePrice >= 0.000001) {
-          priceLabel = '$' + badgePrice.toFixed(8)
-        } else {
-          priceLabel = '$' + badgePrice.toExponential(2)
-        }
+        // Subscript-zeros notation, same as the planet labels ($0.0₅885)
+        const priceLabel = formatCompactPrice(badgePrice)
         const chgLabel = (badgeChg > 0 ? '+' : '') + badgeChg.toFixed(1) + '%'
 
         // Measure text for pill background

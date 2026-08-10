@@ -169,11 +169,15 @@ export function Visualization({
     } else if (sizeMetric === 'price') {
       base = 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
     } else if (sizeMetric === 'change_24h') {
+      // Size follows the ABSOLUTE move: a -30% crash is as big a story as a
+      // +30% pump. The old signed formula shrank heavy losers into
+      // unrecognisable dust; direction is already told by colour and rim.
       const change = coin.price_change_percentage_24h || 0
-      let baseSize = 32 + (change * 1.15)
+      const absChange = Math.abs(change)
+      let baseSize = 26 + absChange * 1.3
 
-      // Double size for extreme moves (>= 25%)
-      if (Math.abs(change) >= 25) {
+      // Extreme moves in either direction still get the dramatic boost
+      if (absChange >= 25) {
         baseSize *= 2
       }
 
@@ -183,11 +187,13 @@ export function Visualization({
       base = 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
     }
 
-    const scaled = Math.max(18, Math.min(92, base)) * planetScale
+    // Floor raised 18 → 22: below that the logo art stops being recognisable,
+    // which defeats the whole logo-is-the-planet idea.
+    const scaled = Math.max(22, Math.min(92, base)) * planetScale
 
     // Desktop planets a little bigger
     const maxSize = planetScale < 0.7 ? 46 : 85
-    let finalR = Math.max(12, Math.min(maxSize, scaled))
+    let finalR = Math.max(14, Math.min(maxSize, scaled))
 
     // PulseChain tab: ALL planets significantly larger for better visibility and impact (user request)
     if (isPulsechain) {
@@ -213,6 +219,13 @@ export function Visualization({
   const spriteCache = useRef<Map<string, HTMLCanvasElement>>(new Map())
   const SPRITE_D = 192 // hi-res master, downscaled at draw time (max planet Ø is 170px)
 
+  // Tab switches used to compose ~100 logo sprites in the first frame — the
+  // freeze the user feels. Budgeted now: a few builds per frame, everyone else
+  // draws the cheap shared tinted sphere until their turn comes (~1s for a full
+  // tab at 60fps, imperceptible because planets are still growing in).
+  const spriteBuildsThisFrame = useRef(0)
+  const SPRITE_BUILDS_PER_FRAME = 8
+
   const getPlanetSprite = (
     id: string,
     img: HTMLImageElement | null,
@@ -225,6 +238,13 @@ export function Visualization({
     const key = img ? `${id}:logo` : (isGainer ? 'plain:up' : 'plain:down')
     const cached = spriteCache.current.get(key)
     if (cached) return cached
+
+    // Over budget this frame: fall back to the shared plain sphere (never
+    // cached under the logo key, so the real sprite still builds later).
+    if (img && spriteBuildsThisFrame.current >= SPRITE_BUILDS_PER_FRAME) {
+      return getPlanetSprite(id, null, isGainer)
+    }
+    if (img) spriteBuildsThisFrame.current++
 
     const c = document.createElement('canvas')
     c.width = SPRITE_D
@@ -449,7 +469,11 @@ export function Visualization({
         y: spawnPadding + Math.random() * (h - spawnPadding * 2),
         vx: (Math.random() - 0.5) * 1.85,
         vy: (Math.random() - 0.5) * 1.85,
-        r: baseR * 0.75,
+        // Planets are born small and grow to size (the existing targetR lerp
+        // does the animation). Starting at 75% made ~100 fresh planets overlap
+        // instantly on a tab switch — the collision solver's first frames were
+        // half the "stuck" feeling; growing in resolves gently and looks alive.
+        r: Math.min(10, baseR * 0.3),
         targetR: baseR,
         coin,
         restlessness,
@@ -863,6 +887,9 @@ export function Visualization({
     // starfield) is CSS behind the canvas, so planets float over it. Exports
     // re-composite onto #0a0a12 in App.tsx since PNGs need the dark background.
     ctx.clearRect(0, 0, w, h)
+
+    // Fresh sprite-composition budget for this frame (see getPlanetSprite)
+    spriteBuildsThisFrame.current = 0
 
     // ==================== DRAW EVERYTHING ====================
     bubbles.forEach((b) => {

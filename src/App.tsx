@@ -1614,6 +1614,13 @@ export default function App() {
                       <Share2 className="w-4 h-4" />
                     </button>
                     <button
+                      onClick={copyCard}
+                      aria-label="Copy the card image"
+                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
                       onClick={() => downloadCoinCard(selectedCoin)}
                       aria-label="Download the card"
                       className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"

@@ -370,8 +370,7 @@ export async function shareCoinCard(coin: TokenPrice): Promise<'shared' | 'downl
         await navigator.share({
           files: [file],
           title: `${coin.symbol} on CryptoDUST`,
-          // The /c/ link makes the receiving platform render the OG card too
-          text: `${coin.name}: ${((coin.price_change_percentage_24h || 0) >= 0 ? '+' : '')}${(coin.price_change_percentage_24h || 0).toFixed(2)}% in 24h · ${coinShareUrl(coin)}`,
+          text: `${coin.name}: ${((coin.price_change_percentage_24h || 0) >= 0 ? '+' : '')}${(coin.price_change_percentage_24h || 0).toFixed(2)}% in 24h · cryptodust.xyz`,
         })
         return 'shared'
       } catch {

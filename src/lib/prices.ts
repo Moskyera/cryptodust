@@ -12,6 +12,7 @@
  */
 
 import useSWR from 'swr'
+import { useEffect, useRef } from 'react'
 
 // ==================== CONFIG ====================
 // Main CoinGecko key (can be paid or demo)
@@ -883,9 +884,89 @@ export function formatCompactPrice(price: number | null | undefined): string {
   return `$0.0${sub}${digits}`
 }
 
+// =====================================================
+// FAST LANE — light 60-second price refresh.
+// The full pipeline (9 CoinGecko calls) stays on its 5-minute cycle; between
+// cycles we refresh only what moves the needle at minimal quota cost:
+//   - top-250 prices: ONE CoinGecko call, shared across every visitor by the
+//     proxy's s-maxage=60 edge cache
+//   - every mapped PulseChain token: TWO DexScreener calls, keyless and far
+//     under its 300 req/min ceiling
+// Runs only while the tab is visible, so idle tabs spend nothing.
+// =====================================================
+interface FastPulseQuote {
+  price: number
+  change24?: number
+  liquidity?: number
+}
+
+async function fetchFastPulseQuotes(): Promise<Map<string, FastPulseQuote>> {
+  const out = new Map<string, FastPulseQuote>()
+  const entries = Object.entries(PULSECHAIN_TOKEN_ADDRESSES)
+  const addrToId = new Map(entries.map(([id, addr]) => [addr.toLowerCase(), id]))
+  const addresses = entries.map(([, addr]) => addr)
+
+  const batches: string[][] = []
+  for (let i = 0; i < addresses.length; i += DEXSCREENER_BATCH_SIZE) {
+    batches.push(addresses.slice(i, i + DEXSCREENER_BATCH_SIZE))
+  }
+
+  const groups = await Promise.all(batches.map(fetchDexScreenerBatch))
+  for (const pair of groups.flat()) {
+    if (pair?.chainId && pair.chainId !== 'pulsechain') continue
+    const id = addrToId.get(pair?.baseToken?.address?.toLowerCase())
+    if (!id) continue
+    const price = parseFloat(pair.priceUsd)
+    if (!(price > 0)) continue
+    const existing = out.get(id)
+    const liquidity = pair.liquidity?.usd || 0
+    if (existing && (existing.liquidity || 0) >= liquidity) continue // keep deepest pair
+    out.set(id, {
+      price,
+      change24: typeof pair.priceChange?.h24 === 'number' ? pair.priceChange.h24 : undefined,
+      liquidity: liquidity > 0 ? liquidity : undefined,
+    })
+  }
+  return out
+}
+
+function mergeFastLane(
+  current: MarketData,
+  top: TokenPrice[],
+  pulse: Map<string, FastPulseQuote>
+): MarketData {
+  const byId = new Map(top.map(t => [t.id, t]))
+  const tokens = current.tokens.map(t => {
+    const fresh = byId.get(t.id)
+    if (fresh) {
+      return {
+        ...t,
+        current_price: fresh.current_price || t.current_price,
+        price_change_percentage_24h: fresh.price_change_percentage_24h ?? t.price_change_percentage_24h,
+        price_change_percentage_1h: fresh.price_change_percentage_1h ?? t.price_change_percentage_1h,
+        high_24h: fresh.high_24h ?? t.high_24h,
+        low_24h: fresh.low_24h ?? t.low_24h,
+        total_volume: fresh.total_volume || t.total_volume,
+        market_cap: fresh.market_cap || t.market_cap,
+      }
+    }
+    const dp = pulse.get(t.id)
+    if (dp) {
+      return {
+        ...t,
+        current_price: dp.price,
+        price_change_percentage_24h: dp.change24 ?? t.price_change_percentage_24h,
+        liquidity: dp.liquidity ?? t.liquidity,
+      }
+    }
+    return t
+  })
+  return { tokens, sections: current.sections }
+}
+
 // ==================== MAIN HOOK ====================
 export function usePrices() {
-  const { data, error, isLoading } = useSWR<MarketData>(
+  const { data, error, isLoading, mutate } = useSWR<MarketData>(
     // Key bumped: the cached shape changed from TokenPrice[] to MarketData
     'coingecko-markets-v2',
     fetchAllCoins,
@@ -895,6 +976,38 @@ export function usePrices() {
       dedupingInterval: 60000, // avoid refetching too often
     }
   )
+
+  // Fast lane: 60s price-only updates between the 5-minute full rebuilds
+  const lastFastRun = useRef(0)
+  useEffect(() => {
+    let cancelled = false
+
+    const tick = async () => {
+      if (cancelled || document.visibilityState === 'hidden') return
+      if (Date.now() - lastFastRun.current < 45000) return
+      lastFastRun.current = Date.now()
+
+      try {
+        const [top, pulse] = await Promise.all([
+          fetchCoinGeckoPage(1),
+          fetchFastPulseQuotes(),
+        ])
+        if (cancelled || (top.length === 0 && pulse.size === 0)) return
+        mutate(curr => (curr ? mergeFastLane(curr, top, pulse) : curr), { revalidate: false })
+      } catch { /* next tick catches up */ }
+    }
+
+    const interval = setInterval(tick, 60000)
+    // Coming back to the tab refreshes immediately instead of waiting a minute
+    const onVisible = () => { if (document.visibilityState === 'visible') tick() }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [mutate])
 
   return {
     tokens: data?.tokens ?? [],

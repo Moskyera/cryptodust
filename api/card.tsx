@@ -10,10 +10,19 @@ import { ImageResponse } from '@vercel/og'
 
 export const config = { runtime: 'edge' }
 
-const h = (type: any, props: any = {}, ...children: any[]) => ({
-  type,
-  props: { ...props, children: children.length === 1 ? children[0] : children },
-})
+// Filters null/undefined/false children — satori chokes on them, and that is
+// exactly what `cond ? h(...) : null` produced in the full tree (the probes all
+// passed because none of them had conditional children).
+const h = (type: any, props: any = {}, ...children: any[]) => {
+  const kids = children.flat().filter((c: any) => c !== null && c !== undefined && c !== false)
+  return {
+    type,
+    props: {
+      ...props,
+      children: kids.length === 0 ? undefined : kids.length === 1 ? kids[0] : kids,
+    },
+  }
+}
 
 function fmtPrice(p: number): string {
   if (!p || p <= 0) return '$0'
@@ -148,6 +157,7 @@ export default async function handler(req: Request) {
         backgroundImage:
           'radial-gradient(circle at 15% 0%, rgba(167,139,250,0.25), transparent 55%), radial-gradient(circle at 95% 100%, rgba(103,246,255,0.2), transparent 50%)',
         position: 'relative',
+        overflow: 'hidden',
         fontFamily: 'Inter',
       },
     },

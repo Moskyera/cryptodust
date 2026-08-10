@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
-import { shareCoinCard, shareCardToComposer } from './lib/shareCard'
+import { shareCoinCard, shareCardToComposer, downloadCoinCard } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
   X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2, Send,
@@ -1628,6 +1628,13 @@ export default function App() {
                       <Share2 className="w-4 h-4" />
                     </button>
                     <button
+                      onClick={() => downloadCoinCard(selectedCoin)}
+                      aria-label="Download the card"
+                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                    <button
                       onClick={() => toggleFavorite(selectedCoin.id)}
                       className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
                     >
@@ -1815,12 +1822,12 @@ export default function App() {
                       <Send className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => shareCoinCard(selectedCoin)}
-                      aria-label="Share or download the card"
-                      title="Native share / download the card as PNG"
+                      onClick={() => downloadCoinCard(selectedCoin)}
+                      aria-label="Download the card as PNG"
+                      title="Download the card as a PNG image"
                       className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] hover:bg-[#67f6ff]/20 transition-colors flex-shrink-0"
                     >
-                      <Share2 className="w-3.5 h-3.5" />
+                      <Download className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => toggleFavorite(selectedCoin.id)}

@@ -37,7 +37,7 @@ export default async function handler(req: any, res: any) {
   } catch { /* keep fallbacks */ }
 
   const site = 'https://www.cryptodust.xyz'
-  const cardUrl = `${site}/api/card?coin=${encodeURIComponent(coinId)}`
+  const cardUrl = `${site}/api/card?coin=${encodeURIComponent(coinId)}&v=2`
   const appUrl = `${site}/?coin=${encodeURIComponent(coinId)}`
 
   const html = `<!doctype html>
@@ -57,12 +57,11 @@ export default async function handler(req: any, res: any) {
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
 <meta name="twitter:image" content="${esc(cardUrl)}">
-<meta http-equiv="refresh" content="0;url=${esc(appUrl)}">
 <style>body{background:#0a0a12;color:#9ca3af;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}</style>
 </head>
 <body>
 <script>location.replace(${JSON.stringify(appUrl)})</script>
-<p>Opening CryptoDUST…</p>
+<p><a href="${esc(appUrl)}" style="color:#67f6ff">Opening CryptoDUST…</a></p>
 </body>
 </html>`
 

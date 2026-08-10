@@ -328,6 +328,22 @@ export async function shareCardToComposer(
   }
 }
 
+/** Always download the card as a PNG file. */
+export async function downloadCoinCard(coin: TokenPrice): Promise<boolean> {
+  try {
+    const blob = await cardBlob(coin)
+    if (!blob) return false
+    const link = document.createElement('a')
+    link.download = `cryptodust-${coin.symbol.toLowerCase()}.png`
+    link.href = URL.createObjectURL(blob)
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(link.href), 10000)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Render the card and hand it to the user: native share where available, PNG download otherwise. */
 export async function shareCoinCard(coin: TokenPrice): Promise<'shared' | 'downloaded' | 'failed'> {
   try {

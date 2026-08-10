@@ -620,6 +620,16 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
     const fdv = pair.fdv ?? pair.marketCap
     const liquidity = pair.liquidity?.usd
 
+    // DexScreener is the PRICE AUTHORITY for these tokens: it reads the pool
+    // itself, so it is fresher than CoinGecko's aggregate. Without this, the
+    // 5-minute full refresh kept reverting the fast lane's live pool prices
+    // back to CoinGecko's staler ones and values flapped between sources.
+    const pairPrice = parseFloat(pair.priceUsd)
+    if (pairPrice > 0) token.current_price = pairPrice
+    if (typeof pair.priceChange?.h24 === 'number') {
+      token.price_change_percentage_24h = pair.priceChange.h24
+    }
+
     // FDV only as a fallback: CoinGecko's fully_diluted_valuation (captured in
     // mapCoinGeckoCoin) is the primary source. Where the two disagree, DexScreener's
     // supply figure is usually the wrong one — measured: $MAFIA 50x low, WPLS 17x low,

@@ -84,6 +84,24 @@ export default async function handler(req: Request) {
     return Response.redirect('https://www.cryptodust.xyz/cryptodust-logo.png', 302)
   }
 
+  // ---- staged rendering probes: /api/card?stage=t1..t4 isolates which
+  // feature kills satori mid-stream (errors there are otherwise invisible) ----
+  const stage = searchParams.get('stage')
+  if (stage) {
+    const base = { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0a0a14', color: '#ffffff', fontSize: 80, fontFamily: 'Inter' }
+    let probe: any = h('div', { style: base }, 'T1 OK')
+    if (stage === 't2') {
+      probe = h('div', { style: { ...base, backgroundImage: 'radial-gradient(circle at 15% 0%, rgba(167,139,250,0.25), transparent 55%)' } }, 'T2 OK')
+    } else if (stage === 't3') {
+      probe = h('div', { style: base },
+        h('img', { src: 'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png?1696501400', width: 200, height: 200, style: { borderRadius: 100 } }))
+    } else if (stage === 't4') {
+      probe = h('div', { style: base },
+        h('div', { style: { display: 'flex', color: '#4ade80', textShadow: '0 0 42px #4ade80', border: '5px solid rgba(103,246,255,0.55)', boxShadow: '0 0 60px rgba(103,246,255,0.25)', borderRadius: 28, padding: 40 } }, 'T4 OK'))
+    }
+    return new ImageResponse(probe, { width: 1200, height: 630, fonts })
+  }
+
   const change = coin?.price_change_percentage_24h || 0
   const isUp = change >= 0
   const accent = isUp ? '#4ade80' : '#f87171'

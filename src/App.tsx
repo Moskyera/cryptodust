@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
+import { shareCoinCard } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
-  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv,
+  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2,
 } from 'lucide-react'
 import { isPushSupported, getPushSubscription, enablePushAlerts, disablePushAlerts, syncPushPrefs } from './lib/push'
 
@@ -1044,7 +1045,7 @@ export default function App() {
           Hidden on mobile. On desktop: visibility is tied to the minimizable pages tabs panel state.
           When you minimize the pages panel (center arrow), these controls also hide to give maximum planet surface. */}
       {pagesPanelExpanded && (
-        <div className="tv-hide border-b border-[#25252f] bg-gradient-to-b from-[#13131b] to-[#101017] flex-shrink-0 hidden md:block">
+        <div className="tv-hide border-b border-white/[0.08] bg-white/[0.035] backdrop-blur-xl flex-shrink-0 hidden md:block">
           <div className="w-full px-4 lg:px-5 py-3 flex items-center gap-x-2.5 gap-y-2.5 flex-wrap">
             {/* One 34px control height and one radius across the whole band — the pieces
                 used to range from py-1 to py-2 with rounded-2xl/3xl mixed together. */}
@@ -1175,7 +1176,7 @@ export default function App() {
                 onClick={() => setActivePreset(activePreset === f.key ? null : f.key)}
                 className={`filter-chip ctl ${
                   activePreset === f.key
-                    ? 'bg-white text-black border-white font-semibold'
+                    ? 'chip-on'
                     : 'bg-white/[0.04] border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
                 }`}
               >
@@ -1609,12 +1610,21 @@ export default function App() {
 
               <div className="flex items-center gap-2">
                 {!isWhales && (
-                  <button 
-                    onClick={() => toggleFavorite(selectedCoin.id)} 
-                    className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
-                  >
-                    {favorites.includes(selectedCoin.id) ? '★ Favorited' : '☆ Favorite'}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => shareCoinCard(selectedCoin)}
+                      aria-label="Share this coin"
+                      className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] active:bg-[#67f6ff]/20"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => toggleFavorite(selectedCoin.id)}
+                      className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
+                    >
+                      {favorites.includes(selectedCoin.id) ? '★ Favorited' : '☆ Favorite'}
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => setSelectedId(null)}
@@ -1778,13 +1788,23 @@ export default function App() {
                 </div>
 
                 {!isWhales && (
-                  <button
-                    onClick={() => toggleFavorite(selectedCoin.id)}
-                    className="text-2xl leading-none transition-transform hover:scale-110 active:scale-90 flex-shrink-0"
-                    title={favorites.includes(selectedCoin.id) ? 'Remove from favorites' : 'Add to favorites'}
-                  >
-                    {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/35">☆</span>}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => shareCoinCard(selectedCoin)}
+                      aria-label="Share a card for this coin"
+                      title="Share — a card with the logo, price and 24h move"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] hover:bg-[#67f6ff]/20 transition-colors flex-shrink-0"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => toggleFavorite(selectedCoin.id)}
+                      className="text-2xl leading-none transition-transform hover:scale-110 active:scale-90 flex-shrink-0"
+                      title={favorites.includes(selectedCoin.id) ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/35">☆</span>}
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => setSelectedId(null)}

@@ -308,7 +308,7 @@ export default function App() {
     if (!selectedCoin) return
     const ok = await shareCardToComposer(selectedCoin, network)
     setShareHint(ok
-      ? 'Card copied! Paste it into the post (Ctrl+V)'
+      ? 'Card copied! Paste it into the post'
       : 'Composer opened — use the share button to save the card')
     window.setTimeout(() => setShareHint(null), 6000)
   }
@@ -1607,9 +1607,23 @@ export default function App() {
                 {!isWhales && (
                   <>
                     <button
+                      onClick={() => shareVia('x')}
+                      aria-label="Share on X"
+                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/85 text-[13px] font-black"
+                    >
+                      𝕏
+                    </button>
+                    <button
+                      onClick={() => shareVia('telegram')}
+                      aria-label="Share on Telegram"
+                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-sky-500/30 text-sky-300"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                    <button
                       onClick={() => shareCoinCard(selectedCoin)}
                       aria-label="Share this coin"
-                      className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] active:bg-[#67f6ff]/20"
+                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-[#67f6ff]/25 text-[#67f6ff]"
                     >
                       <Share2 className="w-4 h-4" />
                     </button>

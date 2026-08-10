@@ -33,7 +33,6 @@ interface VisualizationProps {
   onTogglePaused?: () => void
   planetScale?: number
   isMobile?: boolean   // explicit for aggressive mobile perf paths
-  isPulsechain?: boolean  // when PulseChain tab active: all planets significantly larger for better visibility and impact
   topOffset?: number  // desktop collapsible tabs panel height reserve so planets don't overlap it; used for top clamps + push on expand
   performanceMode?: boolean  // desktop manual lite rendering: fewer effects, capped FPS, no physics
   marketTableOpen?: boolean  // desktop: pause canvas while market table overlay is open
@@ -142,7 +141,6 @@ export function Visualization({
   onTogglePaused,
   planetScale = 1,
   isMobile: explicitIsMobile,
-  isPulsechain = false,
   topOffset: topOffsetProp = 0,
   overlay = false,
   performanceMode = false,
@@ -195,14 +193,24 @@ export function Visualization({
     const maxSize = planetScale < 0.7 ? 46 : 85
     let finalR = Math.max(14, Math.min(maxSize, scaled))
 
-    // PulseChain tab: ALL planets significantly larger for better visibility and impact (user request)
-    if (isPulsechain) {
-      finalR *= 1.52   // ~52% radius = substantial visual mass increase (area ~2.3x)
-      finalR = Math.min(finalR, 118)
+    // The old PulseChain-only 1.52× boost is gone: with 107 coins on that tab
+    // the oversized planets both looked inconsistent next to the other tabs and
+    // overloaded the collision solver — the lag felt when opening it.
+
+    // Fit the monitor: a 24" 1080p window scales planets down, a 32" 4K window
+    // scales them up. Mobile keeps its own planetScale and is left alone.
+    if (!isMobile) {
+      finalR = Math.max(14, finalR * viewportScale)
     }
 
     return finalR
   }
+  // Screen-size adaptation: the layout was tuned on a ~1600px-wide canvas. On a
+  // smaller monitor the same pixel radii cram and overlap; on a big one they
+  // float lost in space. Radii scale with the square root of the canvas area
+  // (so planet AREA tracks screen area), clamped so extremes stay sane.
+  const [viewportScale, setViewportScale] = useState(1)
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const bubblesRef = useRef<Bubble[]>([])
   const animationRef = useRef<number>()
@@ -522,7 +530,7 @@ export function Visualization({
       b.baseRadius = newBase
       b.targetR = newBase
     })
-  }, [sizeMetric, planetScale])
+  }, [sizeMetric, planetScale, viewportScale])
 
   // When in "Size by 24h %" mode, keep sizes updated as the percentage changes over time
   useEffect(() => {
@@ -533,7 +541,7 @@ export function Visualization({
       b.baseRadius = newBase
       b.targetR = newBase
     })
-  }, [tokens, sizeMetric, planetScale])  // tokens update on every data refresh
+  }, [tokens, sizeMetric, planetScale, viewportScale])  // tokens update on every data refresh
 
   // When topOffset increases (user expands the tabs panel on desktop), immediately push any planets
   // that are now overlapping the panel area downward. This fulfills "the panel will push the planets if contact when it opens".
@@ -1643,6 +1651,14 @@ export function Visualization({
 
     canvas.width = Math.floor(displayWidth * dpr)
     canvas.height = Math.floor(displayHeight * dpr)
+
+    // Planet radii follow the visible canvas area (see viewportScale note).
+    // Reference surface: the ~1600×860 canvas the sizes were designed on.
+    // Rounded so tiny resize jitter doesn't trigger re-renders.
+    if (!isMobile) {
+      const raw = Math.sqrt((displayWidth * displayHeight) / (1600 * 860))
+      setViewportScale(Math.round(Math.min(1.35, Math.max(0.7, raw)) * 100) / 100)
+    }
 
     // On desktop we let CSS (width:100%; height:100%) handle sizing cleanly
     // to keep perfect circle rendering. On mobile we set explicit sizes

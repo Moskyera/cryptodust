@@ -563,12 +563,16 @@ export default function App() {
   const totalPages = pageDefs.length
   const safePage = Math.min(currentPage, totalPages - 1)
   const activePageDef = pageDefs[safePage]
-  // Slice the UNFILTERED list (boundaries are absolute), then filter within the
-  // page — so "Gainers" on the PulseChain tab means Pulse gainers, and a galaxy
-  // tab can never leak coins from another chain.
+  // Favorites and search look across EVERYTHING — the user shouldn't have to
+  // guess which tab a starred or searched coin lives on. Other presets filter
+  // within the current page slice (boundaries are absolute offsets into the
+  // unfiltered list, so slicing always happens before filtering).
+  const isGlobalScope = activePreset === 'favorites' || searchTerm.trim().length > 0
   const currentPageTokens = React.useMemo(
-    () => applyMarketFilters(tokens.slice(activePageDef.start, activePageDef.end)),
-    [tokens, activePageDef, applyMarketFilters]
+    () => applyMarketFilters(
+      isGlobalScope ? tokens : tokens.slice(activePageDef.start, activePageDef.end)
+    ),
+    [tokens, activePageDef, applyMarketFilters, isGlobalScope]
   )
 
   // No planet scale boosts (as requested).
@@ -701,7 +705,6 @@ export default function App() {
           paused={false}
           planetScale={1}
           isMobile={false}
-          isPulsechain={activePageDef.key === 'pulsechain'}
           topOffset={0}
           performanceMode={false}
           marketTableOpen={false}
@@ -1251,8 +1254,7 @@ export default function App() {
             onTogglePaused={() => setPhysicsPaused(!physicsPaused)}
             planetScale={planetScale}
             isMobile={isMobile}
-            isPulsechain={activePageDef.key === 'pulsechain'}
-            topOffset={desktopTopOffset}
+              topOffset={desktopTopOffset}
             performanceMode={performanceMode}
             marketTableOpen={isMarketOpen}
           />
@@ -1498,7 +1500,7 @@ export default function App() {
                         : change >= 0 ? 'row-edge-up' : 'row-edge-down'}`}
                   >
                     <span className="w-5 text-[10px] tabular-nums text-[#6b7280] flex-shrink-0 text-right">
-                      {activePageDef.start + idx + 1}
+                      {(isGlobalScope ? 0 : activePageDef.start) + idx + 1}
                     </span>
 
                     {coin.image ? (
@@ -2150,7 +2152,7 @@ export default function App() {
                       className={`market-row group/row cursor-pointer ${selectedId === coin.id ? 'selected' : ''}`}
                     >
                       <td className="text-[10px] tabular-nums text-[#6b7280]">
-                        {activePageDef.start + idx + 1}
+                        {(isGlobalScope ? 0 : activePageDef.start) + idx + 1}
                       </td>
 
                       {/* Symbol + name stacked, with the chain badge and the outbound link

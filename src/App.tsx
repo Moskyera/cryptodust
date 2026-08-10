@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
-import { shareCoinCard } from './lib/shareCard'
+import { shareCoinCard, shareCardToComposer } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
-  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2,
+  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2, Send,
 } from 'lucide-react'
 import { isPushSupported, getPushSubscription, enablePushAlerts, disablePushAlerts, syncPushPrefs } from './lib/push'
 
@@ -300,6 +300,17 @@ export default function App() {
     } finally {
       setPushBusy(false)
     }
+  }
+
+  // Share-to-composer hint ("card copied, paste it") — clears itself
+  const [shareHint, setShareHint] = useState<string | null>(null)
+  const shareVia = async (network: 'x' | 'telegram') => {
+    if (!selectedCoin) return
+    const ok = await shareCardToComposer(selectedCoin, network)
+    setShareHint(ok
+      ? 'Card copied! Paste it into the post (Ctrl+V)'
+      : 'Composer opened — use the share button to save the card')
+    window.setTimeout(() => setShareHint(null), 6000)
   }
 
   // Deep link from a notification click: /?coin=<id> selects that planet
@@ -1790,9 +1801,25 @@ export default function App() {
                 {!isWhales && (
                   <>
                     <button
+                      onClick={() => shareVia('x')}
+                      aria-label="Share on X"
+                      title="Share on X — copies the card, opens the composer, paste with Ctrl+V"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/[0.06] border border-white/15 text-white/85 hover:bg-white/15 transition-colors flex-shrink-0 text-[13px] font-black"
+                    >
+                      𝕏
+                    </button>
+                    <button
+                      onClick={() => shareVia('telegram')}
+                      aria-label="Share on Telegram"
+                      title="Share on Telegram — copies the card, opens the composer, paste with Ctrl+V"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-300 hover:bg-sky-500/20 transition-colors flex-shrink-0"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={() => shareCoinCard(selectedCoin)}
-                      aria-label="Share a card for this coin"
-                      title="Share — a card with the logo, price and 24h move"
+                      aria-label="Share or download the card"
+                      title="Native share / download the card as PNG"
                       className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] hover:bg-[#67f6ff]/20 transition-colors flex-shrink-0"
                     >
                       <Share2 className="w-3.5 h-3.5" />
@@ -2304,6 +2331,14 @@ export default function App() {
             <div className="skeleton h-full w-full rounded-full" />
           </div>
           <div className="text-[11px] text-[#6b7280] tracking-wide">Loading market data…</div>
+        </div>
+      )}
+
+      {/* Share hint toast — "card copied, paste it into the composer" */}
+      {shareHint && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[95] px-4 py-2.5 rounded-2xl bg-[#111119] border border-[#67f6ff]/30 text-sm text-white shadow-[0_8px_30px_-8px_rgba(0,0,0,0.8)] fade-in flex items-center gap-2 whitespace-nowrap">
+          <Check className="w-4 h-4 text-[#67f6ff] flex-shrink-0" />
+          {shareHint}
         </div>
       )}
 

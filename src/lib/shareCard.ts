@@ -283,6 +283,49 @@ export async function buildShareCard(coin: TokenPrice): Promise<HTMLCanvasElemen
   return canvas
 }
 
+async function cardBlob(coin: TokenPrice): Promise<Blob | null> {
+  const canvas = await buildShareCard(coin)
+  return new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
+}
+
+export function coinShareText(coin: TokenPrice): string {
+  const change = coin.price_change_percentage_24h || 0
+  return `${coin.symbol.toUpperCase()} ${change >= 0 ? '+' : ''}${change.toFixed(2)}% in 24h · ${formatCompactPrice(coin.current_price)}`
+}
+
+export function coinShareUrl(coin: TokenPrice): string {
+  return `https://www.cryptodust.xyz/?coin=${encodeURIComponent(coin.id)}`
+}
+
+/**
+ * Direct desktop path to X / Telegram: the web intents cannot carry an image,
+ * so the card is copied to the clipboard and the composer opens — one Ctrl+V
+ * and the image is attached. The composer window MUST open synchronously
+ * (before any await) or popup blockers eat it.
+ */
+export async function shareCardToComposer(
+  coin: TokenPrice,
+  network: 'x' | 'telegram'
+): Promise<boolean> {
+  const text = coinShareText(coin) + ' 🪐'
+  const url = coinShareUrl(coin)
+  const intent =
+    network === 'x'
+      ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`
+      : `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`
+
+  window.open(intent, '_blank', 'noopener')
+
+  try {
+    const blob = await cardBlob(coin)
+    if (!blob) return false
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Render the card and hand it to the user: native share where available, PNG download otherwise. */
 export async function shareCoinCard(coin: TokenPrice): Promise<'shared' | 'downloaded' | 'failed'> {
   try {
@@ -297,7 +340,7 @@ export async function shareCoinCard(coin: TokenPrice): Promise<'shared' | 'downl
         await navigator.share({
           files: [file],
           title: `${coin.symbol} on CryptoDUST`,
-          text: `${coin.name}: ${((coin.price_change_percentage_24h || 0) >= 0 ? '+' : '')}${(coin.price_change_percentage_24h || 0).toFixed(2)}% in 24h — cryptodust.xyz`,
+          text: `${coin.name}: ${((coin.price_change_percentage_24h || 0) >= 0 ? '+' : '')}${(coin.price_change_percentage_24h || 0).toFixed(2)}% in 24h · cryptodust.xyz`,
         })
         return 'shared'
       } catch {

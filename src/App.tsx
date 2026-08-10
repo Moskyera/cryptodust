@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
-import { shareCoinCard, shareCardToComposer, downloadCoinCard } from './lib/shareCard'
+import { shareCoinCard, downloadCoinCard, copyCoinCard } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
-  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2, Send,
+  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2,
 } from 'lucide-react'
 import { isPushSupported, getPushSubscription, enablePushAlerts, disablePushAlerts, syncPushPrefs } from './lib/push'
 
@@ -304,13 +304,13 @@ export default function App() {
 
   // Share-to-composer hint ("card copied, paste it") — clears itself
   const [shareHint, setShareHint] = useState<string | null>(null)
-  const shareVia = async (network: 'x' | 'telegram') => {
+  const copyCard = async () => {
     if (!selectedCoin) return
-    const ok = await shareCardToComposer(selectedCoin, network)
+    const ok = await copyCoinCard(selectedCoin)
     setShareHint(ok
-      ? 'Card copied! Paste it into the post'
-      : 'Composer opened — use the share button to save the card')
-    window.setTimeout(() => setShareHint(null), 6000)
+      ? 'Card copied! Paste it anywhere (Ctrl+V)'
+      : 'Copy failed, use the download button instead')
+    window.setTimeout(() => setShareHint(null), 5000)
   }
 
   // Deep link from a notification click: /?coin=<id> selects that planet
@@ -1607,20 +1607,6 @@ export default function App() {
                 {!isWhales && (
                   <>
                     <button
-                      onClick={() => shareVia('x')}
-                      aria-label="Share on X"
-                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/85 text-[13px] font-black"
-                    >
-                      𝕏
-                    </button>
-                    <button
-                      onClick={() => shareVia('telegram')}
-                      aria-label="Share on Telegram"
-                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-sky-500/30 text-sky-300"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                    <button
                       onClick={() => shareCoinCard(selectedCoin)}
                       aria-label="Share this coin"
                       className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-[#67f6ff]/25 text-[#67f6ff]"
@@ -1806,20 +1792,12 @@ export default function App() {
                 {!isWhales && (
                   <>
                     <button
-                      onClick={() => shareVia('x')}
-                      aria-label="Share on X"
-                      title="Share on X — copies the card, opens the composer, paste with Ctrl+V"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/[0.06] border border-white/15 text-white/85 hover:bg-white/15 transition-colors flex-shrink-0 text-[13px] font-black"
+                      onClick={copyCard}
+                      aria-label="Copy the card image"
+                      title="Copy the card image, then paste it into any post (Ctrl+V)"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/[0.06] border border-white/15 text-white/85 hover:bg-white/15 transition-colors flex-shrink-0"
                     >
-                      𝕏
-                    </button>
-                    <button
-                      onClick={() => shareVia('telegram')}
-                      aria-label="Share on Telegram"
-                      title="Share on Telegram — copies the card, opens the composer, paste with Ctrl+V"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-300 hover:bg-sky-500/20 transition-colors flex-shrink-0"
-                    >
-                      <Send className="w-3.5 h-3.5" />
+                      <Copy className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => downloadCoinCard(selectedCoin)}

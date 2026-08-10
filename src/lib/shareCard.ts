@@ -328,6 +328,18 @@ export async function shareCardToComposer(
   }
 }
 
+/** Copy the card image to the clipboard (paste anywhere: X, Telegram, Discord). */
+export async function copyCoinCard(coin: TokenPrice): Promise<boolean> {
+  try {
+    const blob = await cardBlob(coin)
+    if (!blob) return false
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Always download the card as a PNG file. */
 export async function downloadCoinCard(coin: TokenPrice): Promise<boolean> {
   try {

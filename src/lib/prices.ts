@@ -40,6 +40,10 @@ export interface TokenPrice {
   image?: string
   /** % distance from the all-time high (negative; -95 = 95% below ATH) */
   ath_change_percentage?: number
+  ath?: number
+  ath_date?: string
+  high_24h?: number
+  low_24h?: number
 
   // --- DexScreener extras, only set for PulseChain tokens (see backfillFromDexScreener) ---
   /** Fully diluted valuation. NOT a circulating market cap — must be labelled "FDV" in the UI. */
@@ -67,6 +71,10 @@ function mapCoinGeckoCoin(coin: any): TokenPrice {
     // costs nothing: it is already in every /coins/markets payload we fetch.
     fdv: coin.fully_diluted_valuation ?? undefined,
     ath_change_percentage: coin.ath_change_percentage ?? undefined,
+    ath: coin.ath ?? undefined,
+    ath_date: coin.ath_date ?? undefined,
+    high_24h: coin.high_24h ?? undefined,
+    low_24h: coin.low_24h ?? undefined,
     price_change_percentage_24h: change24h,
     price_change_percentage_1h:
       coin.price_change_percentage_1h ?? coin.price_change_percentage_1h_in_currency,

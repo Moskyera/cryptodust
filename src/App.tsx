@@ -943,7 +943,7 @@ export default function App() {
                 onClick={togglePushAlerts}
                 disabled={pushBusy}
                 aria-label="Toggle price alerts"
-                className={`w-8 h-8 flex items-center justify-center rounded-xl border ${
+                className={`m-chip w-8 h-8 flex items-center justify-center rounded-xl border ${
                   pushEnabled
                     ? 'bg-[#67f6ff]/15 border-[#67f6ff]/40 text-[#67f6ff]'
                     : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
@@ -955,14 +955,14 @@ export default function App() {
             <button
               onClick={() => setShowDonateModal(true)}
               aria-label="Support the project"
-              className="w-8 h-8 flex items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 active:bg-amber-500/20"
+              className="m-chip w-8 h-8 flex items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300"
             >
               <Heart className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => window.location.reload()}
               aria-label="Refresh market data"
-              className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white/70 active:bg-white/10"
+              className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-white/70"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -1331,12 +1331,12 @@ export default function App() {
                   <button
                     key={def.key}
                     onClick={() => setCurrentPage(index)}
-                    className={`text-[11px] px-3 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 font-semibold ${
+                    className={`m-chip text-[11px] px-3 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 font-semibold ${
                       isActive
-                        ? 'bg-[#67f6ff] text-black border-[#67f6ff]'
+                        ? 'm-chip-on border-transparent'
                         : def.key === 'pulsechain'
-                          ? 'glow-special bg-violet-500/10 border-white/10 text-white/85'
-                          : 'bg-white/5 border-violet-400/30 text-violet-200/85 active:bg-white/10'
+                          ? 'glow-special m-chip-galaxy border-white/10 text-white/85'
+                          : 'm-chip-galaxy border-violet-400/30 text-violet-200/85'
                     }`}
                   >
                     {def.label}
@@ -1355,10 +1355,10 @@ export default function App() {
                     key={def.label}
                     onClick={() => setCurrentPage(index)}
                     title={def.label}
-                    className={`text-[11px] w-9 py-2 rounded-2xl border text-center flex-shrink-0 tabular-nums ${
+                    className={`m-chip text-[11px] w-9 py-2 rounded-2xl border text-center flex-shrink-0 tabular-nums ${
                       isActive
-                        ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-semibold'
-                        : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
+                        ? 'm-chip-on border-transparent'
+                        : 'border-white/10 text-white/70'
                     }`}
                   >
                     {i + 1}
@@ -1381,10 +1381,10 @@ export default function App() {
                   <button
                     key={f.label}
                     onClick={() => setActivePreset(f.key)}
-                    className={`filter-chip text-[11px] px-3 py-1.5 rounded-2xl border whitespace-nowrap flex-shrink-0 ${
+                    className={`m-chip text-[11px] px-3 py-1.5 rounded-2xl border whitespace-nowrap flex-shrink-0 ${
                       isActive
-                        ? 'bg-white text-black border-white font-semibold'
-                        : 'bg-white/5 border-white/10 text-white/80'
+                        ? 'm-chip-on border-transparent'
+                        : 'border-white/10 text-white/80'
                     }`}
                   >
                     {f.label}
@@ -1395,7 +1395,7 @@ export default function App() {
               <button
                 onClick={highlightBigMovers}
                 aria-label="Highlight big movers"
-                className={`filter-chip w-8 h-8 rounded-2xl border flex-shrink-0 flex items-center justify-center ${
+                className={`m-chip w-8 h-8 rounded-2xl border flex-shrink-0 flex items-center justify-center ${
                   highlightUntil > Date.now()
                     ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-400'
                     : 'bg-orange-500/10 border-orange-500/25 text-orange-300'
@@ -1407,7 +1407,7 @@ export default function App() {
               <button
                 onClick={() => setSelectedId('whales-on-pulse')}
                 aria-label="Whales on Pulse"
-                className="glow-special w-8 h-8 rounded-2xl border flex-shrink-0 flex items-center justify-center bg-violet-500/10"
+                className="glow-special m-chip m-chip-galaxy w-8 h-8 rounded-2xl border border-white/10 flex-shrink-0 flex items-center justify-center"
               >
                 <img src="/wop.png" alt="" className="w-5 h-5 object-contain rounded-full" />
               </button>
@@ -1422,7 +1422,7 @@ export default function App() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={link.label}
-                  className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.05] flex-shrink-0 flex items-center justify-center p-1.5 active:bg-white/10"
+                  className="m-chip w-8 h-8 rounded-full border border-white/10 flex-shrink-0 flex items-center justify-center p-1.5"
                 >
                   <img src={link.img} alt="" className="h-full w-full object-contain" />
                 </a>

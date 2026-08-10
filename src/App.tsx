@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
-import { shareCoinCard, downloadCoinCard, copyCoinCard } from './lib/shareCard'
+import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
   X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2,
@@ -301,6 +301,35 @@ export default function App() {
       setPushBusy(false)
     }
   }
+
+  // ---- Multi-coin "Market Snapshot" card (up to 5 coins) ----
+  const [showMultiCard, setShowMultiCard] = useState(false)
+  const [multiSel, setMultiSel] = useState<string[]>([])
+  const [multiSearch, setMultiSearch] = useState('')
+  const [multiPreview, setMultiPreview] = useState<string | null>(null)
+
+  const openMultiCard = () => {
+    // Prefill with the user's favorites — usually exactly what they want to post
+    if (multiSel.length === 0 && favorites.length > 0) setMultiSel(favorites.slice(0, 5))
+    setShowMultiCard(true)
+  }
+
+  const multiSelCoins = React.useMemo(
+    () => multiSel.map(id => tokens.find(t => t.id === id)).filter(Boolean) as TokenPrice[],
+    [multiSel, tokens]
+  )
+
+  React.useEffect(() => {
+    if (!showMultiCard || multiSelCoins.length === 0) {
+      setMultiPreview(null)
+      return
+    }
+    let cancelled = false
+    buildMultiCard(multiSelCoins).then(c => {
+      if (!cancelled) setMultiPreview(c.toDataURL('image/png'))
+    })
+    return () => { cancelled = true }
+  }, [showMultiCard, multiSelCoins])
 
   // Share-to-composer hint ("card copied, paste it") — clears itself
   const [shareHint, setShareHint] = useState<string | null>(null)
@@ -870,6 +899,16 @@ export default function App() {
               <span className="font-semibold tracking-tight hidden xl:inline">Donate</span>
             </button>
 
+            {/* Multi-coin snapshot card */}
+            <button
+              onClick={openMultiCard}
+              className="premium-button flex items-center justify-center w-9 h-9 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white flex-shrink-0"
+              title="Create a snapshot card with up to 5 coins"
+              aria-label="Create a multi-coin card"
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+
             {/* TV / Ambient mode — fullscreen planets, auto-cycling pages */}
             <button
               onClick={enterTvMode}
@@ -950,6 +989,13 @@ export default function App() {
                 Install
               </button>
             )}
+            <button
+              onClick={openMultiCard}
+              aria-label="Create a multi-coin card"
+              className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 text-white/70"
+            >
+              <Layers className="w-3.5 h-3.5" />
+            </button>
             {pushSupported && (
               <button
                 onClick={togglePushAlerts}
@@ -2420,6 +2466,133 @@ export default function App() {
             <div className="skeleton h-full w-full rounded-full" />
           </div>
           <div className="text-[11px] text-[#6b7280] tracking-wide">Loading market data…</div>
+        </div>
+      )}
+
+      {/* Multi-coin snapshot card builder */}
+      {showMultiCard && (
+        <div
+          className="fixed inset-0 z-[85] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowMultiCard(false)}
+        >
+          <div
+            className="panel-accent w-full max-w-lg rounded-3xl overflow-hidden max-h-[92vh] overflow-y-auto custom-scrollbar"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-sm text-[#6b7280]">Market snapshot</div>
+                  <div className="text-xl font-semibold tracking-tight">Pick up to 5 coins</div>
+                </div>
+                <button
+                  onClick={() => setShowMultiCard(false)}
+                  aria-label="Close"
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-white/70"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* selected chips */}
+              <div className="flex flex-wrap gap-1.5 mb-3 min-h-[34px]">
+                {multiSelCoins.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setMultiSel(sel => sel.filter(id => id !== c.id))}
+                    className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-xl bg-[#67f6ff]/10 border border-[#67f6ff]/30 text-[13px]"
+                    title="Remove"
+                  >
+                    {c.image && <img src={c.image} alt="" className="w-5 h-5 rounded-full" />}
+                    <span className="font-semibold">{c.symbol}</span>
+                    <X className="w-3 h-3 text-white/50" />
+                  </button>
+                ))}
+                {multiSelCoins.length === 0 && (
+                  <span className="text-xs text-[#6b7280] py-1.5">Search below or star some favorites first</span>
+                )}
+              </div>
+
+              {/* search + results */}
+              {multiSel.length < 5 && (
+                <div className="mb-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search coins to add..."
+                      value={multiSearch}
+                      onChange={e => setMultiSearch(e.target.value)}
+                      className="w-full bg-[#0b0b12] border border-[#25252f] rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-[#67f6ff]"
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b7280]" />
+                  </div>
+                  {multiSearch.trim() && (
+                    <div className="mt-1.5 rounded-xl border border-white/10 bg-black/30 divide-y divide-white/5 overflow-hidden">
+                      {tokens
+                        .filter(t => !multiSel.includes(t.id))
+                        .filter(t => {
+                          const q = multiSearch.toLowerCase()
+                          return t.symbol.toLowerCase().includes(q) || t.name.toLowerCase().includes(q)
+                        })
+                        .slice(0, 6)
+                        .map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => { setMultiSel(sel => [...sel, t.id].slice(0, 5)); setMultiSearch('') }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-white/5 active:bg-white/10"
+                          >
+                            {t.image && <img src={t.image} alt="" className="w-6 h-6 rounded-full" />}
+                            <span className="font-semibold text-sm">{t.symbol}</span>
+                            <span className="text-xs text-[#6b7280] truncate flex-1">{t.name}</span>
+                            <span className={`text-xs font-semibold tabular-nums ${(t.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {(t.price_change_percentage_24h || 0) >= 0 ? '+' : ''}{(t.price_change_percentage_24h || 0).toFixed(1)}%
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* live preview */}
+              {multiPreview ? (
+                <img src={multiPreview} alt="Card preview" className="w-full rounded-xl border border-white/10 mb-4" />
+              ) : (
+                <div className="h-32 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-xs text-[#6b7280] mb-4">
+                  {multiSelCoins.length === 0 ? 'The card preview appears here' : 'Rendering preview…'}
+                </div>
+              )}
+
+              {/* actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    const ok = await copyMultiCoinCard(multiSelCoins)
+                    setShareHint(ok ? 'Card copied! Paste it anywhere' : 'Copy failed, use download instead')
+                    window.setTimeout(() => setShareHint(null), 5000)
+                  }}
+                  disabled={multiSelCoins.length === 0}
+                  className="flex-1 h-10 rounded-xl bg-white/[0.06] border border-white/15 text-sm font-semibold disabled:opacity-40 hover:bg-white/10 flex items-center justify-center gap-2"
+                >
+                  <Copy className="w-4 h-4" /> Copy
+                </button>
+                <button
+                  onClick={() => downloadMultiCoinCard(multiSelCoins)}
+                  disabled={multiSelCoins.length === 0}
+                  className="flex-1 h-10 rounded-xl bg-white/[0.06] border border-white/15 text-sm font-semibold disabled:opacity-40 hover:bg-white/10 flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" /> Download
+                </button>
+                <button
+                  onClick={() => shareMultiCoinCard(multiSelCoins)}
+                  disabled={multiSelCoins.length === 0}
+                  className="flex-1 h-10 rounded-xl bg-gradient-to-r from-[#67f6ff] to-[#38bdf8] text-[#04131a] text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  <Share2 className="w-4 h-4" /> Share
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

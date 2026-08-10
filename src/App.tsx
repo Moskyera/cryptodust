@@ -1102,7 +1102,7 @@ export default function App() {
           Hidden on mobile. On desktop: visibility is tied to the minimizable pages tabs panel state.
           When you minimize the pages panel (center arrow), these controls also hide to give maximum planet surface. */}
       {pagesPanelExpanded && (
-        <div className="tv-hide border-b border-white/[0.08] bg-white/[0.035] backdrop-blur-xl flex-shrink-0 hidden md:block">
+        <div className="tv-hide relative z-[55] border-b border-white/[0.08] bg-white/[0.035] backdrop-blur-xl flex-shrink-0 hidden md:block">
           <div className="w-full px-4 lg:px-5 py-3 flex items-center gap-x-2.5 gap-y-2.5 flex-wrap">
             {/* One 34px control height and one radius across the whole band — the pieces
                 used to range from py-1 to py-2 with rounded-2xl/3xl mixed together. */}

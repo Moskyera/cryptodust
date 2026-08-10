@@ -1585,7 +1585,7 @@ export default function App() {
         {/* Mobile Bottom Sheet - Richer info panel (only shown in mobile list view) */}
         {isMobile && selectedCoin && (
           <div
-            className={`sheet-in fixed bottom-0 left-0 right-0 z-[70] bg-[#0f0f16] border-t border-[#25252f] rounded-t-3xl px-4 pt-3 pb-6 shadow-[0_-8px_30px_rgba(0,0,0,0.5)] ${ (selectedCoin.price_change_percentage_24h || 0) > 60 ? 'shadow-[0_-8px_18px_#4ade80,0_-8px_30px_rgba(0,0,0,0.5)] border-t-emerald-400/60' : '' }`}
+            className={`sheet-in fixed bottom-0 left-0 right-0 z-[70] ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'panel-up' : 'panel-down'} rounded-t-3xl px-4 pt-3 pb-6`}
             style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
           >
             {/* Grab handle — makes it read as a sheet */}
@@ -1595,10 +1595,12 @@ export default function App() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 {selectedCoin.image && (
-                  <img src={selectedCoin.image} alt="" className="w-10 h-10 rounded-full ring-1 ring-white/10" />
+                  <div className={`planet-logo w-10 h-10 ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'up' : 'down'}`}>
+                    <img src={selectedCoin.image} alt="" />
+                  </div>
                 )}
                 <div>
-                  <div className={`font-semibold text-lg ${(selectedCoin.price_change_percentage_24h || 0) > 60 ? 'text-emerald-300 drop-shadow-[0_0_4px_#4ade80]' : ''}`}>{selectedCoin.symbol}</div>
+                  <div className="font-semibold text-lg">{selectedCoin.symbol}</div>
                   <div className="text-sm text-[#9ca3af]">{selectedCoin.name}</div>
                 </div>
               </div>
@@ -1673,14 +1675,56 @@ export default function App() {
 
             {/* Price + 24h% (hidden for the special Whales on Pulse planet) */}
             {!isWhales && (
-              <div className="flex items-baseline justify-between mb-3">
-                <div className="text-2xl font-semibold tabular-nums">
-                  {formatPrice(selectedCoin.current_price)}
+              <>
+                <div className="flex items-end justify-between mb-3">
+                  <div className="text-[26px] font-extrabold tabular-nums tracking-[-1px] leading-none">
+                    {formatPrice(selectedCoin.current_price)}
+                  </div>
+                  <span
+                    className={`text-[13px] font-bold tabular-nums px-2.5 py-1 rounded-[10px] text-[#04131a] ${
+                      (selectedCoin.price_change_percentage_24h || 0) >= 0
+                        ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-[0_3px_12px_-3px_rgba(74,222,128,0.7)]'
+                        : 'bg-gradient-to-br from-red-400 to-red-500 shadow-[0_3px_12px_-3px_rgba(248,113,113,0.7)]'
+                    }`}
+                  >
+                    {(selectedCoin.price_change_percentage_24h || 0) >= 0 ? '\u25b2' : '\u25bc'} {Math.abs(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
+                  </span>
                 </div>
-                <div className={`text-base font-medium ${ (selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }`}>
-                  {(selectedCoin.price_change_percentage_24h || 0) > 0 ? '+' : ''}{(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
+
+                {/* Momentum chips — same language as desktop */}
+                <div className="flex gap-1.5 mb-3">
+                  {([['1H', selectedCoin.price_change_percentage_1h], ['24H', selectedCoin.price_change_percentage_24h], ['7D', selectedCoin.price_change_percentage_7d], ['30D', selectedCoin.price_change_percentage_30d]] as Array<[string, number | undefined]>)
+                    .filter(([, v]) => v !== undefined && v !== null)
+                    .map(([label, v]) => {
+                      const val = v as number
+                      const hot = Math.abs(val) >= 10
+                      return (
+                        <div key={label} className={`mo-chip ${hot ? (val >= 0 ? 'hot-up' : 'hot-down') : ''}`}>
+                          <div className="mo-t">{label}</div>
+                          <div className={`mo-v ${val >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {val >= 0 ? '+' : ''}{Math.abs(val) >= 100 ? Math.round(val) : val.toFixed(1)}%
+                          </div>
+                        </div>
+                      )
+                    })}
                 </div>
-              </div>
+
+                {/* Today's low-high position */}
+                {(selectedCoin.high_24h ?? 0) > (selectedCoin.low_24h ?? 0) && (selectedCoin.low_24h ?? 0) > 0 && (
+                  <div className="mb-4">
+                    <div className="meter-bar range">
+                      <div
+                        className="meter-dot"
+                        style={{ left: `${Math.min(98, Math.max(2, ((selectedCoin.current_price - (selectedCoin.low_24h as number)) / ((selectedCoin.high_24h as number) - (selectedCoin.low_24h as number))) * 100))}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-[#9ca3af] mt-1.5 tabular-nums">
+                      <span>L {formatPrice(selectedCoin.low_24h)}</span>
+                      <span>H {formatPrice(selectedCoin.high_24h)}</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Stats Grid (hidden for Whales on Pulse) — mirrors the desktop Details
@@ -1777,11 +1821,17 @@ export default function App() {
         {/* Details Panel - Opens automatically when you select a planet.
             Hidden on mobile to not block the visualization. */}
         {selectedCoin && (
-          <div className="panel-accent pop-in absolute top-4 right-4 z-50 w-[336px] rounded-3xl overflow-hidden hidden md:block backdrop-blur-2xl">
-            <div className="px-5 pt-4 pb-4 border-b border-white/[0.07] bg-black/25">
-              <div className="flex items-center gap-3">
+          <div className={`${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'panel-up' : 'panel-down'} pop-in absolute top-4 right-4 z-50 w-[336px] rounded-3xl overflow-hidden hidden md:block backdrop-blur-2xl`}>
+            <div
+              className="relative px-5 pt-4 pb-4 border-b border-white/[0.07] overflow-hidden"
+              style={{ background: `radial-gradient(340px 160px at 80% -30%, ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.13)'}, transparent 70%)` }}
+            >
+              <div className="hero-stars" />
+              <div className="relative flex items-center gap-3">
                 {selectedCoin.image && (
-                  <img src={selectedCoin.image} alt="" className="w-11 h-11 rounded-full ring-1 ring-white/10 flex-shrink-0" />
+                  <div className={`planet-logo w-[52px] h-[52px] ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'up' : 'down'}`}>
+                    <img src={selectedCoin.image} alt="" />
+                  </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -1831,6 +1881,23 @@ export default function App() {
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              {!isWhales && (
+                <div className="relative flex items-end justify-between gap-2 mt-3.5">
+                  <div className="font-extrabold tabular-nums text-[30px] tracking-[-1px] leading-none truncate">
+                    {formatPrice(selectedCoin.current_price)}
+                  </div>
+                  <span
+                    className={`text-[13px] font-bold tabular-nums px-2.5 py-1 rounded-[10px] flex-shrink-0 text-[#04131a] ${
+                      (selectedCoin.price_change_percentage_24h || 0) >= 0
+                        ? 'bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-[0_3px_12px_-3px_rgba(74,222,128,0.7)]'
+                        : 'bg-gradient-to-br from-red-400 to-red-500 shadow-[0_3px_12px_-3px_rgba(248,113,113,0.7)]'
+                    }`}
+                  >
+                    {(selectedCoin.price_change_percentage_24h || 0) >= 0 ? '\u25b2' : '\u25bc'} {Math.abs(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="p-5">
@@ -1862,25 +1929,57 @@ export default function App() {
               <div className="space-y-3 text-sm">
                 {!isWhales && (
                   <>
-                    {/* Hero price + change pill */}
-                    <div className="flex items-end justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-[10px] text-[#6b7280] tracking-[1px] mb-1">PRICE</div>
-                        <div className="font-semibold tabular-nums text-[26px] tracking-[-1px] leading-none truncate">
-                          {formatPrice(selectedCoin.current_price)}
+                    {/* Momentum: every horizon we already fetch, finally visible */}
+                    <div className="flex gap-1.5">
+                      {([['1H', selectedCoin.price_change_percentage_1h], ['24H', selectedCoin.price_change_percentage_24h], ['7D', selectedCoin.price_change_percentage_7d], ['30D', selectedCoin.price_change_percentage_30d], ['1Y', selectedCoin.price_change_percentage_1y]] as Array<[string, number | undefined]>)
+                        .filter(([, v]) => v !== undefined && v !== null)
+                        .map(([label, v]) => {
+                          const val = v as number
+                          const hot = Math.abs(val) >= 10
+                          return (
+                            <div key={label} className={`mo-chip ${hot ? (val >= 0 ? 'hot-up' : 'hot-down') : ''}`}>
+                              <div className="mo-t">{label}</div>
+                              <div className={`mo-v ${val >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {val >= 0 ? '+' : ''}{Math.abs(val) >= 100 ? Math.round(val) : val.toFixed(1)}%
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+
+                    {/* Where the price sits inside today's low-high range */}
+                    {(selectedCoin.high_24h ?? 0) > (selectedCoin.low_24h ?? 0) && (selectedCoin.low_24h ?? 0) > 0 && (
+                      <div className="pt-1">
+                        <div className="text-[9px] text-[#6b7280] tracking-[0.8px] mb-1.5">24H RANGE</div>
+                        <div className="meter-bar range">
+                          <div
+                            className="meter-dot"
+                            style={{ left: `${Math.min(98, Math.max(2, ((selectedCoin.current_price - (selectedCoin.low_24h as number)) / ((selectedCoin.high_24h as number) - (selectedCoin.low_24h as number))) * 100))}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-[#9ca3af] mt-1.5 tabular-nums">
+                          <span>L {formatPrice(selectedCoin.low_24h)}</span>
+                          <span>H {formatPrice(selectedCoin.high_24h)}</span>
                         </div>
                       </div>
-                      <span
-                        className={`text-[13px] font-semibold tabular-nums px-2 py-1 rounded-lg flex-shrink-0 ${
-                          selectedCoin.price_change_percentage_24h >= 0
-                            ? 'text-emerald-400 bg-emerald-500/12 border border-emerald-500/25'
-                            : 'text-red-400 bg-red-500/12 border border-red-500/25'
-                        }`}
-                      >
-                        {selectedCoin.price_change_percentage_24h > 0 ? '+' : ''}
-                        {(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
-                      </span>
-                    </div>
+                    )}
+
+                    {/* Distance from the all-time high */}
+                    {(selectedCoin.ath ?? 0) > 0 && (
+                      <div className="pt-1">
+                        <div className="flex justify-between text-[9px] text-[#6b7280] tracking-[0.8px] mb-1.5">
+                          <span>FROM ATH</span>
+                          <span className="tabular-nums">{(selectedCoin.ath_change_percentage ?? 0).toFixed(0)}%</span>
+                        </div>
+                        <div className="meter-bar track">
+                          <div className="meter-fill" style={{ width: `${Math.min(100, Math.max(2, (selectedCoin.current_price / (selectedCoin.ath as number)) * 100))}%` }} />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-[#9ca3af] mt-1.5 tabular-nums">
+                          <span>{formatPrice(selectedCoin.ath)} peak</span>
+                          <span>{selectedCoin.ath_date ? new Date(selectedCoin.ath_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Mini Sparkline — desktop visual polish (idea 4) */}
                     <div className="pt-2 pb-1 border-t border-white/[0.07]">

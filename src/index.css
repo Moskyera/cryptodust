@@ -476,6 +476,132 @@ canvas {
   box-shadow: 0 3px 10px -3px rgba(167, 139, 250, 0.7);
 }
 
+/* =====================================================
+   Details panel v2 — mood aura, hero planet, momentum chips, meters
+   ===================================================== */
+/* Aura variants: the whole panel glows with the coin's 24h direction */
+.panel-up {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(22, 24, 38, 0.97), rgba(13, 13, 22, 0.98)) padding-box,
+    linear-gradient(150deg, rgba(74, 222, 128, 0.55), rgba(103, 246, 255, 0.3) 45%, rgba(167, 139, 250, 0.25)) border-box;
+  box-shadow: 0 30px 70px -25px rgb(0 0 0 / 0.9), 0 0 60px -22px rgba(74, 222, 128, 0.35);
+}
+
+.panel-down {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(22, 24, 38, 0.97), rgba(13, 13, 22, 0.98)) padding-box,
+    linear-gradient(150deg, rgba(248, 113, 113, 0.5), rgba(103, 246, 255, 0.25) 50%, rgba(167, 139, 250, 0.25)) border-box;
+  box-shadow: 0 30px 70px -25px rgb(0 0 0 / 0.9), 0 0 55px -22px rgba(248, 113, 113, 0.35);
+}
+
+/* Hero starfield behind the planet */
+.hero-stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 40px 30px, rgba(255, 255, 255, 0.8), transparent 55%),
+    radial-gradient(1px 1px at 150px 60px, rgba(255, 255, 255, 0.5), transparent 55%),
+    radial-gradient(1.5px 1.5px at 260px 25px, rgba(214, 249, 255, 0.7), transparent 55%),
+    radial-gradient(1px 1px at 210px 95px, rgba(255, 255, 255, 0.4), transparent 55%),
+    radial-gradient(1px 1px at 90px 100px, rgba(196, 181, 253, 0.5), transparent 55%);
+}
+
+/* The coin logo styled as a shaded planet (CSS twin of the canvas sprites) */
+.planet-logo {
+  position: relative;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #14141d;
+}
+
+.planet-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.planet-logo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.02) 44%, rgba(0, 0, 0, 0.28) 76%, rgba(0, 0, 0, 0.5));
+}
+
+.planet-logo.up {
+  box-shadow: 0 0 0 2.5px rgba(74, 222, 128, 0.75), 0 0 26px rgba(74, 222, 128, 0.5), 0 14px 28px -10px rgb(0 0 0 / 0.8);
+}
+
+.planet-logo.down {
+  box-shadow: 0 0 0 2.5px rgba(248, 113, 113, 0.7), 0 0 24px rgba(248, 113, 113, 0.45), 0 14px 28px -10px rgb(0 0 0 / 0.8);
+}
+
+/* Momentum chips (1H / 24H / 7D / 30D / 1Y) */
+.mo-chip {
+  flex: 1;
+  text-align: center;
+  border-radius: 12px;
+  padding: 7px 0 6px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 0;
+}
+
+.mo-chip .mo-t {
+  font-size: 8.5px;
+  color: var(--text-mute);
+  letter-spacing: 0.8px;
+}
+
+.mo-chip .mo-v {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mo-chip.hot-up { background: rgba(74, 222, 128, 0.1); border-color: rgba(74, 222, 128, 0.3); }
+.mo-chip.hot-down { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.3); }
+
+/* Range / ATH meters */
+.meter-bar {
+  height: 6px;
+  border-radius: 99px;
+  position: relative;
+}
+
+.meter-bar.range {
+  background: linear-gradient(90deg, #f87171, #fbbf24, #4ade80);
+}
+
+.meter-dot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #0d0d16;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+.meter-bar.track {
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #67f6ff, #a78bfa);
+  box-shadow: 0 0 12px rgba(103, 246, 255, 0.5);
+}
+
 /* Toolbar popovers (Custom view, Settings) */
 .popover {
   position: absolute;

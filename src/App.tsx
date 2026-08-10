@@ -1320,25 +1320,68 @@ export default function App() {
         {/* Mobile: Simple list view instead of planets (due to touch issues) */}
         {isMobile && (
           <div className="h-full overflow-auto px-3 pt-2 pb-20 text-sm custom-scrollbar">
-            {/* Row 1 — real filters. Previously "Big Movers" was mixed in here but only
-                triggered the highlight effect, so its active state never matched. */}
-            <div className="flex gap-2 overflow-x-auto pb-2.5 hide-scrollbar scroll-fade-x">
+            {/* Row 1 — navigation. Galaxies FIRST so PulseChain/Base/Solana/BNB are
+                visible without scrolling; the five top-500 slices collapse into
+                small numbered pills after them. */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 hide-scrollbar scroll-fade-x">
+              {pageDefs.filter(d => d.key).map(def => {
+                const index = pageDefs.indexOf(def)
+                const isActive = safePage === index
+                return (
+                  <button
+                    key={def.key}
+                    onClick={() => setCurrentPage(index)}
+                    className={`text-[11px] px-3 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 font-semibold ${
+                      isActive
+                        ? 'bg-[#67f6ff] text-black border-[#67f6ff]'
+                        : def.key === 'pulsechain'
+                          ? 'glow-special bg-violet-500/10 border-white/10 text-white/85'
+                          : 'bg-white/5 border-violet-400/30 text-violet-200/85 active:bg-white/10'
+                    }`}
+                  >
+                    {def.label}
+                  </button>
+                )
+              })}
+
+              <div className="w-px h-5 bg-white/10 flex-shrink-0 mx-0.5" />
+              <span className="text-[9px] tracking-[1px] text-[#6b7280] flex-shrink-0 font-medium">TOP</span>
+
+              {pageDefs.filter(d => !d.key).map((def, i) => {
+                const index = pageDefs.indexOf(def)
+                const isActive = safePage === index
+                return (
+                  <button
+                    key={def.label}
+                    onClick={() => setCurrentPage(index)}
+                    title={def.label}
+                    className={`text-[11px] w-9 py-2 rounded-2xl border text-center flex-shrink-0 tabular-nums ${
+                      isActive
+                        ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-semibold'
+                        : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Row 2 — filters, compact, with Whales + partners as icon buttons */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-3 hide-scrollbar scroll-fade-x">
               {[
                 { label: 'All', key: null },
                 { label: 'Gainers', key: 'gainers' },
                 { label: 'Losers', key: 'losers' },
                 { label: 'Volume', key: 'volume' },
-                { label: 'Favorites', key: 'favorites' },
+                { label: '★ Favs', key: 'favorites' },
               ].map(f => {
                 const isActive = activePreset === f.key
                 return (
                   <button
                     key={f.label}
-                    onClick={() => {
-                      setActivePreset(f.key)
-                      setCurrentPage(0)
-                    }}
-                    className={`filter-chip text-xs px-3.5 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 ${
+                    onClick={() => setActivePreset(f.key)}
+                    className={`filter-chip text-[11px] px-3 py-1.5 rounded-2xl border whitespace-nowrap flex-shrink-0 ${
                       isActive
                         ? 'bg-white text-black border-white font-semibold'
                         : 'bg-white/5 border-white/10 text-white/80'
@@ -1351,43 +1394,37 @@ export default function App() {
 
               <button
                 onClick={highlightBigMovers}
-                className={`filter-chip text-xs px-3.5 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 flex items-center gap-1.5 ${
+                aria-label="Highlight big movers"
+                className={`filter-chip w-8 h-8 rounded-2xl border flex-shrink-0 flex items-center justify-center ${
                   highlightUntil > Date.now()
                     ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-400'
                     : 'bg-orange-500/10 border-orange-500/25 text-orange-300'
                 }`}
               >
-                <Zap className="w-3 h-3" />
-                Big movers
+                <Zap className="w-3.5 h-3.5" />
               </button>
 
               <button
-                onClick={() => {
-                  setSelectedId('whales-on-pulse')
-                  setCurrentPage(0)
-                }}
-                className="glow-special filter-chip text-xs px-3.5 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 bg-violet-500/10 text-violet-200 flex items-center gap-1.5"
+                onClick={() => setSelectedId('whales-on-pulse')}
+                aria-label="Whales on Pulse"
+                className="glow-special w-8 h-8 rounded-2xl border flex-shrink-0 flex items-center justify-center bg-violet-500/10"
               >
-                <img src="/wop.png" alt="" className="w-4 h-4 object-contain rounded-full" />
-                Whales on Pulse
+                <img src="/wop.png" alt="" className="w-5 h-5 object-contain rounded-full" />
               </button>
-            </div>
 
-            {/* Row 2 — partner links, with their actual logos */}
-            <div className="flex gap-2 overflow-x-auto pb-3 hide-scrollbar scroll-fade-x">
+              <div className="w-px h-5 bg-white/10 flex-shrink-0 mx-0.5" />
+
+              {/* Partners: logo-only circles — a whole row of text pills collapsed */}
               {EXTERNAL_LINKS.map(link => (
                 <a
                   key={link.label}
                   href={link.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`text-[11px] pl-1.5 pr-3 py-1.5 rounded-2xl border whitespace-nowrap flex-shrink-0 flex items-center gap-2 bg-white/[0.04] border-white/10 ${link.text} active:bg-white/10`}
+                  aria-label={link.label}
+                  className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.05] flex-shrink-0 flex items-center justify-center p-1.5 active:bg-white/10"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white/10 ring-1 ring-white/15 p-0.5">
-                    <img src={link.img} alt="" className="h-full w-full object-contain" />
-                  </span>
-                  <span className="font-medium">{link.label}</span>
-                  <ArrowUpRight className="w-3 h-3 opacity-60" />
+                  <img src={link.img} alt="" className="h-full w-full object-contain" />
                 </a>
               ))}
             </div>
@@ -1435,26 +1472,7 @@ export default function App() {
               )}
             </div>
 
-            {/* Pages - better spacing and touch targets on mobile */}
-            {/* Always 6 tabs (same as desktop) */}
-            <div className="flex gap-2 overflow-x-auto pb-4 hide-scrollbar mt-3">
-              {pageDefs.map((def, index) => {
-                const isGalaxy = !!def.key
-                return (
-                  <button
-                    key={def.key || def.label}
-                    onClick={() => setCurrentPage(index)}
-                    className={`text-[11px] px-3.5 py-1.5 rounded-2xl border whitespace-nowrap ${isGalaxy ? 'min-w-[110px] px-4 font-semibold' : 'min-w-[72px]'} ${
-                      safePage === index
-                        ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-medium'
-                        : 'bg-white/5 border-white/10 text-white/70 active:bg-white/10'
-                    } ${def.key === 'pulsechain' && safePage !== index ? 'glow-special' : ''} ${isGalaxy && def.key !== 'pulsechain' && safePage !== index ? 'border-violet-400/30 text-violet-200/80' : ''}`}
-                  >
-                    {def.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* (Pages row removed — navigation lives in Row 1 above the search now) */}
 
             {/* Portfolio value — moved ABOVE the list. It used to render after ~100 rows,
                 so on mobile you had to scroll to the bottom to ever see it. */}

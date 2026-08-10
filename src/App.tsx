@@ -1335,74 +1335,58 @@ export default function App() {
             {/* Row 1 — navigation. Galaxies FIRST so PulseChain/Base/Solana/BNB are
                 visible without scrolling; the five top-500 slices collapse into
                 small numbered pills after them. */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 hide-scrollbar scroll-fade-x">
-              {pageDefs.filter(d => d.key).map(def => {
-                const index = pageDefs.indexOf(def)
-                const isActive = safePage === index
-                return (
-                  <button
-                    key={def.key}
-                    onClick={() => setCurrentPage(index)}
-                    className={`m-chip text-[11px] px-3 py-2 rounded-2xl border whitespace-nowrap flex-shrink-0 font-semibold ${
-                      isActive
-                        ? 'm-chip-on border-transparent'
-                        : def.key === 'pulsechain'
-                          ? 'glow-special m-chip-galaxy border-white/10 text-white/85'
-                          : 'm-chip-galaxy border-violet-400/30 text-violet-200/85'
-                    }`}
-                  >
-                    {def.label}
-                  </button>
-                )
-              })}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2.5 hide-scrollbar scroll-fade-x">
+              <div className="mseg mseg-violet">
+                {pageDefs.filter(d => d.key).map(def => {
+                  const index = pageDefs.indexOf(def)
+                  return (
+                    <button
+                      key={def.key}
+                      onClick={() => setCurrentPage(index)}
+                      className={`mseg-item font-semibold ${safePage === index ? 'mseg-item-on' : ''}`}
+                    >
+                      {def.label}
+                    </button>
+                  )
+                })}
+              </div>
 
-              <div className="w-px h-5 bg-white/10 flex-shrink-0 mx-0.5" />
-              <span className="text-[9px] tracking-[1px] text-[#6b7280] flex-shrink-0 font-medium">TOP</span>
-
-              {pageDefs.filter(d => !d.key).map((def, i) => {
-                const index = pageDefs.indexOf(def)
-                const isActive = safePage === index
-                return (
-                  <button
-                    key={def.label}
-                    onClick={() => setCurrentPage(index)}
-                    title={def.label}
-                    className={`m-chip text-[11px] w-9 py-2 rounded-2xl border text-center flex-shrink-0 tabular-nums ${
-                      isActive
-                        ? 'm-chip-on border-transparent'
-                        : 'border-white/10 text-white/70'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                )
-              })}
+              <div className="mseg">
+                {pageDefs.filter(d => !d.key).map((def, i) => {
+                  const index = pageDefs.indexOf(def)
+                  return (
+                    <button
+                      key={def.label}
+                      onClick={() => setCurrentPage(index)}
+                      title={def.label}
+                      className={`mseg-item tabular-nums ${safePage === index ? 'mseg-item-on' : ''}`}
+                    >
+                      {i + 1}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Row 2 — filters, compact, with Whales + partners as icon buttons */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-3 hide-scrollbar scroll-fade-x">
+            <div className="flex items-center gap-2 overflow-x-auto pb-3 hide-scrollbar scroll-fade-x">
+              <div className="mseg">
               {[
                 { label: 'All', key: null },
                 { label: 'Gainers', key: 'gainers' },
                 { label: 'Losers', key: 'losers' },
                 { label: 'Volume', key: 'volume' },
                 { label: '★ Favs', key: 'favorites' },
-              ].map(f => {
-                const isActive = activePreset === f.key
-                return (
-                  <button
-                    key={f.label}
-                    onClick={() => setActivePreset(f.key)}
-                    className={`m-chip text-[11px] px-3 py-1.5 rounded-2xl border whitespace-nowrap flex-shrink-0 ${
-                      isActive
-                        ? 'm-chip-on border-transparent'
-                        : 'border-white/10 text-white/80'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                )
-              })}
+              ].map(f => (
+                <button
+                  key={f.label}
+                  onClick={() => setActivePreset(f.key)}
+                  className={`mseg-item ${activePreset === f.key ? 'mseg-item-on' : ''}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+              </div>
 
               <button
                 onClick={highlightBigMovers}

@@ -70,5 +70,11 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    // Dev has no Vercel functions, and the CoinGecko image CDN's CORS is too
+    // flaky for direct canvas loads (some POPs omit ACAO entirely). Forwarding
+    // /api to production means dev exercises the exact same code path.
+    proxy: {
+      '/api': { target: 'https://www.cryptodust.xyz', changeOrigin: true },
+    },
   },
 })

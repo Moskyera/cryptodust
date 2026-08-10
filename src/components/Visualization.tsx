@@ -45,10 +45,10 @@ interface VisualizationProps {
 // poisons caches and the canvas's crossOrigin load randomly fails, which is why
 // many PulseChain logos rendered as blank tinted spheres. In production every
 // canvas logo therefore loads through our same-origin /api/img proxy.
-const PROXY_CANVAS_IMAGES = import.meta.env.PROD
-
 function canvasLogoSrc(url: string): string {
-  if (PROXY_CANVAS_IMAGES && url.startsWith('https://')) {
+  // Always same-origin via /api/img (Vercel in prod, the Vite dev proxy locally):
+  // canvas loads need CORS-clean bytes and the CDN's ACAO is unreliable.
+  if (url.startsWith('https://')) {
     return `/api/img?url=${encodeURIComponent(url)}`
   }
   return url
@@ -172,7 +172,7 @@ export function Visualization({
       // unrecognisable dust; direction is already told by colour and rim.
       const change = coin.price_change_percentage_24h || 0
       const absChange = Math.abs(change)
-      let baseSize = 26 + absChange * 1.3
+      let baseSize = 30 + absChange * 1.3
 
       // Extreme moves in either direction still get the dramatic boost
       if (absChange >= 25) {
@@ -1036,13 +1036,7 @@ export function Visualization({
       // Kick off the logo download once; the sprite upgrades on a later frame
       if (!logoReady && coin.image && !imageCache.current.has(coin.id)) {
         const newImg = new Image()
-        const src = canvasLogoSrc(coin.image)
-        // The proxy is same-origin, so no crossOrigin needed (and none of its
-        // cache pitfalls). Direct CDN loads (dev) still need the CORS request.
-        if (src === coin.image && src.startsWith('https://')) {
-          newImg.crossOrigin = 'anonymous'
-        }
-        newImg.src = src
+        newImg.src = canvasLogoSrc(coin.image) // same-origin, no crossOrigin games
         imageCache.current.set(coin.id, newImg)
       }
 
@@ -1617,7 +1611,10 @@ export function Visualization({
     // the next executing tick will see the updated isPaused (via ref) and draw the
     // correct frozen (when paused) or live scene. Planets stay visible (as a static frozen
     // frame with effects stopped via frozen 'time') + PAUSED label when paused.
-    needsRedrawRef.current = false
+    // Keep the scene dirty while logo sprites are still waiting on the per-frame
+    // composition budget — otherwise the idle skip freezes planets as plain
+    // spheres forever once they stop moving.
+    needsRedrawRef.current = spriteBuildsThisFrame.current >= SPRITE_BUILDS_PER_FRAME
     scheduleNextFrame()
   }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused, isMobile, scheduleNextFrame, topOffset, cancelScheduledFrame])
 

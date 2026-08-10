@@ -28,6 +28,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/c/:id", "destination": "/api/share?coin=:id" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

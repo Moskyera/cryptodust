@@ -294,7 +294,9 @@ export function coinShareText(coin: TokenPrice): string {
 }
 
 export function coinShareUrl(coin: TokenPrice): string {
-  return `https://www.cryptodust.xyz/?coin=${encodeURIComponent(coin.id)}`
+  // /c/<id> serves per-coin OG tags, so X/Telegram render the card as the
+  // link preview automatically; humans get forwarded into the app.
+  return `https://www.cryptodust.xyz/c/${encodeURIComponent(coin.id)}`
 }
 
 /**

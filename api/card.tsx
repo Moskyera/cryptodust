@@ -67,16 +67,22 @@ export default async function handler(req: Request) {
     } catch { /* fall through to branded fallback */ }
   }
 
-  // ---- fonts (woff v1 — satori cannot read woff2) ----
+  // ---- fonts (woff v1 — satori cannot read woff2; Fontsource ships stable ones) ----
   const [interRegular, interBold, interBlack] = await Promise.all([
-    loadFont('https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff'),
-    loadFont('https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50BTca1ZL7.woff'),
-    loadFont('https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50FzMa1ZL7.woff'),
+    loadFont('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-400-normal.woff'),
+    loadFont('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-700-normal.woff'),
+    loadFont('https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.16/files/inter-latin-900-normal.woff'),
   ])
   const fonts: any[] = []
   if (interRegular) fonts.push({ name: 'Inter', data: interRegular, weight: 400 })
   if (interBold) fonts.push({ name: 'Inter', data: interBold, weight: 700 })
   if (interBlack) fonts.push({ name: 'Inter', data: interBlack, weight: 900 })
+
+  // satori cannot render text without at least one font — fall back to the
+  // static logo rather than streaming an empty image
+  if (fonts.length === 0) {
+    return Response.redirect('https://www.cryptodust.xyz/cryptodust-logo.png', 302)
+  }
 
   const change = coin?.price_change_percentage_24h || 0
   const isUp = change >= 0
@@ -210,7 +216,7 @@ export default async function handler(req: Request) {
   return new ImageResponse(tree, {
     width: 1200,
     height: 630,
-    fonts: fonts.length ? fonts : undefined,
+    fonts,
     headers: {
       'Cache-Control': 'public, s-maxage=300, max-age=300, stale-while-revalidate=600',
     },

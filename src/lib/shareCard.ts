@@ -16,6 +16,17 @@ import { formatCompactPrice } from './prices'
 const W = 1200
 const H = 630
 
+export type CardPeriod = '24h' | '30d'
+
+function periodChange(coin: TokenPrice, period: CardPeriod): number {
+  if (period === '30d') {
+    return coin.price_change_percentage_30d ?? coin.price_change_percentage_24h ?? 0
+  }
+  return coin.price_change_percentage_24h || 0
+}
+
+const periodLabel = (period: CardPeriod) => (period === '30d' ? 'LAST 30 DAYS' : 'LAST 24 HOURS')
+
 function logoSrc(url: string): string {
   if (url.startsWith('https://')) return `/api/img?url=${encodeURIComponent(url)}`
   return url
@@ -50,12 +61,12 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath()
 }
 
-export async function buildShareCard(coin: TokenPrice): Promise<HTMLCanvasElement> {
+export async function buildShareCard(coin: TokenPrice, period: CardPeriod = '24h'): Promise<HTMLCanvasElement> {
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')!
-  const change = coin.price_change_percentage_24h || 0
+  const change = periodChange(coin, period)
   const isUp = change >= 0
   const accent = isUp ? '#4ade80' : '#f87171'
   const font = (spec: string) => `${spec} Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`
@@ -185,7 +196,7 @@ export async function buildShareCard(coin: TokenPrice): Promise<HTMLCanvasElemen
 
   ctx.fillStyle = 'rgba(255,255,255,0.45)'
   ctx.font = font('600 24px')
-  ctx.fillText('LAST 24 HOURS', 80, 474)
+  ctx.fillText(periodLabel(period), 80, 474)
 
   // ---------- stat boxes ----------
   const stats: Array<[string, string]> = [['PRICE', formatCompactPrice(coin.current_price)]]
@@ -287,7 +298,7 @@ export async function buildShareCard(coin: TokenPrice): Promise<HTMLCanvasElemen
 // MULTI-COIN CARD — "Market Snapshot" (same 1200x630 Holo Ticket language)
 // Up to five coins as rows: shaded planet logo, symbol/name, price, 24h%.
 // =====================================================
-export async function buildMultiCard(coins: TokenPrice[]): Promise<HTMLCanvasElement> {
+export async function buildMultiCard(coins: TokenPrice[], period: CardPeriod = '24h'): Promise<HTMLCanvasElement> {
   const picks = coins.slice(0, 5)
   const canvas = document.createElement('canvas')
   canvas.width = W
@@ -335,7 +346,7 @@ export async function buildMultiCard(coins: TokenPrice[]): Promise<HTMLCanvasEle
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = 'rgba(255,255,255,0.5)'
   ctx.font = font('600 22px')
-  ctx.fillText('MARKET SNAPSHOT', 70, 74)
+  ctx.fillText(period === '30d' ? 'MARKET SNAPSHOT · 30 DAYS' : 'MARKET SNAPSHOT · 24 HOURS', 70, 74)
   ctx.font = font('700 26px')
   ctx.textAlign = 'right'
   const tail = 'DUST.xyz'
@@ -355,7 +366,7 @@ export async function buildMultiCard(coins: TokenPrice[]): Promise<HTMLCanvasEle
 
   picks.forEach((coin, i) => {
     const cy = top + rowH * i + rowH / 2
-    const change = coin.price_change_percentage_24h || 0
+    const change = periodChange(coin, period)
     const up = change >= 0
     const accent = up ? '#4ade80' : '#f87171'
 
@@ -451,9 +462,9 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
 }
 
-export async function copyMultiCoinCard(coins: TokenPrice[]): Promise<boolean> {
+export async function copyMultiCoinCard(coins: TokenPrice[], period: CardPeriod = '24h'): Promise<boolean> {
   try {
-    const blob = await canvasToBlob(await buildMultiCard(coins))
+    const blob = await canvasToBlob(await buildMultiCard(coins, period))
     if (!blob) return false
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
     return true
@@ -462,9 +473,9 @@ export async function copyMultiCoinCard(coins: TokenPrice[]): Promise<boolean> {
   }
 }
 
-export async function downloadMultiCoinCard(coins: TokenPrice[]): Promise<boolean> {
+export async function downloadMultiCoinCard(coins: TokenPrice[], period: CardPeriod = '24h'): Promise<boolean> {
   try {
-    const blob = await canvasToBlob(await buildMultiCard(coins))
+    const blob = await canvasToBlob(await buildMultiCard(coins, period))
     if (!blob) return false
     const link = document.createElement('a')
     link.download = 'cryptodust-snapshot.png'
@@ -477,9 +488,9 @@ export async function downloadMultiCoinCard(coins: TokenPrice[]): Promise<boolea
   }
 }
 
-export async function shareMultiCoinCard(coins: TokenPrice[]): Promise<'shared' | 'downloaded' | 'failed'> {
+export async function shareMultiCoinCard(coins: TokenPrice[], period: CardPeriod = '24h'): Promise<'shared' | 'downloaded' | 'failed'> {
   try {
-    const blob = await canvasToBlob(await buildMultiCard(coins))
+    const blob = await canvasToBlob(await buildMultiCard(coins, period))
     if (!blob) return 'failed'
     const file = new File([blob], 'cryptodust-snapshot.png', { type: 'image/png' })
     if (navigator.canShare?.({ files: [file] })) {
@@ -501,8 +512,8 @@ export async function shareMultiCoinCard(coins: TokenPrice[]): Promise<'shared' 
   }
 }
 
-async function cardBlob(coin: TokenPrice): Promise<Blob | null> {
-  const canvas = await buildShareCard(coin)
+async function cardBlob(coin: TokenPrice, period: CardPeriod = '24h'): Promise<Blob | null> {
+  const canvas = await buildShareCard(coin, period)
   return new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
 }
 
@@ -547,9 +558,9 @@ export async function shareCardToComposer(
 }
 
 /** Copy the card image to the clipboard (paste anywhere: X, Telegram, Discord). */
-export async function copyCoinCard(coin: TokenPrice): Promise<boolean> {
+export async function copyCoinCard(coin: TokenPrice, period: CardPeriod = '24h'): Promise<boolean> {
   try {
-    const blob = await cardBlob(coin)
+    const blob = await cardBlob(coin, period)
     if (!blob) return false
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
     return true
@@ -559,9 +570,9 @@ export async function copyCoinCard(coin: TokenPrice): Promise<boolean> {
 }
 
 /** Always download the card as a PNG file. */
-export async function downloadCoinCard(coin: TokenPrice): Promise<boolean> {
+export async function downloadCoinCard(coin: TokenPrice, period: CardPeriod = '24h'): Promise<boolean> {
   try {
-    const blob = await cardBlob(coin)
+    const blob = await cardBlob(coin, period)
     if (!blob) return false
     const link = document.createElement('a')
     link.download = `cryptodust-${coin.symbol.toLowerCase()}.png`
@@ -575,9 +586,9 @@ export async function downloadCoinCard(coin: TokenPrice): Promise<boolean> {
 }
 
 /** Render the card and hand it to the user: native share where available, PNG download otherwise. */
-export async function shareCoinCard(coin: TokenPrice): Promise<'shared' | 'downloaded' | 'failed'> {
+export async function shareCoinCard(coin: TokenPrice, period: CardPeriod = '24h'): Promise<'shared' | 'downloaded' | 'failed'> {
   try {
-    const canvas = await buildShareCard(coin)
+    const canvas = await buildShareCard(coin, period)
     const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
     if (!blob) return 'failed'
 

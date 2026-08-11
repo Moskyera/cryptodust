@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
-import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard } from './lib/shareCard'
+import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, type CardPeriod } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
   X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2,
@@ -302,6 +302,19 @@ export default function App() {
     }
   }
 
+  // Card timeframe: the community posts monthly recaps too
+  const [cardPeriod, setCardPeriod] = useState<CardPeriod>(() => {
+    try {
+      const saved = localStorage.getItem('cryptodust_card_period')
+      if (saved === '24h' || saved === '30d') return saved
+    } catch { /* ignore */ }
+    return '24h'
+  })
+  const pickCardPeriod = (period: CardPeriod) => {
+    setCardPeriod(period)
+    try { localStorage.setItem('cryptodust_card_period', period) } catch { /* ignore */ }
+  }
+
   // ---- Multi-coin "Market Snapshot" card (up to 5 coins) ----
   const [showMultiCard, setShowMultiCard] = useState(false)
   const [multiSel, setMultiSel] = useState<string[]>([])
@@ -325,17 +338,17 @@ export default function App() {
       return
     }
     let cancelled = false
-    buildMultiCard(multiSelCoins).then(c => {
+    buildMultiCard(multiSelCoins, cardPeriod).then(c => {
       if (!cancelled) setMultiPreview(c.toDataURL('image/png'))
     })
     return () => { cancelled = true }
-  }, [showMultiCard, multiSelCoins])
+  }, [showMultiCard, multiSelCoins, cardPeriod])
 
   // Share-to-composer hint ("card copied, paste it") — clears itself
   const [shareHint, setShareHint] = useState<string | null>(null)
   const copyCard = async () => {
     if (!selectedCoin) return
-    const ok = await copyCoinCard(selectedCoin)
+    const ok = await copyCoinCard(selectedCoin, cardPeriod)
     setShareHint(ok
       ? 'Card copied! Paste it anywhere (Ctrl+V)'
       : 'Copy failed, use the download button instead')
@@ -1654,8 +1667,19 @@ export default function App() {
               <div className="flex items-center gap-2">
                 {!isWhales && (
                   <>
+                    <div className="flex rounded-lg overflow-hidden border border-white/15 flex-shrink-0">
+                      {(['24h', '30d'] as CardPeriod[]).map(pd => (
+                        <button
+                          key={pd}
+                          onClick={() => pickCardPeriod(pd)}
+                          className={`px-1.5 h-8 text-[9px] font-bold ${cardPeriod === pd ? 'bg-[#67f6ff] text-black' : 'bg-white/[0.05] text-white/60'}`}
+                        >
+                          {pd === '24h' ? '24H' : '30D'}
+                        </button>
+                      ))}
+                    </div>
                     <button
-                      onClick={() => shareCoinCard(selectedCoin)}
+                      onClick={() => shareCoinCard(selectedCoin, cardPeriod)}
                       aria-label="Share this coin"
                       className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-[#67f6ff]/25 text-[#67f6ff]"
                     >
@@ -1669,7 +1693,7 @@ export default function App() {
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => downloadCoinCard(selectedCoin)}
+                      onClick={() => downloadCoinCard(selectedCoin, cardPeriod)}
                       aria-label="Download the card"
                       className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"
                     >
@@ -1894,6 +1918,17 @@ export default function App() {
 
                 {!isWhales && (
                   <>
+                    <div className="flex rounded-lg overflow-hidden border border-white/15 flex-shrink-0" title="Card timeframe: 24 hours or 30 days">
+                      {(['24h', '30d'] as CardPeriod[]).map(pd => (
+                        <button
+                          key={pd}
+                          onClick={() => pickCardPeriod(pd)}
+                          className={`px-1.5 h-7 text-[9px] font-bold ${cardPeriod === pd ? 'bg-[#67f6ff] text-black' : 'bg-white/[0.05] text-white/60 hover:text-white'}`}
+                        >
+                          {pd === '24h' ? '24H' : '30D'}
+                        </button>
+                      ))}
+                    </div>
                     <button
                       onClick={copyCard}
                       aria-label="Copy the card image"
@@ -1903,7 +1938,7 @@ export default function App() {
                       <Copy className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => downloadCoinCard(selectedCoin)}
+                      onClick={() => downloadCoinCard(selectedCoin, cardPeriod)}
                       aria-label="Download the card as PNG"
                       title="Download the card as a PNG image"
                       className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] hover:bg-[#67f6ff]/20 transition-colors flex-shrink-0"
@@ -2485,6 +2520,17 @@ export default function App() {
                   <div className="text-sm text-[#6b7280]">Market snapshot</div>
                   <div className="text-xl font-semibold tracking-tight">Pick up to 5 coins</div>
                 </div>
+                <div className="flex rounded-xl overflow-hidden border border-white/15 ml-auto mr-3">
+                  {(['24h', '30d'] as CardPeriod[]).map(pd => (
+                    <button
+                      key={pd}
+                      onClick={() => pickCardPeriod(pd)}
+                      className={`px-3 h-8 text-[11px] font-bold ${cardPeriod === pd ? 'bg-[#67f6ff] text-black' : 'bg-white/[0.05] text-white/60 hover:text-white'}`}
+                    >
+                      {pd === '24h' ? '24H' : '30D'}
+                    </button>
+                  ))}
+                </div>
                 <button
                   onClick={() => setShowMultiCard(false)}
                   aria-label="Close"
@@ -2567,7 +2613,7 @@ export default function App() {
               <div className="flex gap-2">
                 <button
                   onClick={async () => {
-                    const ok = await copyMultiCoinCard(multiSelCoins)
+                    const ok = await copyMultiCoinCard(multiSelCoins, cardPeriod)
                     setShareHint(ok ? 'Card copied! Paste it anywhere' : 'Copy failed, use download instead')
                     window.setTimeout(() => setShareHint(null), 5000)
                   }}
@@ -2577,14 +2623,14 @@ export default function App() {
                   <Copy className="w-4 h-4" /> Copy
                 </button>
                 <button
-                  onClick={() => downloadMultiCoinCard(multiSelCoins)}
+                  onClick={() => downloadMultiCoinCard(multiSelCoins, cardPeriod)}
                   disabled={multiSelCoins.length === 0}
                   className="flex-1 h-10 rounded-xl bg-white/[0.06] border border-white/15 text-sm font-semibold disabled:opacity-40 hover:bg-white/10 flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" /> Download
                 </button>
                 <button
-                  onClick={() => shareMultiCoinCard(multiSelCoins)}
+                  onClick={() => shareMultiCoinCard(multiSelCoins, cardPeriod)}
                   disabled={multiSelCoins.length === 0}
                   className="flex-1 h-10 rounded-xl bg-gradient-to-r from-[#67f6ff] to-[#38bdf8] text-[#04131a] text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
                 >

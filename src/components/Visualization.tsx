@@ -228,11 +228,14 @@ export function Visualization({
   const SPRITE_D = 192 // hi-res master, downscaled at draw time (max planet Ø is 170px)
 
   // Tab switches used to compose ~100 logo sprites in the first frame — the
-  // freeze the user feels. Budgeted now: a few builds per frame, everyone else
-  // draws the cheap shared tinted sphere until their turn comes (~1s for a full
-  // tab at 60fps, imperceptible because planets are still growing in).
-  const spriteBuildsThisFrame = useRef(0)
-  const SPRITE_BUILDS_PER_FRAME = 8
+  // freeze the user feels. The budget is TIME-based (3ms per frame), so a fast
+  // machine fills a tab in a few frames while a slow one stays at 60fps and
+  // simply takes a little longer; deferred planets draw the cheap tinted
+  // sphere until their turn comes.
+  const spriteDeadlineRef = useRef(0)
+  const spriteDeferredRef = useRef(false)
+  const SPRITE_BUILD_MS = 3
+  const SPRITE_CACHE_MAX = 280
 
   const getPlanetSprite = (
     id: string,
@@ -247,12 +250,12 @@ export function Visualization({
     const cached = spriteCache.current.get(key)
     if (cached) return cached
 
-    // Over budget this frame: fall back to the shared plain sphere (never
-    // cached under the logo key, so the real sprite still builds later).
-    if (img && spriteBuildsThisFrame.current >= SPRITE_BUILDS_PER_FRAME) {
+    // Over the frame's time budget: fall back to the shared plain sphere
+    // (never cached under the logo key, so the real sprite still builds later).
+    if (img && performance.now() > spriteDeadlineRef.current) {
+      spriteDeferredRef.current = true
       return getPlanetSprite(id, null, isGainer)
     }
-    if (img) spriteBuildsThisFrame.current++
 
     const c = document.createElement('canvas')
     c.width = SPRITE_D
@@ -301,6 +304,16 @@ export function Visualization({
     sctx.fillRect(0, 0, d, d)
 
     spriteCache.current.set(key, c)
+
+    // Cap GPU memory: ~280 sprites x ~150KB. Insertion order doubles as a
+    // cheap LRU — evict the oldest logo sprites, never the shared plain pair.
+    if (spriteCache.current.size > SPRITE_CACHE_MAX) {
+      for (const k of spriteCache.current.keys()) {
+        if (k.startsWith('plain:')) continue
+        spriteCache.current.delete(k)
+        if (spriteCache.current.size <= SPRITE_CACHE_MAX - 40) break
+      }
+    }
     return c
   }
 
@@ -896,8 +909,9 @@ export function Visualization({
     // re-composite onto #0a0a12 in App.tsx since PNGs need the dark background.
     ctx.clearRect(0, 0, w, h)
 
-    // Fresh sprite-composition budget for this frame (see getPlanetSprite)
-    spriteBuildsThisFrame.current = 0
+    // Fresh sprite-composition time budget for this frame (see getPlanetSprite)
+    spriteDeadlineRef.current = performance.now() + SPRITE_BUILD_MS
+    spriteDeferredRef.current = false
 
     // ==================== DRAW EVERYTHING ====================
     bubbles.forEach((b) => {
@@ -1037,6 +1051,9 @@ export function Visualization({
       if (!logoReady && coin.image && !imageCache.current.has(coin.id)) {
         const newImg = new Image()
         newImg.src = canvasLogoSrc(coin.image) // same-origin, no crossOrigin games
+        // Decode off the render loop — the first drawImage of an undecoded
+        // image performs a synchronous decode inside the frame otherwise.
+        newImg.decode?.().catch(() => { /* broken image: sprite falls back */ })
         imageCache.current.set(coin.id, newImg)
       }
 
@@ -1612,9 +1629,9 @@ export function Visualization({
     // correct frozen (when paused) or live scene. Planets stay visible (as a static frozen
     // frame with effects stopped via frozen 'time') + PAUSED label when paused.
     // Keep the scene dirty while logo sprites are still waiting on the per-frame
-    // composition budget — otherwise the idle skip freezes planets as plain
-    // spheres forever once they stop moving.
-    needsRedrawRef.current = spriteBuildsThisFrame.current >= SPRITE_BUILDS_PER_FRAME
+    // time budget — otherwise the idle skip freezes planets as plain spheres
+    // forever once they stop moving.
+    needsRedrawRef.current = spriteDeferredRef.current
     scheduleNextFrame()
   }, [selectedId, paused, highlightUntil, favorites, sizeMetric, topLabel, onTogglePaused, isMobile, scheduleNextFrame, topOffset, cancelScheduledFrame])
 

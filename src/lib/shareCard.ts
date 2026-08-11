@@ -458,8 +458,363 @@ export async function buildMultiCard(coins: TokenPrice[], period: CardPeriod = '
   return canvas
 }
 
+/**
+ * Battlefield war report — promo card for cryptodust.xyz/battlefield.
+ * The four Grand War combatants as planet tiles, a bulls-vs-bears force
+ * balance bar weighted by |change|, war totals and a call to action.
+ */
+const WAR_ROSTER = [
+  { id: 'pulsechain', symbol: 'PLS' },
+  { id: 'pulsex', symbol: 'PLSX' },
+  { id: 'hex-pulsechain', symbol: 'HEX' },
+  { id: 'pulsex-incentive-token', symbol: 'INC' },
+]
+
+export function pickWarTokens(tokens: TokenPrice[]): TokenPrice[] {
+  return WAR_ROSTER
+    .map(w => tokens.find(t => t.id === w.id) ?? tokens.find(t => t.symbol.toUpperCase() === w.symbol))
+    .filter(Boolean) as TokenPrice[]
+}
+
+function drawSwords(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number, color: string) {
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.lineCap = 'round'
+  for (const dir of [-1, 1]) {
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate((Math.PI / 4) * dir)
+    ctx.lineWidth = s * 0.16
+    ctx.beginPath()
+    ctx.moveTo(0, -s * 0.62)
+    ctx.lineTo(0, s * 0.4)
+    ctx.stroke()
+    ctx.lineWidth = s * 0.12
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.22, s * 0.18)
+    ctx.lineTo(s * 0.22, s * 0.18)
+    ctx.stroke()
+    ctx.restore()
+  }
+  ctx.restore()
+}
+
+export async function buildBattlefieldCard(tokens: TokenPrice[], period: CardPeriod = '24h'): Promise<HTMLCanvasElement> {
+  const picks = pickWarTokens(tokens)
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  const font = (spec: string) => `${spec} Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`
+
+  // backdrop: deep space split by the war — green haze left, red haze right
+  const bg = ctx.createLinearGradient(0, 0, W, H)
+  bg.addColorStop(0, '#0d0f1d')
+  bg.addColorStop(0.55, '#0a0a14')
+  bg.addColorStop(1, '#0c0a14')
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, W, H)
+
+  const nebL = ctx.createRadialGradient(W * 0.05, H * 0.75, 0, W * 0.05, H * 0.75, 700)
+  nebL.addColorStop(0, 'rgba(74,222,128,0.14)')
+  nebL.addColorStop(1, 'transparent')
+  ctx.fillStyle = nebL
+  ctx.fillRect(0, 0, W, H)
+
+  const nebR = ctx.createRadialGradient(W * 0.97, H * 0.72, 0, W * 0.97, H * 0.72, 700)
+  nebR.addColorStop(0, 'rgba(248,113,113,0.16)')
+  nebR.addColorStop(1, 'transparent')
+  ctx.fillStyle = nebR
+  ctx.fillRect(0, 0, W, H)
+
+  const nebT = ctx.createRadialGradient(W * 0.5, -80, 0, W * 0.5, -80, 620)
+  nebT.addColorStop(0, 'rgba(167,139,250,0.14)')
+  nebT.addColorStop(1, 'transparent')
+  ctx.fillStyle = nebT
+  ctx.fillRect(0, 0, W, H)
+
+  // seeded stars
+  let seed = 77
+  for (let i = 0; i < 90; i++) {
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    const x = (seed / 4294967296) * W
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    const y = (seed / 4294967296) * H
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    const r = (seed / 4294967296) * 1.5 + 0.4
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    ctx.globalAlpha = 0.15 + (seed / 4294967296) * 0.55
+    ctx.fillStyle = i % 7 === 0 ? '#d6f9ff' : '#ffffff'
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.globalAlpha = 1
+
+  // giant VS watermark behind the tiles
+  ctx.save()
+  ctx.globalAlpha = 0.05
+  ctx.fillStyle = '#ffffff'
+  ctx.font = font('900 330px')
+  ctx.textAlign = 'center'
+  ctx.fillText('VS', W / 2, 440)
+  ctx.restore()
+  ctx.textAlign = 'left'
+
+  // header
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.font = font('600 22px')
+  ctx.fillText('PULSECHAIN · LIVE ON-CHAIN COMBAT', 70, 66)
+  ctx.font = font('700 26px')
+  ctx.textAlign = 'right'
+  const tail = 'DUST.xyz'
+  const tw = ctx.measureText(tail).width
+  ctx.fillStyle = '#fb923c'
+  ctx.fillText(tail, W - 64, 68)
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'
+  ctx.fillText('crypto', W - 64 - tw, 68)
+  ctx.textAlign = 'left'
+
+  // title
+  const titleGrad = ctx.createLinearGradient(70, 0, 720, 0)
+  titleGrad.addColorStop(0, '#f87171')
+  titleGrad.addColorStop(0.6, '#fb923c')
+  titleGrad.addColorStop(1, '#fbbf24')
+  ctx.save()
+  ctx.shadowColor = 'rgba(248,113,113,0.55)'
+  ctx.shadowBlur = 28
+  ctx.fillStyle = titleGrad
+  ctx.font = font('900 68px')
+  ctx.fillText('BATTLEFIELD', 70, 138)
+  ctx.restore()
+
+  ctx.fillStyle = 'rgba(255,255,255,0.45)'
+  ctx.font = font('600 20px')
+  ctx.fillText(`GRAND WAR · ${picks.map(c => c.symbol.toUpperCase()).join(' · ')} · ${periodLabel(period)}`, 70, 172)
+
+  // combatant tiles
+  const logos = await Promise.all(picks.map(c => (c.image ? loadImage(logoSrc(c.image)) : Promise.resolve(null))))
+  const left = 70
+  const right = W - 64
+  const gap = 22
+  const n = Math.max(picks.length, 1)
+  const tileW = (right - left - gap * (n - 1)) / n
+  const tileY = 198
+  const tileH = 212
+
+  picks.forEach((coin, i) => {
+    const x = left + (tileW + gap) * i
+    const change = periodChange(coin, period)
+    const up = change >= 0
+    const accent = up ? '#4ade80' : '#f87171'
+    const cx = x + tileW / 2
+
+    ctx.fillStyle = 'rgba(255,255,255,0.035)'
+    roundRect(ctx, x, tileY, tileW, tileH, 22)
+    ctx.fill()
+    ctx.strokeStyle = up ? 'rgba(74,222,128,0.35)' : 'rgba(248,113,113,0.35)'
+    ctx.lineWidth = 2
+    roundRect(ctx, x, tileY, tileW, tileH, 22)
+    ctx.stroke()
+
+    // planet logo
+    const lr = 42
+    const ly = tileY + 62
+    const logo = logos[i]
+    if (logo) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(cx, ly, lr, 0, Math.PI * 2)
+      ctx.clip()
+      ctx.fillStyle = '#14141d'
+      ctx.fillRect(cx - lr, ly - lr, lr * 2, lr * 2)
+      ctx.drawImage(logo, cx - lr, ly - lr, lr * 2, lr * 2)
+      const shade = ctx.createRadialGradient(cx - lr * 0.35, ly - lr * 0.4, lr * 0.15, cx, ly, lr * 1.4)
+      shade.addColorStop(0, 'rgba(255,255,255,0.2)')
+      shade.addColorStop(0.4, 'rgba(255,255,255,0.02)')
+      shade.addColorStop(1, 'rgba(0,0,0,0.5)')
+      ctx.fillStyle = shade
+      ctx.fillRect(cx - lr, ly - lr, lr * 2, lr * 2)
+      ctx.restore()
+
+      ctx.globalAlpha = 0.75
+      ctx.strokeStyle = accent
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.arc(cx, ly, lr + 3, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ffffff'
+    ctx.font = font('900 28px')
+    ctx.fillText(coin.symbol.toUpperCase(), cx, tileY + 136)
+    ctx.fillStyle = 'rgba(255,255,255,0.75)'
+    ctx.font = font('600 21px')
+    ctx.fillText(formatCompactPrice(coin.current_price), cx, tileY + 164)
+
+    ctx.save()
+    ctx.shadowColor = accent
+    ctx.shadowBlur = 18
+    ctx.fillStyle = accent
+    ctx.font = font('900 30px')
+    ctx.fillText(`${up ? '+' : '-'}${Math.abs(change).toFixed(1)}%`, cx, tileY + 198)
+    ctx.restore()
+    ctx.textAlign = 'left'
+  })
+
+  // force balance — |change| weighted bulls vs bears
+  const gainW = picks.reduce((s, c) => s + Math.max(0, periodChange(c, period)), 0)
+  const lossW = picks.reduce((s, c) => s + Math.max(0, -periodChange(c, period)), 0)
+  const bullShare = gainW + lossW > 0 ? gainW / (gainW + lossW) : 0.5
+
+  const barY = 460
+  const barH = 20
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.font = font('700 18px')
+  ctx.fillText('FORCE BALANCE', left, barY - 12)
+  ctx.textAlign = 'right'
+  const lean = bullShare >= 0.5
+  ctx.fillStyle = lean ? '#4ade80' : '#f87171'
+  ctx.fillText(
+    lean ? `BULLS ${Math.round(bullShare * 100)}%` : `BEARS ${Math.round((1 - bullShare) * 100)}%`,
+    right, barY - 12,
+  )
+  ctx.textAlign = 'left'
+
+  const barW = right - left
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'
+  roundRect(ctx, left, barY, barW, barH, barH / 2)
+  ctx.fill()
+  ctx.save()
+  roundRect(ctx, left, barY, barW, barH, barH / 2)
+  ctx.clip()
+  const split = left + barW * bullShare
+  const greenG = ctx.createLinearGradient(left, 0, split, 0)
+  greenG.addColorStop(0, '#166534')
+  greenG.addColorStop(1, '#4ade80')
+  ctx.fillStyle = greenG
+  ctx.fillRect(left, barY, split - left, barH)
+  const redG = ctx.createLinearGradient(split, 0, right, 0)
+  redG.addColorStop(0, '#f87171')
+  redG.addColorStop(1, '#7f1d1d')
+  ctx.fillStyle = redG
+  ctx.fillRect(split, barY, right - split, barH)
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'
+  ctx.fillRect(split - 2, barY, 4, barH)
+  ctx.restore()
+
+  // war totals + CTA
+  const liq = picks.reduce((s, c) => s + (c.liquidity || 0), 0)
+  const vol = picks.reduce((s, c) => s + (c.total_volume || 0), 0)
+  const statBits = []
+  if (liq > 0) statBits.push(`WAR LIQUIDITY ${fmtBig(liq)}`)
+  if (vol > 0) statBits.push(`24H VOLUME ${fmtBig(vol)}`)
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'
+  ctx.font = font('600 20px')
+  ctx.fillText(statBits.join('  ·  '), left, 536)
+
+  const ctaText = 'cryptodust.xyz/battlefield'
+  ctx.font = font('700 24px')
+  const ctaW = ctx.measureText(ctaText).width + 56
+  const ctaX = right - ctaW
+  const ctaY = 552
+  const ctaH = 48
+  ctx.fillStyle = 'rgba(248,113,113,0.1)'
+  roundRect(ctx, ctaX, ctaY, ctaW, ctaH, 24)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(248,113,113,0.55)'
+  ctx.lineWidth = 2
+  roundRect(ctx, ctaX, ctaY, ctaW, ctaH, 24)
+  ctx.stroke()
+  ctx.fillStyle = '#fca5a5'
+  ctx.fillText(ctaText, ctaX + 28, ctaY + 32)
+
+  drawSwords(ctx, left + 16, ctaY + 24, 26, 'rgba(255,255,255,0.8)')
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'
+  ctx.font = font('800 24px')
+  ctx.fillText('WATCH THE WAR LIVE', left + 44, ctaY + 32)
+
+  // holo border, war edition: red → orange → violet
+  const holo = ctx.createLinearGradient(0, 0, W, H)
+  holo.addColorStop(0, '#f87171')
+  holo.addColorStop(0.4, '#fb923c')
+  holo.addColorStop(0.75, '#a78bfa')
+  holo.addColorStop(1, '#f87171')
+  ctx.strokeStyle = holo
+  ctx.lineWidth = 5
+  roundRect(ctx, 8, 8, W - 16, H - 16, 30)
+  ctx.stroke()
+
+  ctx.save()
+  ctx.globalAlpha = 0.045
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  ctx.moveTo(W * 0.3, 0)
+  ctx.lineTo(W * 0.44, 0)
+  ctx.lineTo(W * 0.22, H)
+  ctx.lineTo(W * 0.08, H)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+
+  return canvas
+}
+
 function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+}
+
+export async function copyBattlefieldCard(tokens: TokenPrice[], period: CardPeriod = '24h'): Promise<boolean> {
+  try {
+    const blob = await canvasToBlob(await buildBattlefieldCard(tokens, period))
+    if (!blob) return false
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function downloadBattlefieldCard(tokens: TokenPrice[], period: CardPeriod = '24h'): Promise<boolean> {
+  try {
+    const blob = await canvasToBlob(await buildBattlefieldCard(tokens, period))
+    if (!blob) return false
+    const link = document.createElement('a')
+    link.download = 'cryptodust-battlefield.png'
+    link.href = URL.createObjectURL(blob)
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(link.href), 10000)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function shareBattlefieldCard(tokens: TokenPrice[], period: CardPeriod = '24h'): Promise<'shared' | 'downloaded' | 'failed'> {
+  try {
+    const blob = await canvasToBlob(await buildBattlefieldCard(tokens, period))
+    if (!blob) return 'failed'
+    const file = new File([blob], 'cryptodust-battlefield.png', { type: 'image/png' })
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'PulseChain Battlefield', text: 'Live on-chain combat · cryptodust.xyz/battlefield' })
+        return 'shared'
+      } catch {
+        return 'shared'
+      }
+    }
+    const link = document.createElement('a')
+    link.download = file.name
+    link.href = URL.createObjectURL(blob)
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(link.href), 10000)
+    return 'downloaded'
+  } catch {
+    return 'failed'
+  }
 }
 
 export async function copyMultiCoinCard(coins: TokenPrice[], period: CardPeriod = '24h'): Promise<boolean> {

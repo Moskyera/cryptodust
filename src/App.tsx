@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
-import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, type CardPeriod } from './lib/shareCard'
+import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, buildBattlefieldCard, copyBattlefieldCard, downloadBattlefieldCard, shareBattlefieldCard, type CardPeriod } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
   X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2, Swords,
@@ -320,6 +320,9 @@ export default function App() {
   const [multiSel, setMultiSel] = useState<string[]>([])
   const [multiSearch, setMultiSearch] = useState('')
   const [multiPreview, setMultiPreview] = useState<string | null>(null)
+  // 'coins' is the classic snapshot; 'war' renders the Battlefield promo card.
+  // The war toggle only shows on desktop — Battlefield itself is desktop-only.
+  const [multiMode, setMultiMode] = useState<'coins' | 'war'>('coins')
 
   const openMultiCard = () => {
     // Prefill with the user's favorites — usually exactly what they want to post
@@ -333,16 +336,19 @@ export default function App() {
   )
 
   React.useEffect(() => {
-    if (!showMultiCard || multiSelCoins.length === 0) {
+    if (!showMultiCard || (multiMode === 'coins' && multiSelCoins.length === 0)) {
       setMultiPreview(null)
       return
     }
     let cancelled = false
-    buildMultiCard(multiSelCoins, cardPeriod).then(c => {
+    const build = multiMode === 'war'
+      ? buildBattlefieldCard(tokens, cardPeriod)
+      : buildMultiCard(multiSelCoins, cardPeriod)
+    build.then(c => {
       if (!cancelled) setMultiPreview(c.toDataURL('image/png'))
     })
     return () => { cancelled = true }
-  }, [showMultiCard, multiSelCoins, cardPeriod])
+  }, [showMultiCard, multiSelCoins, cardPeriod, multiMode, tokens])
 
   // Share-to-composer hint ("card copied, paste it") — clears itself
   const [shareHint, setShareHint] = useState<string | null>(null)
@@ -2545,8 +2551,10 @@ export default function App() {
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="text-sm text-[#6b7280]">Market snapshot</div>
-                  <div className="text-xl font-semibold tracking-tight">Pick up to 5 coins</div>
+                  <div className="text-sm text-[#6b7280]">{multiMode === 'war' ? 'Battlefield card' : 'Market snapshot'}</div>
+                  <div className="text-xl font-semibold tracking-tight">
+                    {multiMode === 'war' ? 'The Grand War, live' : 'Pick up to 5 coins'}
+                  </div>
                 </div>
                 <div className="flex rounded-xl overflow-hidden border border-white/15 ml-auto mr-3">
                   {(['24h', '30d'] as CardPeriod[]).map(pd => (
@@ -2568,8 +2576,24 @@ export default function App() {
                 </button>
               </div>
 
+              {/* card type: coins snapshot or Battlefield war report (desktop only) */}
+              <div className="hidden md:flex rounded-xl overflow-hidden border border-white/15 mb-3 w-fit">
+                <button
+                  onClick={() => setMultiMode('coins')}
+                  className={`px-4 h-8 text-[11px] font-bold ${multiMode === 'coins' ? 'bg-[#67f6ff] text-black' : 'bg-white/[0.05] text-white/60 hover:text-white'}`}
+                >
+                  COINS
+                </button>
+                <button
+                  onClick={() => setMultiMode('war')}
+                  className={`px-4 h-8 text-[11px] font-bold flex items-center gap-1.5 ${multiMode === 'war' ? 'bg-[#f87171] text-black' : 'bg-white/[0.05] text-white/60 hover:text-white'}`}
+                >
+                  <Swords className="w-3.5 h-3.5" /> BATTLEFIELD
+                </button>
+              </div>
+
               {/* selected chips */}
-              <div className="flex flex-wrap gap-1.5 mb-3 min-h-[34px]">
+              <div className={`flex flex-wrap gap-1.5 mb-3 min-h-[34px] ${multiMode === 'war' ? 'hidden' : ''}`}>
                 {multiSelCoins.map(c => (
                   <button
                     key={c.id}
@@ -2588,7 +2612,7 @@ export default function App() {
               </div>
 
               {/* search + results */}
-              {multiSel.length < 5 && (
+              {multiMode === 'coins' && multiSel.length < 5 && (
                 <div className="mb-3">
                   <div className="relative">
                     <input
@@ -2633,7 +2657,7 @@ export default function App() {
                 <img src={multiPreview} alt="Card preview" className="w-full rounded-xl border border-white/10 mb-4" />
               ) : (
                 <div className="h-32 rounded-xl border border-dashed border-white/15 flex items-center justify-center text-xs text-[#6b7280] mb-4">
-                  {multiSelCoins.length === 0 ? 'The card preview appears here' : 'Rendering preview…'}
+                  {multiMode === 'coins' && multiSelCoins.length === 0 ? 'The card preview appears here' : 'Rendering preview…'}
                 </div>
               )}
 
@@ -2641,25 +2665,31 @@ export default function App() {
               <div className="flex gap-2">
                 <button
                   onClick={async () => {
-                    const ok = await copyMultiCoinCard(multiSelCoins, cardPeriod)
+                    const ok = multiMode === 'war'
+                      ? await copyBattlefieldCard(tokens, cardPeriod)
+                      : await copyMultiCoinCard(multiSelCoins, cardPeriod)
                     setShareHint(ok ? 'Card copied! Paste it anywhere' : 'Copy failed, use download instead')
                     window.setTimeout(() => setShareHint(null), 5000)
                   }}
-                  disabled={multiSelCoins.length === 0}
+                  disabled={multiMode === 'coins' && multiSelCoins.length === 0}
                   className="flex-1 h-10 rounded-xl bg-white/[0.06] border border-white/15 text-sm font-semibold disabled:opacity-40 hover:bg-white/10 flex items-center justify-center gap-2"
                 >
                   <Copy className="w-4 h-4" /> Copy
                 </button>
                 <button
-                  onClick={() => downloadMultiCoinCard(multiSelCoins, cardPeriod)}
-                  disabled={multiSelCoins.length === 0}
+                  onClick={() => multiMode === 'war'
+                    ? downloadBattlefieldCard(tokens, cardPeriod)
+                    : downloadMultiCoinCard(multiSelCoins, cardPeriod)}
+                  disabled={multiMode === 'coins' && multiSelCoins.length === 0}
                   className="flex-1 h-10 rounded-xl bg-white/[0.06] border border-white/15 text-sm font-semibold disabled:opacity-40 hover:bg-white/10 flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" /> Download
                 </button>
                 <button
-                  onClick={() => shareMultiCoinCard(multiSelCoins, cardPeriod)}
-                  disabled={multiSelCoins.length === 0}
+                  onClick={() => multiMode === 'war'
+                    ? shareBattlefieldCard(tokens, cardPeriod)
+                    : shareMultiCoinCard(multiSelCoins, cardPeriod)}
+                  disabled={multiMode === 'coins' && multiSelCoins.length === 0}
                   className="flex-1 h-10 rounded-xl bg-gradient-to-r from-[#67f6ff] to-[#38bdf8] text-[#04131a] text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   <Share2 className="w-4 h-4" /> Share

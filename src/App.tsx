@@ -4,7 +4,7 @@ import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
 import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, type CardPeriod } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
-  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2,
+  X, Coins, BarChart3, Bitcoin, Layers, ArrowUpRight, Check, Bell, BellRing, Tv, Share2, Swords,
 } from 'lucide-react'
 import { isPushSupported, getPushSubscription, enablePushAlerts, disablePushAlerts, syncPushPrefs } from './lib/push'
 
@@ -107,13 +107,6 @@ const WHALES_ON_PULSE: TokenPrice = {
 // Partner / community links. One source of truth so desktop nav and mobile chips
 // can never drift apart again.
 const EXTERNAL_LINKS = [
-  {
-    label: 'Battlefield',
-    href: 'https://battlefield.cryptodust.xyz',
-    img: '/cryptodust-logo.png',
-    ring: 'hover:border-red-500/60 hover:text-red-200 hover:bg-red-500/10',
-    text: 'text-red-300',
-  },
   {
     label: 'ProveX',
     href: 'https://app.provex.com',
@@ -863,6 +856,25 @@ export default function App() {
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+
+            <div className="w-px h-6 bg-white/10 mx-0.5 flex-shrink-0" />
+
+            {/* Battlefield: live 3D on-chain combat at /battlefield. Desktop only,
+                the WebGL scene is too heavy for phones. */}
+            <a
+              href="/battlefield"
+              target="_blank"
+              rel="noopener"
+              title="PulseChain Battlefield"
+              className="premium-button group flex items-center gap-x-2 h-9 px-1.5 2xl:pr-3.5 rounded-2xl bg-red-500/[0.06] border border-red-500/25 text-red-300 hover:border-red-400/60 hover:text-red-100 hover:bg-red-500/15 flex-shrink-0"
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-red-500/15 ring-1 ring-red-400/25 transition-transform group-hover:scale-105">
+                <Swords className="w-4 h-4" />
+              </span>
+              <span className="font-semibold tracking-tight text-[13px] hidden 2xl:inline whitespace-nowrap">
+                Battlefield
+              </span>
+            </a>
 
             <div className="w-px h-6 bg-white/10 mx-0.5 flex-shrink-0" />
 

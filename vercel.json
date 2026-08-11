@@ -28,6 +28,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/battlefield", "destination": "https://pulsechain-battlefield.vercel.app/battlefield" },
+    { "source": "/battlefield/:path*", "destination": "https://pulsechain-battlefield.vercel.app/battlefield/:path*" },
     { "source": "/c/:id", "destination": "/api/share?coin=:id" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

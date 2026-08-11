@@ -989,11 +989,18 @@ export function usePrices() {
 
   // Fast lane: 60s price-only updates between the 5-minute full rebuilds
   const lastFastRun = useRef(0)
+  const dataRef = useRef<MarketData | undefined>(undefined)
+  useEffect(() => { dataRef.current = data }, [data])
+
   useEffect(() => {
     let cancelled = false
 
     const tick = async () => {
       if (cancelled || document.visibilityState === 'hidden') return
+      // NEVER mutate before the first full load lands: SWR treats a mutation
+      // as fresher than any in-flight fetch and DISCARDS its result — on slow
+      // (rate-limited) initial loads that left the app empty forever.
+      if (!dataRef.current) return
       if (Date.now() - lastFastRun.current < 45000) return
       lastFastRun.current = Date.now()
 

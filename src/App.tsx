@@ -1666,46 +1666,12 @@ export default function App() {
 
               <div className="flex items-center gap-2">
                 {!isWhales && (
-                  <>
-                    <div className="flex rounded-lg overflow-hidden border border-white/15 flex-shrink-0">
-                      {(['24h', '30d'] as CardPeriod[]).map(pd => (
-                        <button
-                          key={pd}
-                          onClick={() => pickCardPeriod(pd)}
-                          className={`px-1.5 h-8 text-[9px] font-bold ${cardPeriod === pd ? 'bg-[#67f6ff] text-black' : 'bg-white/[0.05] text-white/60'}`}
-                        >
-                          {pd === '24h' ? '24H' : '30D'}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => shareCoinCard(selectedCoin, cardPeriod)}
-                      aria-label="Share this coin"
-                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-[#67f6ff]/25 text-[#67f6ff]"
-                    >
-                      <Share2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={copyCard}
-                      aria-label="Copy the card image"
-                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => downloadCoinCard(selectedCoin, cardPeriod)}
-                      aria-label="Download the card"
-                      className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => toggleFavorite(selectedCoin.id)}
-                      className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
-                    >
-                      {favorites.includes(selectedCoin.id) ? '★ Favorited' : '☆ Favorite'}
-                    </button>
-                  </>
+                  <button
+                    onClick={() => toggleFavorite(selectedCoin.id)}
+                    className="px-3 py-1 text-sm rounded-xl bg-white/5 active:bg-white/10"
+                  >
+                    {favorites.includes(selectedCoin.id) ? '★ Favorited' : '☆ Favorite'}
+                  </button>
                 )}
                 <button
                   onClick={() => setSelectedId(null)}
@@ -1716,6 +1682,45 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {/* Card publishing row — its own line so it never crowds the coin name */}
+            {!isWhales && (
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="text-[9px] tracking-[1.2px] text-[#6b7280] font-semibold mr-0.5">CARD</span>
+                <div className="flex rounded-lg overflow-hidden border border-white/15 flex-shrink-0">
+                  {(['24h', '30d'] as CardPeriod[]).map(pd => (
+                    <button
+                      key={pd}
+                      onClick={() => pickCardPeriod(pd)}
+                      className={`px-2 h-8 text-[9px] font-bold ${cardPeriod === pd ? 'bg-[#67f6ff] text-black' : 'bg-white/[0.05] text-white/60'}`}
+                    >
+                      {pd === '24h' ? '24H' : '30D'}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => shareCoinCard(selectedCoin, cardPeriod)}
+                  aria-label="Share this coin"
+                  className="m-chip flex-1 h-8 flex items-center justify-center gap-1.5 rounded-xl border border-[#67f6ff]/25 text-[#67f6ff] text-[11px] font-semibold"
+                >
+                  <Share2 className="w-3.5 h-3.5" /> Share
+                </button>
+                <button
+                  onClick={copyCard}
+                  aria-label="Copy the card image"
+                  className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => downloadCoinCard(selectedCoin, cardPeriod)}
+                  aria-label="Download the card"
+                  className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Holdings input for favorited coins. Was nested inside the flex header above,
                 which made it a third row item instead of its own line. */}
@@ -1917,42 +1922,13 @@ export default function App() {
                 </div>
 
                 {!isWhales && (
-                  <>
-                    <div className="flex rounded-lg overflow-hidden border border-white/15 flex-shrink-0" title="Card timeframe: 24 hours or 30 days">
-                      {(['24h', '30d'] as CardPeriod[]).map(pd => (
-                        <button
-                          key={pd}
-                          onClick={() => pickCardPeriod(pd)}
-                          className={`px-1.5 h-7 text-[9px] font-bold ${cardPeriod === pd ? 'bg-[#67f6ff] text-black' : 'bg-white/[0.05] text-white/60 hover:text-white'}`}
-                        >
-                          {pd === '24h' ? '24H' : '30D'}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={copyCard}
-                      aria-label="Copy the card image"
-                      title="Copy the card image, then paste it into any post (Ctrl+V)"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/[0.06] border border-white/15 text-white/85 hover:bg-white/15 transition-colors flex-shrink-0"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => downloadCoinCard(selectedCoin, cardPeriod)}
-                      aria-label="Download the card as PNG"
-                      title="Download the card as a PNG image"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] hover:bg-[#67f6ff]/20 transition-colors flex-shrink-0"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => toggleFavorite(selectedCoin.id)}
-                      className="text-2xl leading-none transition-transform hover:scale-110 active:scale-90 flex-shrink-0"
-                      title={favorites.includes(selectedCoin.id) ? 'Remove from favorites' : 'Add to favorites'}
-                    >
-                      {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/35">☆</span>}
-                    </button>
-                  </>
+                  <button
+                    onClick={() => toggleFavorite(selectedCoin.id)}
+                    className="text-2xl leading-none transition-transform hover:scale-110 active:scale-90 flex-shrink-0"
+                    title={favorites.includes(selectedCoin.id) ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    {favorites.includes(selectedCoin.id) ? <span className="text-amber-400">★</span> : <span className="text-white/35">☆</span>}
+                  </button>
                 )}
                 <button
                   onClick={() => setSelectedId(null)}
@@ -1977,6 +1953,39 @@ export default function App() {
                   >
                     {(selectedCoin.price_change_percentage_24h || 0) >= 0 ? '\u25b2' : '\u25bc'} {Math.abs(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}%
                   </span>
+                </div>
+              )}
+
+              {!isWhales && (
+                <div className="relative flex items-center gap-1.5 mt-3">
+                  <span className="text-[9px] tracking-[1.2px] text-[#6b7280] font-semibold mr-1">CARD</span>
+                  <div className="flex rounded-lg overflow-hidden border border-white/15 flex-shrink-0" title="Card timeframe: 24 hours or 30 days">
+                    {(['24h', '30d'] as CardPeriod[]).map(pd => (
+                      <button
+                        key={pd}
+                        onClick={() => pickCardPeriod(pd)}
+                        className={`px-2 h-7 text-[9px] font-bold ${cardPeriod === pd ? 'bg-[#67f6ff] text-black' : 'bg-white/[0.05] text-white/60 hover:text-white'}`}
+                      >
+                        {pd === '24h' ? '24H' : '30D'}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={copyCard}
+                    aria-label="Copy the card image"
+                    title="Copy the card image, then paste it into any post (Ctrl+V)"
+                    className="h-7 px-2.5 flex items-center gap-1.5 rounded-lg bg-white/[0.06] border border-white/15 text-white/85 hover:bg-white/15 transition-colors text-[10px] font-semibold"
+                  >
+                    <Copy className="w-3 h-3" /> Copy
+                  </button>
+                  <button
+                    onClick={() => downloadCoinCard(selectedCoin, cardPeriod)}
+                    aria-label="Download the card as PNG"
+                    title="Download the card as a PNG image"
+                    className="h-7 px-2.5 flex items-center gap-1.5 rounded-lg bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] hover:bg-[#67f6ff]/20 transition-colors text-[10px] font-semibold"
+                  >
+                    <Download className="w-3 h-3" /> PNG
+                  </button>
                 </div>
               )}
             </div>

@@ -235,7 +235,19 @@ export function Visualization({
   const spriteDeadlineRef = useRef(0)
   const spriteDeferredRef = useRef(false)
   const SPRITE_BUILD_MS = 3
-  const SPRITE_CACHE_MAX = 280
+  // During the warp veil the screen is covered, so the budget can be generous:
+  // most of a fresh tab composes invisibly before the reveal.
+  const WARP_BUILD_MS = 14
+  const SPRITE_CACHE_MAX = 600
+
+  // Tab-switch choreography: a brief veil over the scene while sprites
+  // pre-compose, plus a per-tab layout memory so returning to a tab restores
+  // its planets instantly (positions, sizes and sprites all warm).
+  const warpUntilRef = useRef(0)
+  const [warping, setWarping] = useState(false)
+  const warpTimerRef = useRef<number | undefined>(undefined)
+  const layoutCacheRef = useRef<Map<string, Bubble[]>>(new Map())
+  const lastLayoutSigRef = useRef('')
 
   const getPlanetSprite = (
     id: string,
@@ -474,6 +486,44 @@ export function Visualization({
 
     const w = canvas.width || window.innerWidth * 1.5
     const h = canvas.height || window.innerHeight * 1.5
+
+    // Stash the outgoing tab's layout, then try to restore the incoming one.
+    const sig = `${tokens[0]?.id}|${tokens[tokens.length - 1]?.id}|${tokens.length}`
+    if (bubblesRef.current.length > 0 && lastLayoutSigRef.current) {
+      layoutCacheRef.current.set(lastLayoutSigRef.current, bubblesRef.current)
+      if (layoutCacheRef.current.size > 12) {
+        const oldest = layoutCacheRef.current.keys().next().value
+        if (oldest) layoutCacheRef.current.delete(oldest)
+      }
+    }
+
+    const remembered = layoutCacheRef.current.get(sig)
+    if (remembered) {
+      const byId = new Map(tokens.map(t => [t.id, t]))
+      const restored = remembered
+        .filter(b => byId.has(b.id))
+        .map(b => {
+          const coin = byId.get(b.id)!
+          const nb = getBaseRadius(coin)
+          return { ...b, coin, baseRadius: nb, targetR: nb }
+        })
+      if (restored.length >= tokens.length * 0.9) {
+        bubblesRef.current = restored
+        lastLayoutSigRef.current = sig
+        topMoverIdsRef.current = computeTopMoverIds(
+          restored.map(b => ({ id: b.id, change: b.coin.price_change_percentage_24h || 0 }))
+        )
+        markNeedsRedraw()
+        return
+      }
+    }
+    lastLayoutSigRef.current = sig
+
+    // Fresh spawn: raise the veil while sprites pre-compose behind it
+    warpUntilRef.current = performance.now() + 380
+    setWarping(true)
+    if (warpTimerRef.current) window.clearTimeout(warpTimerRef.current)
+    warpTimerRef.current = window.setTimeout(() => setWarping(false), 400)
 
     const newBubbles: Bubble[] = tokens.slice(0, 500).map((coin) => {
       const baseR = getBaseRadius(coin)
@@ -909,8 +959,10 @@ export function Visualization({
     // re-composite onto #0a0a12 in App.tsx since PNGs need the dark background.
     ctx.clearRect(0, 0, w, h)
 
-    // Fresh sprite-composition time budget for this frame (see getPlanetSprite)
-    spriteDeadlineRef.current = performance.now() + SPRITE_BUILD_MS
+    // Fresh sprite-composition time budget for this frame (see getPlanetSprite).
+    // While the warp veil covers the scene, spend freely — nothing visible drops.
+    const frameStart = performance.now()
+    spriteDeadlineRef.current = frameStart + (frameStart < warpUntilRef.current ? WARP_BUILD_MS : SPRITE_BUILD_MS)
     spriteDeferredRef.current = false
 
     // ==================== DRAW EVERYTHING ====================
@@ -1918,6 +1970,9 @@ export function Visualization({
 
   return (
     <div className={`viz-container ${overlay ? 'viz-overlay' : ''}`}>
+      {/* Warp veil: covers the scene for ~0.4s on fresh tab switches while
+          sprites pre-compose — the reveal lands on an already-built galaxy */}
+      {!overlay && <div className={`viz-veil ${warping ? 'viz-veil-on' : ''}`} />}
       <canvas
         ref={canvasRef}
         style={{ touchAction: 'none' }}   // critical for direct, non-laggy touch on mobile

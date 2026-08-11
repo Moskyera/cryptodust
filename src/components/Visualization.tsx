@@ -149,6 +149,40 @@ export function Visualization({
   const isMobile = explicitIsMobile ?? (planetScale < 0.7)
   const topOffset = topOffsetProp || 0
 
+  /**
+   * Volatility normaliser for the movers view.
+   *
+   * "Size follows the 24h move" is calibrated for the majors, which move a few
+   * percent a day. Point it at PulseChain, where a quiet day is 20% and a busy
+   * one is 60%, and every planet slams into the maximum radius: the tab looked
+   * like a different app, crowded the canvas, and lost all size information
+   * because everything was equally huge.
+   *
+   * So the move is measured against what is normal *on this tab*. The 75th
+   * percentile of the visible coins is mapped onto the majors' own 75th
+   * percentile, which leaves a top-100 page exactly as it was (its scale lands
+   * at 1 and is clamped there) while PulseChain, Base and Solana are brought
+   * onto the same visual footing. Ordering inside a tab is untouched: the
+   * biggest mover is still the biggest planet.
+   */
+  const moveScale = React.useMemo(() => {
+    if (sizeMetric !== 'change_24h' || tokens.length < 8) return 1
+    const moves = tokens
+      .map(t => Math.abs(t.price_change_percentage_24h || 0))
+      .sort((a, b) => a - b)
+    const p75 = moves[Math.floor(moves.length * 0.75)] || 0
+    if (p75 <= 0) return 1
+    // Reference: a top-100 page runs a 75th-percentile move of ~2-4%, so any
+    // page at or below 4% keeps a scale of 1 and renders exactly as before.
+    // Measured against live data, PulseChain sits at ~11% and lands on 0.35:
+    // its median planet goes 41 -> 34 against the majors' 31, and its biggest
+    // 92 (the hard ceiling, where six of them were stuck) -> 50.
+    const raw = 4 / p75
+    // Quantised so a small data refresh can't resize every planet, and capped
+    // at 1 so a calm tab is never inflated — only wild ones are brought down.
+    return Math.max(0.15, Math.min(1, Math.round(raw * 20) / 20))
+  }, [tokens, sizeMetric])
+
   // Centralized size calculation function (used in multiple effects)
   const getBaseRadius = (coin: TokenPrice) => {
     let base: number
@@ -171,10 +205,13 @@ export function Visualization({
       // +30% pump. The old signed formula shrank heavy losers into
       // unrecognisable dust; direction is already told by colour and rim.
       const change = coin.price_change_percentage_24h || 0
-      const absChange = Math.abs(change)
+      // Measured against this tab's own normal (see moveScale), so a 40% day on
+      // PulseChain reads like a 4% day on the majors instead of maxing out.
+      const absChange = Math.abs(change) * moveScale
       let baseSize = 30 + absChange * 1.3
 
-      // Extreme moves in either direction still get the dramatic boost
+      // Extreme moves in either direction still get the dramatic boost — now
+      // for coins that are extreme *for their tab*, not merely for their chain.
       if (absChange >= 25) {
         baseSize *= 2
       }
@@ -593,7 +630,7 @@ export function Visualization({
       b.baseRadius = newBase
       b.targetR = newBase
     })
-  }, [sizeMetric, planetScale, viewportScale])
+  }, [sizeMetric, planetScale, viewportScale, moveScale])
 
   // When in "Size by 24h %" mode, keep sizes updated as the percentage changes over time
   useEffect(() => {
@@ -604,7 +641,7 @@ export function Visualization({
       b.baseRadius = newBase
       b.targetR = newBase
     })
-  }, [tokens, sizeMetric, planetScale, viewportScale])  // tokens update on every data refresh
+  }, [tokens, sizeMetric, planetScale, viewportScale, moveScale])  // tokens update on every data refresh
 
   // When topOffset increases (user expands the tabs panel on desktop), immediately push any planets
   // that are now overlapping the panel area downward. This fulfills "the panel will push the planets if contact when it opens".

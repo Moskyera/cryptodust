@@ -17,6 +17,10 @@ export default defineConfig({
         // generated service worker here (generateSW mode has no other hook).
         importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // These paths are handled server-side (Battlefield proxy, share OG
+        // pages, API functions). Without a denylist the SW's navigation
+        // fallback would serve the cached SPA shell to every returning visitor.
+        navigateFallbackDenylist: [/^\/battlefield/, /^\/c\//, /^\/api\//],
         runtimeCaching: [
           {
             // Cache CoinGecko prices (main source of data)

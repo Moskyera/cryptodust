@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
-import { usePrices, formatCompactPrice, type TokenPrice } from './lib/prices'
+import { usePrices, formatCompactPrice, coinSourceLink, type TokenPrice } from './lib/prices'
 import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, buildBattlefieldCard, copyBattlefieldCard, downloadBattlefieldCard, shareBattlefieldCard, type CardPeriod } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
@@ -2160,12 +2160,12 @@ export default function App() {
                     </div>
 
                     <a
-                      href={`https://www.coingecko.com/en/coins/${selectedCoin.id}`}
+                      href={coinSourceLink(selectedCoin).url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-1 text-[11px] text-[#67f6ff]/80 hover:text-[#67f6ff] transition-colors"
                     >
-                      View on CoinGecko
+                      {coinSourceLink(selectedCoin).label}
                       <ArrowUpRight className="w-3 h-3" />
                     </a>
                   </>
@@ -2446,13 +2446,13 @@ export default function App() {
                             <div className="text-[10px] text-[#6b7280] truncate max-w-[180px]">{coin.name}</div>
                           </div>
                           <a
-                            href={`https://www.coingecko.com/en/coins/${coin.id}`}
+                            href={coinSourceLink(coin).url}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
                             className="ml-1 text-[#6b7280] hover:text-[#67f6ff] opacity-0 group-hover/row:opacity-100 transition-opacity"
-                            title="View on CoinGecko"
-                            aria-label="View on CoinGecko"
+                            title={coinSourceLink(coin).label}
+                            aria-label={coinSourceLink(coin).label}
                           >
                             <ArrowUpRight className="w-3.5 h-3.5" />
                           </a>

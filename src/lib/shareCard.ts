@@ -18,14 +18,28 @@ const H = 630
 
 export type CardPeriod = '24h' | '30d'
 
-function periodChange(coin: TokenPrice, period: CardPeriod): number {
-  if (period === '30d') {
-    return coin.price_change_percentage_30d ?? coin.price_change_percentage_24h ?? 0
-  }
+/**
+ * The move for a card period, or null when this coin has no figure for it.
+ *
+ * Not every coin carries 30-day history: tokens sourced purely from DEX pools
+ * have a live price and a 24h move and nothing older. This used to silently
+ * substitute the 24h number, which put a one-day move under a thirty-day
+ * headline. Callers now decide honestly — single cards relabel, multi-coin
+ * cards print "no 30d data" and leave that coin out of the totals.
+ */
+function periodChange(coin: TokenPrice, period: CardPeriod): number | null {
+  if (period === '30d') return coin.price_change_percentage_30d ?? null
   return coin.price_change_percentage_24h || 0
 }
 
 const periodLabel = (period: CardPeriod) => (period === '30d' ? 'LAST 30 DAYS' : 'LAST 24 HOURS')
+
+/** For single-coin cards: the move actually shown, with a label that matches it. */
+function resolvedPeriod(coin: TokenPrice, period: CardPeriod): { change: number; label: string } {
+  const wanted = periodChange(coin, period)
+  if (wanted !== null) return { change: wanted, label: periodLabel(period) }
+  return { change: coin.price_change_percentage_24h || 0, label: periodLabel('24h') }
+}
 
 function logoSrc(url: string): string {
   if (url.startsWith('https://')) return `/api/img?url=${encodeURIComponent(url)}`
@@ -66,7 +80,7 @@ export async function buildShareCard(coin: TokenPrice, period: CardPeriod = '24h
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')!
-  const change = periodChange(coin, period)
+  const { change, label: shownPeriodLabel } = resolvedPeriod(coin, period)
   const isUp = change >= 0
   const accent = isUp ? '#4ade80' : '#f87171'
   const font = (spec: string) => `${spec} Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`
@@ -196,7 +210,7 @@ export async function buildShareCard(coin: TokenPrice, period: CardPeriod = '24h
 
   ctx.fillStyle = 'rgba(255,255,255,0.45)'
   ctx.font = font('600 24px')
-  ctx.fillText(periodLabel(period), 80, 474)
+  ctx.fillText(shownPeriodLabel, 80, 474)
 
   // ---------- stat boxes ----------
   const stats: Array<[string, string]> = [['PRICE', formatCompactPrice(coin.current_price)]]
@@ -367,8 +381,8 @@ export async function buildMultiCard(coins: TokenPrice[], period: CardPeriod = '
   picks.forEach((coin, i) => {
     const cy = top + rowH * i + rowH / 2
     const change = periodChange(coin, period)
-    const up = change >= 0
-    const accent = up ? '#4ade80' : '#f87171'
+    const up = (change ?? 0) >= 0
+    const accent = change === null ? '#94a3b8' : up ? '#4ade80' : '#f87171'
 
     if (i > 0) {
       ctx.strokeStyle = 'rgba(255,255,255,0.07)'
@@ -423,11 +437,18 @@ export async function buildMultiCard(coins: TokenPrice[], period: CardPeriod = '
     ctx.fillText(formatCompactPrice(coin.current_price), W - 320, cy + 10)
 
     ctx.save()
-    ctx.shadowColor = accent
-    ctx.shadowBlur = 22
-    ctx.fillStyle = accent
-    ctx.font = font(`900 ${Math.min(44, rowH * 0.4)}px`)
-    ctx.fillText(`${up ? '+' : '-'}${Math.abs(change).toFixed(1)}%`, W - 70, cy + 13)
+    if (change === null) {
+      // No history for this period. Say so instead of borrowing another number.
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'
+      ctx.font = font(`700 ${Math.min(22, rowH * 0.2)}px`)
+      ctx.fillText('no 30d data', W - 70, cy + 10)
+    } else {
+      ctx.shadowColor = accent
+      ctx.shadowBlur = 22
+      ctx.fillStyle = accent
+      ctx.font = font(`900 ${Math.min(44, rowH * 0.4)}px`)
+      ctx.fillText(`${up ? '+' : '-'}${Math.abs(change).toFixed(1)}%`, W - 70, cy + 13)
+    }
     ctx.restore()
     ctx.textAlign = 'left'
   })
@@ -606,8 +627,8 @@ export async function buildBattlefieldCard(tokens: TokenPrice[], period: CardPer
   picks.forEach((coin, i) => {
     const x = left + (tileW + gap) * i
     const change = periodChange(coin, period)
-    const up = change >= 0
-    const accent = up ? '#4ade80' : '#f87171'
+    const up = (change ?? 0) >= 0
+    const accent = change === null ? '#94a3b8' : up ? '#4ade80' : '#f87171'
     const cx = x + tileW / 2
 
     ctx.fillStyle = 'rgba(255,255,255,0.035)'
@@ -656,18 +677,25 @@ export async function buildBattlefieldCard(tokens: TokenPrice[], period: CardPer
     ctx.fillText(formatCompactPrice(coin.current_price), cx, tileY + 164)
 
     ctx.save()
-    ctx.shadowColor = accent
-    ctx.shadowBlur = 18
-    ctx.fillStyle = accent
-    ctx.font = font('900 30px')
-    ctx.fillText(`${up ? '+' : '-'}${Math.abs(change).toFixed(1)}%`, cx, tileY + 198)
+    if (change === null) {
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'
+      ctx.font = font('700 18px')
+      ctx.fillText('no 30d data', cx, tileY + 194)
+    } else {
+      ctx.shadowColor = accent
+      ctx.shadowBlur = 18
+      ctx.fillStyle = accent
+      ctx.font = font('900 30px')
+      ctx.fillText(`${up ? '+' : '-'}${Math.abs(change).toFixed(1)}%`, cx, tileY + 198)
+    }
     ctx.restore()
     ctx.textAlign = 'left'
   })
 
-  // force balance — |change| weighted bulls vs bears
-  const gainW = picks.reduce((s, c) => s + Math.max(0, periodChange(c, period)), 0)
-  const lossW = picks.reduce((s, c) => s + Math.max(0, -periodChange(c, period)), 0)
+  // Force balance — |change| weighted bulls vs bears. Coins with no figure for
+  // this period are left out of the weighing entirely rather than counted as 0.
+  const gainW = picks.reduce((s, c) => s + Math.max(0, periodChange(c, period) ?? 0), 0)
+  const lossW = picks.reduce((s, c) => s + Math.max(0, -(periodChange(c, period) ?? 0)), 0)
   const bullShare = gainW + lossW > 0 ? gainW / (gainW + lossW) : 0.5
 
   const barY = 460

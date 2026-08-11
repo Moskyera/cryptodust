@@ -53,6 +53,11 @@ export interface TokenPrice {
   liquidity?: number
   /** Where fdv/liquidity came from, so the UI can attribute it. */
   dexSource?: string
+  /**
+   * True for coins that exist only on DEXs and have no CoinGecko listing, so
+   * the UI never offers a CoinGecko page that would 404.
+   */
+  dexOnly?: boolean
 }
 
 // ==================== COINGECKO FETCH ====================
@@ -513,6 +518,11 @@ async function backfillFromCoinPaprika(tokens: TokenPrice[]): Promise<number> {
 // the pair's USD price was within 12% of CoinGecko's price for that id. That check is
 // what keeps same-symbol clones out (PulseChain has several duplicate tickers).
 const PULSECHAIN_TOKEN_ADDRESSES: Record<string, string> = {
+  // ProveX has no CoinGecko listing at all, so unlike every other entry here it
+  // has no CoinGecko record to attach to: it is built from scratch out of
+  // DexScreener data (see DEX_ONLY_PULSE_TOKENS). Address verified on-chain via
+  // rpc.pulsechain.com — name "ProveX", symbol "PRVX", 18 decimals.
+  'provex': '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11',                  // PRVX
   'pulsex': '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab',                  // PLSX
   'hex-pulsechain': '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39',          // HEX
   'pulsex-incentive-token': '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d',  // INC
@@ -553,6 +563,50 @@ const PULSECHAIN_TOKEN_ADDRESSES: Record<string, string> = {
 // away from CoinGecko, so the safety gate rejected it rather than risk a wrong token).
 // All of these still get an FDV — CoinGecko ships fully_diluted_valuation for every one
 // of them in the payloads we already fetch; DexScreener is only needed for liquidity.
+
+/**
+ * PulseChain tokens that exist ONLY on DexScreener.
+ *
+ * Everything else on the PulseChain tab starts life as a CoinGecko record that
+ * DexScreener then enriches. These have no CoinGecko listing to start from, so
+ * the record is a stub: a real, on-chain-verified identity, and nothing else.
+ * `backfillFromDexScreener` fills the price, the 24h move, liquidity and FDV
+ * from the deepest live pool, exactly as it does for the other tokens.
+ *
+ * The stub carries no market_cap on purpose — there is no circulating supply
+ * figure for it anywhere, so the UI shows FDV (amber) and liquidity (cyan) and
+ * never implies a market cap it does not have. It also carries no 7d/30d/1y
+ * history, because DexScreener does not publish one: the UI hides those chips
+ * rather than inventing them.
+ *
+ * If DexScreener returns nothing for one of these on a given cycle, the stub is
+ * dropped before render — an unpriced ghost planet would be worse than absence.
+ */
+const DEX_ONLY_PULSE_TOKENS: TokenPrice[] = [
+  {
+    id: 'provex',
+    symbol: 'PRVX',
+    name: 'ProveX',
+    image: '/provex.webp',
+    current_price: 0,
+    price_change_percentage_24h: 0,
+    dexOnly: true,
+  },
+]
+
+/**
+ * The page to send someone to for the coin's own numbers. DEX-only tokens have
+ * no CoinGecko entry, so linking there would land on a 404.
+ */
+export function coinSourceLink(coin: TokenPrice): { url: string; label: string } {
+  const address = PULSECHAIN_TOKEN_ADDRESSES[coin.id]
+  if (coin.dexOnly && address) {
+    return { url: `https://dexscreener.com/pulsechain/${address}`, label: 'View on DexScreener' }
+  }
+  return { url: `https://www.coingecko.com/en/coins/${coin.id}`, label: 'View on CoinGecko' }
+}
+
+const DEX_ONLY_PULSE_IDS = new Set(DEX_ONLY_PULSE_TOKENS.map(t => t.id))
 
 const DEXSCREENER_BATCH_SIZE = 30
 
@@ -822,11 +876,30 @@ async function fetchAllCoins(): Promise<MarketData> {
       )
     }
 
+    // Tokens with no CoinGecko listing at all: added as stubs here so the
+    // DexScreener backfill below can fill them in like any other Pulse token.
+    // Guarded against an id that is already on screen from a real listing.
+    for (const stub of DEX_ONLY_PULSE_TOKENS) {
+      if (seen.has(stub.id) || limitedPulseTail.some(t => t.id === stub.id)) continue
+      seen.add(stub.id)
+      limitedPulseTail.push({ ...stub })
+    }
+
     // Backfill BEFORE sorting — otherwise PLS/PLSX/HEX sort as if they were worth
     // nothing. CoinPaprika first because it supplies real circulating market caps;
     // DexScreener only ever adds FDV/liquidity alongside them.
     await backfillFromCoinPaprika(limitedPulseTail)
     await backfillFromDexScreener(limitedPulseTail)
+
+    // A DEX-only stub is only real once DexScreener has priced it. If the call
+    // failed or the pool vanished, drop it rather than render a $0 planet.
+    for (let i = limitedPulseTail.length - 1; i >= 0; i--) {
+      const t = limitedPulseTail[i]
+      if (DEX_ONLY_PULSE_IDS.has(t.id) && !(t.current_price > 0)) {
+        console.warn(`[CryptoDUST] ${t.symbol} has no live DexScreener price this cycle, omitting it.`)
+        limitedPulseTail.splice(i, 1)
+      }
+    }
 
     // The tab was ordered by whatever order the three source fetches happened to
     // append in, which buried PLS (#69) and PLSX (#74) below far smaller tokens

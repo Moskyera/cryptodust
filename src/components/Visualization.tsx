@@ -196,8 +196,15 @@ export function Visualization({
     } else if (sizeMetric === 'ath') {
       // Distance from the all-time high: at ATH → big planet, -95% → dust.
       // Makes "near new highs" vs "the graveyard" readable as a landscape.
-      const athPct = Math.max(-100, Math.min(0, coin.ath_change_percentage ?? -80))
-      base = 52 + athPct * 0.38
+      const athPct = coin.ath_change_percentage
+      if (athPct == null) {
+        // Nobody publishes an all-time high for this coin (DEX-only tokens have
+        // no listing history at all). Sizing it as if it were 80% below a peak
+        // would be inventing the peak, so it sits mid-scale and claims nothing.
+        base = 34
+      } else {
+        base = 52 + Math.max(-100, Math.min(0, athPct)) * 0.38
+      }
     } else if (sizeMetric === 'price') {
       base = 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
     } else if (sizeMetric === 'change_24h') {

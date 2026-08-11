@@ -108,6 +108,13 @@ const WHALES_ON_PULSE: TokenPrice = {
 // can never drift apart again.
 const EXTERNAL_LINKS = [
   {
+    label: 'Battlefield',
+    href: 'https://battlefield.cryptodust.xyz',
+    img: '/cryptodust-logo.png',
+    ring: 'hover:border-red-500/60 hover:text-red-200 hover:bg-red-500/10',
+    text: 'text-red-300',
+  },
+  {
     label: 'ProveX',
     href: 'https://app.provex.com',
     img: 'https://app.provex.com/provex.webp',

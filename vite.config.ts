@@ -58,6 +58,11 @@ export default defineConfig({
                 maxEntries: 200,
                 maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
               },
+              // Only ever store a real success. Without this a single failed or
+              // opaque response gets cached under CacheFirst and that coin's
+              // logo stays broken for thirty days, with no network request left
+              // to notice it: the cache answers first, every time.
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],

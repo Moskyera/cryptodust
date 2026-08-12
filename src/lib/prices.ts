@@ -23,7 +23,12 @@ const COINGECKO_API_KEY = import.meta.env.VITE_COINGECKO_API_KEY || ''
 const COINGECKO_PULSE_DEMO_KEY = import.meta.env.VITE_COINGECKO_PULSE_DEMO_KEY || COINGECKO_API_KEY
 
 const REFRESH_INTERVAL = 5 * 60 * 1000 // 5 minutes
-const USE_API_PROXY = import.meta.env.PROD
+// Always. Dev used to call CoinGecko straight from the browser, which breaks the
+// moment CoinGecko rate-limits: a 429 carries no CORS headers, so it surfaces as
+// an opaque "Failed to fetch" and the whole page comes up empty. The dev server
+// forwards /api to production (see vite.config.ts), so going through the proxy
+// both fixes that and means dev exercises the exact path production does.
+const USE_API_PROXY = true
 
 // ==================== TYPES ====================
 export interface TokenPrice {

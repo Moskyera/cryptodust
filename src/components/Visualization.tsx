@@ -17,6 +17,16 @@ interface Bubble {
   driftBiasY: number
   // Locked base size so planets don't keep growing just because price/market cap moves
   baseRadius: number
+  /**
+   * Rendered label text, cached with the number it was built from.
+   *
+   * Prices and percentages change on a refresh, not on a frame, so formatting
+   * them for every planet on every frame was pure garbage collection.
+   */
+  priceLabel?: string
+  priceLabelOf?: number
+  pctLabel?: string
+  pctLabelOf?: number
 }
 
 interface VisualizationProps {
@@ -71,14 +81,61 @@ function computeTopMoverIds(
   )
 }
 
+/**
+ * Collision grid, reused between frames.
+ *
+ * This used to allocate a fresh Map, a fresh array per occupied cell, and
+ * STRING keys: one built per planet to file it, then nine more per planet to
+ * look at its neighbours. At a hundred planets that is about eleven hundred
+ * strings every frame, sixty-six thousand a second, all of it immediately
+ * garbage. On a fast machine the collector keeps up; on a slower one it
+ * arrives as a periodic hitch, which is exactly what a stutter is.
+ *
+ * The keys are now packed into a single integer and the storage is recycled,
+ * so a steady state allocates nothing at all.
+ */
+const collisionGrid = new Map<number, number[]>()
+const cellPool: number[][] = []
+
+/** Cell coordinates are small (canvas pixels / cell size), so this cannot collide. */
+const cellKey = (cx: number, cy: number) => (cx + 1024) * 4096 + (cy + 1024)
+
+/**
+ * Canvas font strings, built once per size.
+ *
+ * Assigning ctx.font makes the browser parse the whole CSS font shorthand, and
+ * the label code was building a fresh string with the full family stack for
+ * every planet on every frame. Sizes are rounded to whole pixels, which nobody
+ * can see, and there are only a dozen or so of them.
+ */
+const FONT_STACK = "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+const fontCache = new Map<number, string>()
+function heavyFont(px: number): string {
+  const size = Math.round(px)
+  let font = fontCache.get(size)
+  if (!font) {
+    font = `900 ${size}px ${FONT_STACK}`
+    fontCache.set(size, font)
+  }
+  return font
+}
+
 function applySpatialCollisions(bubbles: Bubble[], touchComfort: number) {
-  const grid = new Map<string, number[]>()
+  for (const arr of collisionGrid.values()) {
+    arr.length = 0
+    cellPool.push(arr)
+  }
+  collisionGrid.clear()
 
   for (let i = 0; i < bubbles.length; i++) {
     const b = bubbles[i]
-    const key = `${Math.floor(b.x / COLLISION_CELL_SIZE)},${Math.floor(b.y / COLLISION_CELL_SIZE)}`
-    if (!grid.has(key)) grid.set(key, [])
-    grid.get(key)!.push(i)
+    const key = cellKey(Math.floor(b.x / COLLISION_CELL_SIZE), Math.floor(b.y / COLLISION_CELL_SIZE))
+    let cell = collisionGrid.get(key)
+    if (!cell) {
+      cell = cellPool.pop() || []
+      collisionGrid.set(key, cell)
+    }
+    cell.push(i)
   }
 
   for (let i = 0; i < bubbles.length; i++) {
@@ -88,7 +145,7 @@ function applySpatialCollisions(bubbles: Bubble[], touchComfort: number) {
 
     for (let ox = -1; ox <= 1; ox++) {
       for (let oy = -1; oy <= 1; oy++) {
-        const cell = grid.get(`${cx + ox},${cy + oy}`)
+        const cell = collisionGrid.get(cellKey(cx + ox, cy + oy))
         if (!cell) continue
 
         for (const j of cell) {
@@ -1196,18 +1253,23 @@ export function Visualization({
           // PRICE mode: large price at top with black outline
           const price = coin.current_price || 0
           const priceFs = Math.max(10, Math.min(22, r * 0.34))
-          ctx.font = `900 ${priceFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+          ctx.font = heavyFont(priceFs)
           ctx.fillStyle = '#ffffff'
           ctx.strokeStyle = '#000000'
           ctx.lineWidth = Math.max(3, r * 0.06)
 
           // Micro-prices used to collapse to "$0.000" here — useless for PLS
           // and most PulseChain tokens. formatCompactPrice renders $0.0₅885.
-          let priceStr
-          if (price >= 10000) priceStr = '$' + price.toFixed(0)
-          else if (price >= 1000) priceStr = '$' + price.toFixed(0)
-          else if (price >= 10) priceStr = '$' + price.toFixed(1)
-          else priceStr = formatCompactPrice(price)
+          // Rebuilt only when the number itself changes, which is once a
+          // refresh, not sixty times a second.
+          let priceStr = b.priceLabel
+          if (priceStr === undefined || b.priceLabelOf !== price) {
+            if (price >= 1000) priceStr = '$' + price.toFixed(0)
+            else if (price >= 10) priceStr = '$' + price.toFixed(1)
+            else priceStr = formatCompactPrice(price)
+            b.priceLabel = priceStr
+            b.priceLabelOf = price
+          }
 
           ctx.strokeText(priceStr, x, topY)
           ctx.fillText(priceStr, x, topY)
@@ -1215,10 +1277,14 @@ export function Visualization({
           // % CHANGE mode: large % with arrow at top, black outline + neon glow
           const chg = coin.price_change_percentage_24h || 0
           const pctFs = Math.max(10, Math.min(22, r * 0.34))
-          ctx.font = `900 ${pctFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+          ctx.font = heavyFont(pctFs)
 
-          const arrow = chg >= 0 ? '↑' : '↓'
-          const pctStr = arrow + Math.abs(chg).toFixed(2) + '%'
+          let pctStr = b.pctLabel
+          if (pctStr === undefined || b.pctLabelOf !== chg) {
+            pctStr = (chg >= 0 ? '↑' : '↓') + Math.abs(chg).toFixed(2) + '%'
+            b.pctLabel = pctStr
+            b.pctLabelOf = chg
+          }
           const neon = chg >= 0 ? '#39ff14' : '#ff3366'
 
           ctx.strokeStyle = '#000000'
@@ -1275,7 +1341,7 @@ export function Visualization({
 
         // Ticker symbol - very large, bold
         const tickerFs = Math.max(12, Math.min(26, r * 0.38))
-        ctx.font = `900 ${tickerFs}px Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
+        ctx.font = heavyFont(tickerFs)
         ctx.fillStyle = '#ffffff'
         ctx.strokeStyle = '#000000'
         ctx.lineWidth = Math.max(2.5, r * 0.06)

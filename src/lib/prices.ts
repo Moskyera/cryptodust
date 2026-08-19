@@ -528,6 +528,9 @@ const PULSECHAIN_TOKEN_ADDRESSES: Record<string, string> = {
   // DexScreener data (see DEX_ONLY_PULSE_TOKENS). Address verified on-chain via
   // rpc.pulsechain.com — name "ProveX", symbol "PRVX", 18 decimals.
   'provex': '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11',                  // PRVX
+  // DEV Coin, likewise absent from CoinGecko. Verified on-chain via
+  // rpc.pulsechain.com: name "DEV Coin", symbol "DEVC", 18 decimals.
+  'devc-pulsechain': '0xA804b9E522A2D1645a19227514CFe856Ad8C2fbC',          // DEVC
   'pulsex': '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab',                  // PLSX
   'hex-pulsechain': '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39',          // HEX
   'pulsex-incentive-token': '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d',  // INC
@@ -593,6 +596,15 @@ const DEX_ONLY_PULSE_TOKENS: TokenPrice[] = [
     symbol: 'PRVX',
     name: 'ProveX',
     image: '/provex.webp',
+    current_price: 0,
+    price_change_percentage_24h: 0,
+    dexOnly: true,
+  },
+  {
+    id: 'devc-pulsechain',
+    symbol: 'DEVC',
+    name: 'DEV Coin',
+    image: '/devc.jpg',
     current_price: 0,
     price_change_percentage_24h: 0,
     dexOnly: true,
@@ -885,7 +897,15 @@ async function fetchAllCoins(): Promise<MarketData> {
     // DexScreener backfill below can fill them in like any other Pulse token.
     // Guarded against an id that is already on screen from a real listing.
     for (const stub of DEX_ONLY_PULSE_TOKENS) {
-      if (seen.has(stub.id) || limitedPulseTail.some(t => t.id === stub.id)) continue
+      // Guarded on the symbol too, not just the id: if one of these ever gets
+      // a CoinGecko listing it will arrive under CoinGecko's own id, and the
+      // real record has to win rather than the tab showing the coin twice.
+      const already =
+        seen.has(stub.id) ||
+        limitedPulseTail.some(
+          t => t.id === stub.id || t.symbol.toUpperCase() === stub.symbol.toUpperCase()
+        )
+      if (already) continue
       seen.add(stub.id)
       limitedPulseTail.push({ ...stub })
     }

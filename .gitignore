@@ -31,11 +31,15 @@ yarn-error.log*
 # Vercel
 .vercel
 
-# Leftover logo experiments from earlier iterations
-# (Current implementation uses external URLs for ProveX/LibertySwap + cryptodust-logo.png)
+# Leftover logo experiments from earlier iterations, kept on disk but never shipped.
+# provex.webp used to belong here, back when the sidebar linked out to ProveX and
+# pulled its logo from an external URL. It is now the PRVX token's own logo, served
+# from our own root -- so it has to be committed like any other asset. It was not,
+# and the file sat on this machine only: local builds looked right and production
+# rendered a coin with no logo. Anything under public/ that live code references
+# must be tracked, or it simply does not exist on the deployed site.
 public/l.png
 public/liberty.jpg
 public/logo.svg
 public/p.png
 public/prove.jpg
-public/provex.webp

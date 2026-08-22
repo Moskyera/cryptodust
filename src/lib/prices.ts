@@ -1000,6 +1000,15 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
 const historyCache = new Map<string, number[]>()
 const historyInFlight = new Map<string, Promise<number[] | null>>()
 
+/**
+ * The same fetch the chart uses, exposed so the share card can draw the same
+ * line. Shares the cache, so opening a coin and then making its card is one
+ * request, not two.
+ */
+export async function getCoinHistory(id: string): Promise<number[] | null> {
+  return fetchCoinHistory(id)
+}
+
 async function fetchCoinHistory(id: string): Promise<number[] | null> {
   const cached = historyCache.get(id)
   if (cached) return cached

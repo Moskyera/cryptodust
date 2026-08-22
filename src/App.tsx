@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { FlowPanel } from './components/FlowPanel'
-import { PriceChart } from './components/PriceChart'
-import { usePrices, useCoinHistory, formatCompactPrice, coinSourceLink, type TokenPrice } from './lib/prices'
+import { CoinPriceChart } from './components/CoinPriceChart'
+import { usePrices, getCoinHistory, formatCompactPrice, coinSourceLink, type TokenPrice } from './lib/prices'
 import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, buildBattlefieldCard, copyBattlefieldCard, downloadBattlefieldCard, shareBattlefieldCard, type CardPeriod } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
@@ -290,7 +290,7 @@ export default function App() {
   const [shareHint, setShareHint] = useState<string | null>(null)
   const copyCard = async () => {
     if (!selectedCoin) return
-    const ok = await copyCoinCard(cardCoin!, cardPeriod)
+    const ok = await copyCoinCard(await withHistory(selectedCoin), cardPeriod)
     setShareHint(ok
       ? 'Card copied! Paste it anywhere (Ctrl+V)'
       : 'Copy failed, use the download button instead')
@@ -376,19 +376,17 @@ export default function App() {
     : null
   const isWhales = selectedId === 'whales-on-pulse'
 
-  // Seven days of closes for whichever coin is open. Fetched on selection
-  // rather than bundled into the list calls, which would have meant every
-  // visitor downloading history for 861 coins to look at one chart.
-  const { history: selectedHistory, pending: historyPending } = useCoinHistory(selectedCoin)
-
   /**
-   * The coin as the share card should see it. The card draws the same seven-day
-   * line as the panel, and the history is no longer carried on the token, so it
-   * is attached here at the moment a card is built.
+   * The coin as the share card should see it: the card draws the same seven-day
+   * line as the panel, so the history is fetched at the moment a card is built.
+   * Deliberately NOT React state — holding it in App meant every arriving line
+   * re-rendered the whole page, and on the phone that landed mid-animation as
+   * the sheet slid up. The chart component owns its own state instead.
    */
-  const cardCoin = selectedCoin
-    ? { ...selectedCoin, history7d: selectedHistory }
-    : null
+  const withHistory = async (coin: TokenPrice) => ({
+    ...coin,
+    history7d: coin.dexOnly ? undefined : (await getCoinHistory(coin.id)) ?? undefined,
+  })
 
   // The visualization canvas is transparent (the space backdrop is CSS behind it),
   // so exports must composite it onto the dark background or the PNG comes out
@@ -1708,7 +1706,7 @@ export default function App() {
                   ))}
                 </div>
                 <button
-                  onClick={() => shareCoinCard(cardCoin!, cardPeriod)}
+                  onClick={async () => shareCoinCard(await withHistory(selectedCoin), cardPeriod)}
                   aria-label="Share this coin"
                   className="m-chip flex-1 h-8 flex items-center justify-center gap-1.5 rounded-xl border border-[#67f6ff]/25 text-[#67f6ff] text-[11px] font-semibold"
                 >
@@ -1722,7 +1720,7 @@ export default function App() {
                   <Copy className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => downloadCoinCard(cardCoin!, cardPeriod)}
+                  onClick={async () => downloadCoinCard(await withHistory(selectedCoin), cardPeriod)}
                   aria-label="Download the card"
                   className="m-chip w-8 h-8 flex items-center justify-center rounded-xl border border-white/15 text-white/80"
                 >
@@ -1829,24 +1827,11 @@ export default function App() {
                     </div>
                   </div>
                 )}
-
-                {((selectedHistory && selectedHistory.length >= 8) || historyPending) && (
-                  <div className="mb-4 pt-3 border-t border-white/[0.07]">
-                    <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
-                      <span className="tracking-[1px]">7D PRICE</span>
-                      <span className="text-[9px]">hourly closes</span>
-                    </div>
-                    {/* Held at the chart's own height while the fetch is in
-                        flight, so the sheet does not jump when the line lands. */}
-                    <div style={{ height: 52 }}>
-                      <PriceChart
-                        history={selectedHistory}
-                        currentPrice={selectedCoin.current_price}
-                        height={52}
-                      />
-                    </div>
-                  </div>
-                )}
+                <CoinPriceChart
+                  coin={selectedCoin}
+                  height={52}
+                  wrapperClass="mb-4 pt-3 border-t border-white/[0.07]"
+                />
               </>
             )}
 
@@ -2034,7 +2019,7 @@ export default function App() {
                     <Copy className="w-3 h-3" /> Copy
                   </button>
                   <button
-                    onClick={() => downloadCoinCard(cardCoin!, cardPeriod)}
+                    onClick={async () => downloadCoinCard(await withHistory(selectedCoin), cardPeriod)}
                     aria-label="Download the card as PNG"
                     title="Download the card as a PNG image"
                     className="h-7 px-2.5 flex items-center gap-1.5 rounded-lg bg-[#67f6ff]/10 border border-[#67f6ff]/25 text-[#67f6ff] hover:bg-[#67f6ff]/20 transition-colors text-[10px] font-semibold"
@@ -2125,23 +2110,7 @@ export default function App() {
                         </div>
                       </div>
                     )}
-
-                    {((selectedHistory && selectedHistory.length >= 8) || historyPending) && (
-                      <div className="pt-2 pb-1 border-t border-white/[0.07]">
-                        <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
-                          <span className="tracking-[1px]">7D PRICE</span>
-                          <span className="text-[9px]">hourly closes</span>
-                        </div>
-                        <div style={{ height: 56 }}>
-                          <PriceChart
-                            history={selectedHistory}
-                            currentPrice={selectedCoin.current_price}
-                            width={288}
-                            height={56}
-                          />
-                        </div>
-                      </div>
-                    )}
+                    <CoinPriceChart coin={selectedCoin} width={288} height={56} />
 
                     {/* Market cap when it is a real circulating figure. For most PulseChain
                         tokens no source has circulating supply, so DexScreener's fully
@@ -2289,7 +2258,13 @@ export default function App() {
       {/* Mobile info panel moved inside visualization as absolute overlay — prevents canvas resize when opening, which was causing planets to "disappear" to the right/bottom */}
 
       {/* Bottom Market Tab — very thin & minimal on mobile to maximize planet space */}
-      <div className="tv-hide border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40">
+      {/* Padded for the home indicator. With viewport-fit=cover the shell's
+          100dvh now genuinely reaches the bottom edge of the screen, so this
+          bar would otherwise sit underneath it. */}
+      <div
+        className="tv-hide border-t border-[#25252f] bg-[#111118]/95 backdrop-blur-xl flex-shrink-0 z-40"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <button
           onClick={() => setIsMarketOpen(!isMarketOpen)}
           className={`w-full flex items-center justify-between px-3 md:px-5 py-1.5 md:py-3 text-[10px] md:text-sm font-medium transition-all active:bg-white/10 ${isMarketOpen ? 'bg-white/5' : 'hover:bg-white/5'}`}

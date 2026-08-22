@@ -7,6 +7,8 @@ node_modules
 dist
 dist-ssr
 *.local
+# `tsc -b` (the first half of the build script) drops these next to the configs.
+*.tsbuildinfo
 
 # Environment variables (never commit real keys)
 .env

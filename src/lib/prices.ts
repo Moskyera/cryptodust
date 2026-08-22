@@ -31,6 +31,44 @@ const REFRESH_INTERVAL = 5 * 60 * 1000 // 5 minutes
 const USE_API_PROXY = true
 
 // ==================== TYPES ====================
+/** Buy and sell TRADE COUNTS in one window. Counts, never dollars. */
+export interface FlowWindow {
+  buys: number
+  sells: number
+}
+
+/**
+ * DexScreener's per-window trade counts, carried straight through.
+ *
+ * Two things this is not, both of which the UI has to say out loud:
+ *
+ * 1. It is not volume. DexScreener publishes no per-side dollar figure, so two
+ *    hundred dust buys from one bot outrank a single whale sell and the split
+ *    reads bullish while the token is being unloaded. There is no fixing that
+ *    from this data, only labelling it.
+ * 2. It is not the whole token. These counts come from the single deepest pool,
+ *    which is all the batch endpoint returns; PLSX's deepest pool carries only
+ *    about a third of its chain-wide trades. It is a sample, and it is labelled
+ *    as one.
+ *
+ * Shorter windows thin out sharply (h24 is on every mapped token, m5 on a
+ * handful), so absent must render as absent, never as an even split.
+ */
+export interface TokenFlow {
+  m5?: FlowWindow
+  h1?: FlowWindow
+  h6?: FlowWindow
+  h24?: FlowWindow
+}
+
+/** Share of trades that were buys, 0..1, or null when the window is empty. */
+export function flowShare(w: FlowWindow | undefined): number | null {
+  if (!w) return null
+  const total = w.buys + w.sells
+  if (!(total > 0)) return null
+  return w.buys / total
+}
+
 export interface TokenPrice {
   id: string
   symbol: string
@@ -59,13 +97,64 @@ export interface TokenPrice {
   /** Where fdv/liquidity came from, so the UI can attribute it. */
   dexSource?: string
   /**
+   * Buy/sell trade counts from the deepest pool. See TokenFlow for the two
+   * things this is not.
+   */
+  flow?: TokenFlow
+  /**
+   * The DEX the flow counts were read from. Kept apart from dexSource, which
+   * attributes fdv/liquidity: on the ecosystem tabs CoinGecko still owns the
+   * valuation and only the flow comes from a pool, so conflating the two would
+   * credit DexScreener with numbers it did not supply.
+   */
+  flowSource?: string
+  /**
+   * The flow pool's share of the token's 24h volume, 0..1. Shown in the panel
+   * so a pool that only just clears the bar says so rather than implying it
+   * speaks for the whole token.
+   */
+  flowPoolShare?: number
+  /**
    * True for coins that exist only on DEXs and have no CoinGecko listing, so
    * the UI never offers a CoinGecko page that would 404.
    */
   dexOnly?: boolean
+  /**
+   * Real hourly closes for the last seven days, oldest first — CoinGecko's
+   * sparkline_in_7d. 168 points, present on 98 to 100 percent of every tab.
+   *
+   * This replaces a chart that used to be drawn from a seeded sine wave. It
+   * rides on the list calls the app already makes, so it costs no request; it
+   * costs payload, which is why the 60-second fast lane deliberately does not
+   * ask for it.
+   */
+  history7d?: number[]
 }
 
 // ==================== COINGECKO FETCH ====================
+/**
+ * A 24h volume this many times a coin's market cap is not a market, it is a
+ * broken row upstream.
+ *
+ * Measured on the live top-500 the day this was written: CoinGecko reported
+ * SAND at $14,551.9B of volume against a $0.135B cap, a ratio of 107,554x. It
+ * alone made the header read "$14850.7B traded in 24 hours" for the whole
+ * market, roughly fifty times the real figure. The next highest ratio in the
+ * entire top-500 was TRUMP at 3.4x, and the median was 0.069x, so 50 sits in a
+ * gap four orders of magnitude wide. Nothing legitimate is near it.
+ *
+ * Dropped rather than clamped: we do not know the true number, and inventing a
+ * plausible one would be worse than showing none.
+ */
+const MAX_VOLUME_TO_MARKET_CAP = 50
+
+function plausibleVolume(volume: unknown, marketCap: unknown): number | undefined {
+  if (typeof volume !== 'number' || !Number.isFinite(volume) || volume < 0) return undefined
+  // No cap to compare against (most PulseChain tokens) means no test to apply.
+  if (typeof marketCap !== 'number' || !(marketCap > 0)) return volume
+  return volume > marketCap * MAX_VOLUME_TO_MARKET_CAP ? undefined : volume
+}
+
 function mapCoinGeckoCoin(coin: any): TokenPrice {
   const change24h =
     coin.price_change_percentage_24h ??
@@ -96,8 +185,13 @@ function mapCoinGeckoCoin(coin: any): TokenPrice {
     price_change_percentage_1y:
       coin.price_change_percentage_1y ?? coin.price_change_percentage_1y_in_currency,
     market_cap: coin.market_cap,
-    total_volume: coin.total_volume,
+    total_volume: plausibleVolume(coin.total_volume, coin.market_cap),
     image: coin.image,
+    history7d: Array.isArray(coin.sparkline_in_7d?.price)
+      ? (coin.sparkline_in_7d.price as unknown[]).filter(
+          (n): n is number => typeof n === 'number' && Number.isFinite(n)
+        )
+      : undefined,
   }
 }
 
@@ -140,6 +234,18 @@ function mergeTokenData(existing: TokenPrice, incoming: TokenPrice): TokenPrice 
   if ((incoming.liquidity == null || incoming.liquidity === 0) && (existing.liquidity ?? 0) > 0) {
     merged.liquidity = existing.liquidity
     merged.dexSource = existing.dexSource
+  }
+
+  if (incoming.flow == null && existing.flow != null) {
+    merged.flow = existing.flow
+  }
+
+  if (
+    (incoming.history7d == null || incoming.history7d.length === 0) &&
+    existing.history7d != null &&
+    existing.history7d.length > 0
+  ) {
+    merged.history7d = existing.history7d
   }
 
   return merged
@@ -193,7 +299,11 @@ async function withLastGood(
     console.warn(
       `[CryptoDUST] ${key} returned nothing — reusing ${cached.length} tokens from the previous refresh.`
     )
-    return cached
+    // Shallow copies, not the stored objects. The originals are already inside
+    // the rendered token list, and the enrichment steps downstream mutate what
+    // they are given, which would be a write into live state React never hears
+    // about — and would also corrupt this cache for every later cycle.
+    return cached.map(t => ({ ...t }))
   }
   return result
 }
@@ -237,8 +347,18 @@ async function fetchCoinGeckoWithRetry(
   return null
 }
 
-async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPrice[]> {
-  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
+/**
+ * `withHistory` adds seven days of hourly closes to the response. It roughly
+ * quadruples the payload of a 250-coin page, from 253 KB to 1.05 MB, which is
+ * fine once every five minutes and absurd on the 60-second fast lane — and the
+ * fast lane calls this same function. Hence the flag, defaulting to off.
+ */
+async function fetchCoinGeckoPage(
+  page: number,
+  perPage = 250,
+  withHistory = false
+): Promise<TokenPrice[]> {
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=${withHistory}&price_change_percentage=1h,24h,7d,30d,1y`
 
   // Without a retry a single transient 429 wiped all 250 coins of this page, which
   // is how the app could end up rendering ~108 coins instead of ~600.
@@ -314,7 +434,7 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
   if (SPECIAL_PULSECHAIN_IDS.length === 0) return []
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`
     const res = await fetchCoinGeckoWithRetry(url, { usePulseKey: true, label: 'special PulseChain tokens' })
     if (!res) return []
 
@@ -331,7 +451,7 @@ async function fetchSpecialCoins(): Promise<TokenPrice[]> {
   if (SPECIAL_COINS_IDS.length === 0) return []
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`
     const res = await fetchCoinGeckoWithRetry(url, { label: 'HAC / HACD' })
     if (!res) return []
 
@@ -355,7 +475,7 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
   try {
     // Fetch a good number (250) so we have plenty of Pulse coins to pick the top ~98 from
     // (sorted by market cap). The tab will show only the first 98.
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=250&page=1&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`;
     const res = await fetchCoinGeckoWithRetry(url, {
       usePulseKey: true,
       label: 'PulseChain ecosystem category',
@@ -385,7 +505,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
   console.log(`[CryptoDUST] Fetching ${CURATED_PULSECHAIN_IDS.length} curated PulseChain tokens...`);
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`;
     const res = await fetchCoinGeckoWithRetry(url, {
       usePulseKey: true,
       label: 'curated PulseChain tokens',
@@ -652,6 +772,110 @@ async function fetchDexScreenerBatch(addresses: string[]): Promise<any[]> {
 }
 
 /**
+ * Pulls the trade counts out of a pair, dropping windows the pair does not carry.
+ *
+ * These eight integers ride in every response the app already makes twice a
+ * minute and were being thrown away. Reading them costs nothing: no extra call,
+ * no extra key, and DexScreener edge-caches these responses for 30 seconds.
+ */
+/**
+ * Below this a split is arithmetic, not information: one buy and no sells is
+ * "100% buys" and would paint a solid green ring.
+ *
+ * Set on trades rather than on dollars deliberately. A dollar floor looks like
+ * the same test and is not: PulseChain is a small-cap chain where FIRE turned
+ * over 254 real trades on $790, so a $1,000 floor threw out two thirds of the
+ * chain this site is built around while leaving a quiet $2,000 pool on BNB
+ * untouched. Counting trades asks the question that actually matters — is
+ * anyone trading here — without pricing one chain's whole ecosystem out.
+ *
+ * Measured at 15 with the share test below: PulseChain keeps 26 of 35, Base 12
+ * of 80, Solana 23 of 81 and BNB 19 of 83.
+ */
+const FLOW_MIN_TRADES = 15
+
+/**
+ * The pool must carry at least this share of everything the token traded in 24
+ * hours before its flow is allowed to stand for the token.
+ *
+ * This is the guard that makes order flow safe outside PulseChain. On a
+ * DEX-native chain the deepest pool IS the market, so almost everything passes:
+ * 31 of 35 mapped PulseChain tokens clear this, and the four that do not are
+ * PHUX, PHAME, AXIS and PHIAT, each with a handful of trades on a pool doing
+ * single-digit dollars. On Base, Solana and BNB the top hundred are mostly
+ * large tokens whose real trading happens on centralised exchanges, and their
+ * chain-specific pool is a backwater: MOVE showed one single buy on an
+ * Aerodrome pool while the token itself did $57.7M that day. Ungated, that
+ * rendered as a solid green ring, which is the exact species of lie this app
+ * exists not to tell. Measured across the three tabs, 68 of 80 Base pools, 61
+ * of 81 Solana pools and 64 of 83 BNB pools fail this test, and every one of
+ * them deserves to.
+ */
+const FLOW_MIN_VOLUME_SHARE = 0.1
+
+/**
+ * What fraction of the token's 24h volume ran through this pool.
+ *
+ * `tokenVolume24` MUST be a figure from somewhere other than this pair. Passing
+ * a volume that DexScreener itself supplied divides the pool by itself, scores
+ * a guaranteed 100%, and turns the guard into a rubber stamp — which is exactly
+ * what happened to PRVX and DEVC, whose total_volume is the DexScreener volume
+ * fallback. Callers capture the independent figure before any fallback runs.
+ *
+ * Returns null when there is genuinely no independent figure. That is not a
+ * pass: it means the share test cannot run and the absolute floor above has to
+ * carry the decision alone.
+ */
+function poolVolumeShare(pairVolume24: number, tokenVolume24: number | undefined): number | null {
+  if (!(tokenVolume24 && tokenVolume24 > 0)) return null
+  if (!(pairVolume24 > 0)) return 0
+  return pairVolume24 / tokenVolume24
+}
+
+function flowIsRepresentative(flow: TokenFlow, share: number | null): boolean {
+  const h24 = flow.h24
+  if (!h24 || h24.buys + h24.sells < FLOW_MIN_TRADES) return false
+  // A null share means no independent volume exists to compare against, so
+  // DexScreener's pool is the only market we can see and the trade floor above
+  // is the whole test.
+  return share == null || share >= FLOW_MIN_VOLUME_SHARE
+}
+
+/**
+ * The share as the panel should print it, or undefined when it should print
+ * nothing. A ratio above 1 means the two sources disagree about what this token
+ * traded, and the honest response to that is to show no figure rather than to
+ * round a contradiction up to "~all".
+ */
+function displayableShare(share: number | null): number | undefined {
+  if (share == null) return undefined
+  if (share <= 0 || share > 1.05) return undefined
+  return Math.min(1, share)
+}
+
+function readFlow(pair: any): TokenFlow | undefined {
+  const txns = pair?.txns
+  if (!txns) return undefined
+
+  const flow: TokenFlow = {}
+  let any = false
+
+  for (const key of ['m5', 'h1', 'h6', 'h24'] as const) {
+    const w = txns[key]
+    if (!w) continue
+    const buys = typeof w.buys === 'number' ? w.buys : 0
+    const sells = typeof w.sells === 'number' ? w.sells : 0
+    // A window with no trades at all carries no information, and rendering it
+    // would put an even split on screen where there was simply nothing.
+    if (buys + sells <= 0) continue
+    flow[key] = { buys, sells }
+    any = true
+  }
+
+  return any ? flow : undefined
+}
+
+/**
  * Adds fdv + liquidity (and volume, only where CoinGecko had none) to the PulseChain
  * tokens we have a verified address for. Two batched requests for the whole set.
  *
@@ -688,6 +912,11 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
     const pair = deepest.get(PULSECHAIN_TOKEN_ADDRESSES[token.id].toLowerCase())
     if (!pair) continue
 
+    // Captured before the volume fallback below can overwrite it with this very
+    // pair's volume. Judging the pool against a number the pool supplied is not
+    // a test of anything.
+    const independentVolume24 = token.total_volume
+
     const fdv = pair.fdv ?? pair.marketCap
     const liquidity = pair.liquidity?.usd
 
@@ -700,6 +929,24 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
     if (typeof pair.priceChange?.h24 === 'number') {
       token.price_change_percentage_24h = pair.priceChange.h24
     }
+
+    // Fill the 1H chip only where nothing filled it already.
+    //
+    // Unlike the 24h price above, this is NOT an upgrade. CoinGecko's hourly
+    // move covers every venue the token trades on; DexScreener's covers the
+    // one pool this response describes. For a token listed on CoinGecko the
+    // aggregate is the better number and overwriting it would be a quiet
+    // downgrade. The tokens that gain something here are the DEX-only ones,
+    // PRVX and DEVC, which have no CoinGecko listing at all and whose 1H chip
+    // was simply blank.
+    if (
+      token.price_change_percentage_1h == null &&
+      typeof pair.priceChange?.h1 === 'number'
+    ) {
+      token.price_change_percentage_1h = pair.priceChange.h1
+    }
+
+
 
     // FDV only as a fallback: CoinGecko's fully_diluted_valuation (captured in
     // mapCoinGeckoCoin) is the primary source. Where the two disagree, DexScreener's
@@ -719,6 +966,24 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
     if (fdv > 0 || liquidity > 0) {
       token.dexSource = pair.dexId || 'dexscreener'
       filled++
+    }
+
+    // Last, because it is judged against total_volume and the fallback above
+    // may have just set it.
+    const pairVolume24 = pair.volume?.h24 ?? 0
+    const flow = readFlow(pair)
+    const share = poolVolumeShare(pairVolume24, independentVolume24)
+    if (flow && flowIsRepresentative(flow, share)) {
+      token.flow = flow
+      token.flowSource = pair.dexId || undefined
+      token.flowPoolShare = displayableShare(share)
+    } else {
+      // Assign rather than skip. withLastGood can hand back the very objects
+      // already on screen, so a token that no longer qualifies has to lose its
+      // flow rather than keep whatever an earlier cycle wrote.
+      token.flow = undefined
+      token.flowSource = undefined
+      token.flowPoolShare = undefined
     }
   }
 
@@ -742,15 +1007,296 @@ export interface EcosystemSection {
 }
 
 const EXTRA_ECOSYSTEMS = [
-  { key: 'base', label: 'Base', category: 'base-ecosystem', limit: 100 },
-  { key: 'solana', label: 'Solana', category: 'solana-ecosystem', limit: 100 },
-  { key: 'bnb', label: 'BNB', category: 'binance-smart-chain', limit: 100 },
+  // `chain` is DexScreener's own id for the chain, which is not always
+  // CoinGecko's: the BNB chain is "binance-smart-chain" to one and "bsc" to
+  // the other. It is what api/token-addresses and the pair lookup both take.
+  // `nativeIsOwn` is false for Base alone: its gas token is Ethereum's ether,
+  // not an asset Base issued, so an Ethereum staking derivative arriving on
+  // Base is still an import. Solana, BNB and PulseChain each mint their own.
+  { key: 'base', label: 'Base', category: 'base-ecosystem', limit: 100, chain: 'base', native: 'ETH', nativeIsOwn: false },
+  { key: 'solana', label: 'Solana', category: 'solana-ecosystem', limit: 100, chain: 'solana', native: 'SOL', nativeIsOwn: true },
+  { key: 'bnb', label: 'BNB', category: 'binance-smart-chain', limit: 100, chain: 'bsc', native: 'BNB', nativeIsOwn: true },
 ]
+
+// =====================================================
+// KEEPING EACH CHAIN TAB TO ITS OWN COINS
+//
+// CoinGecko's "<chain>-ecosystem" categories answer a different question from
+// the one these tabs ask. They list every asset that EXISTS on a chain, so the
+// BNB tab arrived carrying Binance-Peg XRP, DOGE, ADA, SOL, SHIB, LTC and ZEC,
+// and Base and Solana both opened on Wrapped Bitcoin. Those are travelling
+// representations of assets that live somewhere else, and because they carry
+// the market cap of the original they sort straight to the top and push the
+// chain's actual projects off the tab.
+//
+// Three signals separate a chain's own coins from its imports, and they are
+// applied in this order.
+// =====================================================
+
+/** Explicitly an import: it says so in the name CoinGecko publishes. */
+const IMPORTED_TOKEN = /\b(bridged|binance[- ]peg|pegged)\b/i
+
+/**
+ * A derivative of some other asset. Which asset matters: staked SOL on Solana
+ * is one of that chain's biggest native products, while staked BTC anywhere is
+ * a visitor. Only cut when the underlying is not the chain's own coin.
+ */
+const DERIVATIVE_TOKEN = /\b(wrapped|staked|restaked)\b/i
+
+/** Tickers shaped like a stand-in for a named asset: cbBTC, jitoSOL, weETH. */
+const STAND_IN_TICKERS: Array<[string, RegExp, RegExp]> = [
+  ['BTC', /BTC$/, /\bbitcoin\b/i],
+  ['ETH', /ETH$/, /\bethereum\b/i],
+  ['SOL', /SOL$/, /\bsolana\b/i],
+]
+
+/**
+ * A token on this many chains is, by construction, a project of none of them.
+ * WBTC is on 20, sUSDe and uniBTC on 27.
+ *
+ * Kept tight at 5, because loosening it to 6 let Syrup USDC and cbETH back onto
+ * the Base tab, and those hundred slots are finite: the readmitted wrappers
+ * simply pushed Zora and Degen off the bottom. The handful of real projects
+ * that have bridged themselves this widely are rescued by name below instead.
+ */
+const MAX_CHAINS_FOR_ECOSYSTEM = 5
+
+/**
+ * A project that carries the chain in its own identity belongs to it, however
+ * far it has bridged. Degen is deployed on five chains but its CoinGecko id is
+ * `degen-base` and it is the Base memecoin; the chain-count rule alone would
+ * throw out the tab's own flagship.
+ *
+ * Checked AFTER the import and derivative tests, so `usd-coin-pulsechain` and
+ * `binance-peg-xrp` are already gone and cannot be rescued by the chain word
+ * sitting in their names.
+ */
+const CHAIN_WORDS: Record<string, RegExp> = {
+  ETH: /(^|-)base(-|$)/i,
+  SOL: /(^|-)solana(-|$)/i,
+  BNB: /(^|-)(bnb|binance)(-|$)/i,
+  PLS: /(^|-)pulse(chain)?(-|$)/i,
+}
+
+
+/**
+ * True when this coin is a visitor on the given chain rather than one of its
+ * own. `chains` is the number of deployments, from api/token-addresses.
+ */
+function isVisitingToken(
+  coin: TokenPrice,
+  native: string,
+  chains: number,
+  nativeIsOwn: boolean
+): boolean {
+  const symbol = coin.symbol.toUpperCase()
+  const name = coin.name || ''
+
+  // The chain's own coin and its canonical wrapper always belong.
+  if (symbol === native || symbol === `W${native}`) return false
+
+  /**
+   * Whether a derivative of the native asset is one of this chain's own
+   * products. On Solana, PulseChain and BNB it plainly is: staked SOL is
+   * Solana's largest native category. On Base it is not, because Base's gas
+   * token is not Base's asset, it is Ethereum's ether arriving over a bridge,
+   * so an Ethereum liquid-staking token on Base is an import twice over.
+   */
+  const ofNative =
+    nativeIsOwn &&
+    (symbol.endsWith(native) || new RegExp(String.raw`\b${native}\b`, 'i').test(name))
+
+  if (IMPORTED_TOKEN.test(name)) return true
+  if (DERIVATIVE_TOKEN.test(name) && !ofNative) return true
+
+  // A ticker ending in BTC/ETH/SOL is weak evidence on its own: "Where Did The
+  // ETH Go?" is a PulseChain memecoin. It needs a second deployment, or the
+  // asset spelled out in the name — which is what catches Syntetika Bitcoin, a
+  // single-chain BTC wrapper the old chains >= 2 gate waved straight through.
+  if (!ofNative) {
+    for (const [asset, ticker, fullName] of STAND_IN_TICKERS) {
+      if (asset === native || !ticker.test(symbol)) continue
+      if (chains >= 2 || fullName.test(name)) return true
+    }
+  }
+
+  if (chains < MAX_CHAINS_FOR_ECOSYSTEM) return false
+
+  const chainWord = CHAIN_WORDS[native]
+  if (chainWord && (chainWord.test(coin.id) || chainWord.test(name))) return false
+
+  return true
+}
+
+/** id -> {address on this chain, number of chains it is deployed on} */
+type ChainTokenInfo = Map<string, { address: string; chains: number }>
+
+/**
+ * What a lookup actually established.
+ *
+ * `asked` is the set of ids the server answered for. It matters because an
+ * absent id means one of three different things — the coin has no contract on
+ * this chain, the request for its chunk failed, or it was never asked about —
+ * and only the first is a reason to drop a coin from a tab. Without this the
+ * filter turned one failed chunk into 120 silently missing coins.
+ */
+interface ChainLookup {
+  info: ChainTokenInfo
+  asked: Set<string>
+}
+
+/**
+ * One lookup that serves both jobs: which coins belong on this tab, and where
+ * to find their pool. Failing here returns an empty map, which leaves the tab
+ * exactly as CoinGecko sent it — unfiltered, but never empty.
+ */
+async function resolveChainTokens(ids: string[], chain: string): Promise<ChainLookup> {
+  const info: ChainTokenInfo = new Map()
+  const asked = new Set<string>()
+  if (ids.length === 0) return { info, asked }
+
+  const chunks: string[][] = []
+  // MAX_IDS in the function is 150; stay under it and keep the URL short.
+  for (let i = 0; i < ids.length; i += 120) chunks.push(ids.slice(i, i + 120))
+
+  const results = await Promise.all(
+    chunks.map(async chunk => {
+      try {
+        const res = await fetch(
+          `/api/token-addresses?chain=${chain}&ids=${encodeURIComponent(chunk.join(','))}`
+        )
+        if (!res.ok) return null
+        return { chunk, map: (await res.json()) as Record<string, { a: string; n: number }> }
+      } catch {
+        return null
+      }
+    })
+  )
+
+  let failed = 0
+  for (const result of results) {
+    // A chunk that failed contributes nothing to `asked`, so its coins keep the
+    // benefit of the doubt instead of being filtered out on missing evidence.
+    if (!result) { failed++; continue }
+    for (const id of result.chunk) asked.add(id)
+    for (const [id, entry] of Object.entries(result.map)) {
+      if (entry && typeof entry.a === 'string') {
+        info.set(id, { address: entry.a, chains: typeof entry.n === 'number' ? entry.n : 1 })
+      }
+    }
+  }
+
+  if (failed > 0) {
+    console.warn(
+      `[CryptoDUST] ${chain} token lookup: ${failed}/${chunks.length} chunks failed, ` +
+      'those coins are left unfiltered.'
+    )
+  }
+
+  return { info, asked }
+}
+
+/**
+ * Adds order-flow counts to a whole ecosystem tab.
+ *
+ * PulseChain gets its flow from a hand-kept map of 35 contract addresses. That
+ * does not scale to three more chains, so these tabs resolve their addresses
+ * through api/token-addresses, which answers with just the coins asked for.
+ * Measured coverage on the current tabs: 100/100 Base, 99/100 Solana and 98/100
+ * BNB resolve to an address, and 80, 81 and 83 of those have live 24h counts.
+ *
+ * Deliberately narrower than the PulseChain backfill: this writes `flow` and
+ * nothing else. CoinGecko is the authority for price, market cap and volume on
+ * these tabs and already serves them well; quietly repointing any of that at a
+ * single pool would be a regression dressed up as a feature.
+ *
+ * Fails closed. Any error anywhere leaves the tab exactly as it was, which the
+ * UI already renders correctly as "no flow data for this token".
+ */
+async function backfillEcosystemFlow(
+  tokens: TokenPrice[],
+  chain: string,
+  known: ChainTokenInfo
+): Promise<number> {
+  if (tokens.length === 0) return 0
+
+  // The addresses were already resolved when the tab was filtered, so this
+  // reuses them rather than asking again.
+  const targets = tokens.filter(t => known.has(t.id))
+  if (targets.length === 0) return 0
+
+  const byAddress = new Map(targets.map(t => [known.get(t.id)!.address.toLowerCase(), t]))
+
+  const batches: string[][] = []
+  const list = targets.map(t => known.get(t.id)!.address)
+  for (let i = 0; i < list.length; i += DEXSCREENER_BATCH_SIZE) {
+    batches.push(list.slice(i, i + DEXSCREENER_BATCH_SIZE))
+  }
+
+  let groups: any[][]
+  try {
+    groups = await Promise.all(
+      batches.map(async addrs => {
+        const res = await fetch(
+          `https://api.dexscreener.com/tokens/v1/${chain}/${addrs.join(',')}`
+        )
+        if (!res.ok) return []
+        const data = await res.json()
+        return Array.isArray(data) ? data : []
+      })
+    )
+  } catch (error) {
+    console.warn(`[CryptoDUST] ${chain} flow fetch failed:`, error)
+    return 0
+  }
+
+  // Keep the deepest pair per token, same rule the PulseChain backfill uses, so
+  // "deepest pool" means the same thing on every tab.
+  const deepest = new Map<string, any>()
+  for (const pair of groups.flat()) {
+    if (pair?.chainId && pair.chainId !== chain) continue
+    const key = pair?.baseToken?.address?.toLowerCase()
+    if (!key || !byAddress.has(key)) continue
+    const current = deepest.get(key)
+    if (!current || (pair.liquidity?.usd || 0) > (current.liquidity?.usd || 0)) {
+      deepest.set(key, pair)
+    }
+  }
+
+  // Cleared first, for the same reason as the PulseChain path: on a cycle where
+  // the category fetch failed, withLastGood returns the objects that are already
+  // rendered, and a stale ring outliving the pool that justified it is worse
+  // than no ring.
+  for (const token of targets) {
+    token.flow = undefined
+    token.flowSource = undefined
+    token.flowPoolShare = undefined
+  }
+
+  let filled = 0
+  for (const [key, pair] of deepest) {
+    const token = byAddress.get(key)
+    if (!token) continue
+    const flow = readFlow(pair)
+    if (!flow) continue
+    const pairVolume24 = pair.volume?.h24 ?? 0
+    // total_volume is CoinGecko's here and stays CoinGecko's: this function
+    // never writes it, so it is a genuinely independent denominator.
+    const share = poolVolumeShare(pairVolume24, token.total_volume)
+    if (!flowIsRepresentative(flow, share)) continue
+    token.flow = flow
+    token.flowSource = pair.dexId || undefined
+    token.flowPoolShare = displayableShare(share)
+    filled++
+  }
+
+  return filled
+}
 
 async function fetchEcosystemCategory(category: string, label: string): Promise<TokenPrice[]> {
   // 250 per category, not 100: the category's top ranks overlap heavily with the
   // main top-500 list and get deduped away — the tab is built from what remains.
-  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=${category}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=${category}&order=market_cap_desc&per_page=250&page=1&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`
   const res = await fetchCoinGeckoWithRetry(url, { usePulseKey: true, label: `${label} ecosystem` })
   if (!res) return []
   try {
@@ -774,8 +1320,8 @@ async function fetchAllCoins(): Promise<MarketData> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
       Promise.all([
-        withLastGood('main page 1', () => fetchCoinGeckoPage(1)),
-        withLastGood('main page 2', () => fetchCoinGeckoPage(2)),
+        withLastGood('main page 1', () => fetchCoinGeckoPage(1, 250, true)),
+        withLastGood('main page 2', () => fetchCoinGeckoPage(2, 250, true)),
       ]),
       withLastGood('special Pulse tokens', fetchSpecialPulseChainTokens),
       withLastGood('HAC/HACD', fetchSpecialCoins),
@@ -881,15 +1427,35 @@ async function fetchAllCoins(): Promise<MarketData> {
       }
     }
 
+    // Same treatment as the other chain tabs: CoinGecko's pulsechain-ecosystem
+    // category carries the bridged WETH, USDC, USDT, WBTC and the bridged copy
+    // of HEX alongside PulseChain's own coins. The native HEX, WPLS, VPLS and
+    // "Where Did The ETH Go?" all survive this; the bridged HEX does not.
+    const pulseKnown = await resolveChainTokens(pulseTail.map(t => t.id), 'pulsechain')
+    const ownPulse = pulseTail.filter(t => {
+      // Never judged on evidence we do not have: a coin the lookup was not
+      // asked about, or whose chunk failed, stays on the tab.
+      if (!pulseKnown.asked.has(t.id)) return true
+      const info = pulseKnown.info.get(t.id)
+      if (!info) return t.symbol.toUpperCase() === 'PLS'
+      return !isVisitingToken(t, 'PLS', info.chains, true)
+    })
+
+    if (pulseTail.length > ownPulse.length) {
+      console.log(
+        `[CryptoDUST] PulseChain: dropped ${pulseTail.length - ownPulse.length} visiting tokens.`
+      )
+    }
+
     // The old limit was 98 while the Pulse sources return ~107, so the tab was
     // silently dropping the smallest coins every load. The cap is now just a
     // sanity bound, and truncation is reported instead of being invisible.
     const PULSE_TAIL_LIMIT = 200
-    const limitedPulseTail = pulseTail.slice(0, PULSE_TAIL_LIMIT)
+    const limitedPulseTail = ownPulse.slice(0, PULSE_TAIL_LIMIT)
 
-    if (pulseTail.length > PULSE_TAIL_LIMIT) {
+    if (ownPulse.length > PULSE_TAIL_LIMIT) {
       console.warn(
-        `[CryptoDUST] PulseChain tab truncated: ${pulseTail.length} coins found, showing ${PULSE_TAIL_LIMIT}.`
+        `[CryptoDUST] PulseChain tab truncated: ${ownPulse.length} coins found, showing ${PULSE_TAIL_LIMIT}.`
       )
     }
 
@@ -944,17 +1510,56 @@ async function fetchAllCoins(): Promise<MarketData> {
 
     // Extra galaxy tabs (Base, Solana, ...) — fetched sequentially to stay
     // gentle on the rate limit; each dedups against everything already shown.
+    const flowJobs: Promise<void>[] = []
     for (const eco of EXTRA_ECOSYSTEMS) {
       const fetched = await withLastGood(`${eco.label} ecosystem`, () =>
         fetchEcosystemCategory(eco.category, eco.label)
       )
       const shown = new Set(result.map(t => t.id))
-      const fresh = fetched.filter(t => !shown.has(t.id)).slice(0, eco.limit)
+      const candidates = fetched.filter(t => !shown.has(t.id))
+
+      // Resolved before the tab is cut to size, so that dropping the visitors
+      // pulls real projects up from further down the category rather than
+      // leaving holes where they were.
+      const known = await resolveChainTokens(candidates.map(t => t.id), eco.chain)
+
+      const own = candidates.filter(t => {
+        // Never judged on evidence we do not have.
+        if (!known.asked.has(t.id)) return true
+        const info = known.info.get(t.id)
+        // No contract on this chain at all means it is in the category only
+        // because CoinGecko files these loosely. The chain's own coin is the
+        // exception: a native coin has no contract by definition.
+        if (!info) return t.symbol.toUpperCase() === eco.native
+        return !isVisitingToken(t, eco.native, info.chains, eco.nativeIsOwn)
+      })
+
+      const dropped = candidates.length - own.length
+      if (dropped > 0) {
+        console.log(`[CryptoDUST] ${eco.label}: dropped ${dropped} visiting tokens.`)
+      }
+
+      const fresh = own.slice(0, eco.limit)
       if (fresh.length === 0) continue
       const start = result.length
       result.push(...fresh)
       sections.push({ key: eco.key, label: eco.label, start, end: result.length })
+
+      // Collected rather than awaited here: three chains awaited in sequence
+      // put three serial round trips in front of first paint and they have no
+      // reason to wait for each other. Still awaited before this function
+      // returns, because `fresh` is already inside the array it returns and
+      // mutating it afterwards would be a write into rendered state.
+      flowJobs.push(
+        backfillEcosystemFlow(fresh, eco.chain, known.info).then(filled => {
+          if (filled > 0) {
+            console.log(`[CryptoDUST] order flow for ${filled}/${fresh.length} ${eco.label} tokens.`)
+          }
+        })
+      )
     }
+
+    await Promise.all(flowJobs)
 
     console.log(
       `[CryptoDUST] ${result.length} coins ready (${mainSection.length} main + ` +
@@ -1005,7 +1610,11 @@ export function formatCompactPrice(price: number | null | undefined): string {
 interface FastPulseQuote {
   price: number
   change24?: number
+  change1h?: number
   liquidity?: number
+  flow?: TokenFlow
+  pairVolume24?: number
+  flowSource?: string
 }
 
 async function fetchFastPulseQuotes(): Promise<Map<string, FastPulseQuote>> {
@@ -1032,7 +1641,13 @@ async function fetchFastPulseQuotes(): Promise<Map<string, FastPulseQuote>> {
     out.set(id, {
       price,
       change24: typeof pair.priceChange?.h24 === 'number' ? pair.priceChange.h24 : undefined,
+      change1h: typeof pair.priceChange?.h1 === 'number' ? pair.priceChange.h1 : undefined,
       liquidity: liquidity > 0 ? liquidity : undefined,
+      // Read here as well as in the full backfill, so the ring tracks the pool
+      // at the 60-second cadence rather than going stale for five minutes.
+      flow: readFlow(pair),
+      pairVolume24: pair.volume?.h24 ?? 0,
+      flowSource: pair.dexId || undefined,
     })
   }
   return out
@@ -1064,7 +1679,39 @@ function mergeFastLane(
         ...t,
         current_price: dp.price,
         price_change_percentage_24h: dp.change24 ?? t.price_change_percentage_24h,
+        // Same rule as the full backfill: the existing value wins, because it
+        // may be CoinGecko's all-venue figure and this one is a single pool.
+        price_change_percentage_1h: t.price_change_percentage_1h ?? dp.change1h,
         liquidity: dp.liquidity ?? t.liquidity,
+        // The same representativeness test the full backfill applies. Without
+        // it the fast lane would quietly reinstate, sixty seconds later, every
+        // unrepresentative pool the backfill had just rejected.
+        //
+        // The share is REUSED from the last full rebuild rather than recomputed
+        // here. Recomputing it divides the pool by a denominator the pool may
+        // itself have supplied: PRVX and DEVC have no CoinGecko volume, so the
+        // backfill's fallback sets total_volume from this very pair, and the
+        // fast lane would then have printed a fabricated "~all" every minute.
+        // The rebuild captured the independent figure before that fallback ran,
+        // so its answer is the only trustworthy one. It is a 24-hour ratio; it
+        // does not need refreshing on a 60-second tick.
+        //
+        // The three fields move together. flow without its source and its share
+        // is a count with no provenance, and the panel would caption this
+        // minute's numbers with the last rebuild's label.
+        //
+        // `t.flow &&` is load-bearing: the fast lane REFRESHES flow, it never
+        // introduces it. Without that clause a token the rebuild had rejected
+        // for an unrepresentative pool came back sixty seconds later, because
+        // a rejected token carries no flowPoolShare and an absent share reads
+        // as "no independent volume to check against", which the guard passes.
+        ...(dp.flow && t.flow && flowIsRepresentative(dp.flow, t.flowPoolShare ?? null)
+          ? {
+              flow: dp.flow,
+              flowSource: dp.flowSource ?? t.flowSource,
+              flowPoolShare: t.flowPoolShare,
+            }
+          : {}),
       }
     }
     return t

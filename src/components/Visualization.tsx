@@ -1105,19 +1105,33 @@ export function Visualization({
         ctx.stroke()
       }
 
-      // Big Mover intense layered glow (green for >50% up) — shown always for qualifying coins (without needing highlight mode)
+      // Big Mover halo (>50% up).
+      //
+      // Rewritten because the old one strobed. Three things were wrong with it:
+      // it read Date.now() instead of the frame clock, so it kept throbbing
+      // while the simulation was paused; every planet shared that one clock and
+      // pulsed in exact lockstep, which reads as a machine rather than a sky;
+      // and the gradient held solid colour out to its halfway stop, so a hard
+      // edged band swelled and shrank by half its width every 0.9 seconds.
+      //
+      // Now: the shared clock, a phase taken from the planet's own personality
+      // so no two breathe together, a third of the old amplitude over two and a
+      // half times the period, and alpha carried in the colour stops so the
+      // halo actually falls off instead of ending.
       if (!simplifyForDrag && isGreenGlower && allowHeavyEffects(coin.id) && r > 16) {
-        const moverPulse = Math.sin(Date.now() / 140) * 0.25 + 1.2
-        const moverSize = r * 1.1 * moverPulse  // performance-only (smaller for perf)
-        const moverColor = change > 0 ? '#4ade80' : '#f87171'
-        const moverGlow = ctx.createRadialGradient(x, y, r * 0.6, x, y, moverSize)
-        moverGlow.addColorStop(0, moverColor)
-        moverGlow.addColorStop(0.5, moverColor)
-        moverGlow.addColorStop(1, 'transparent')
-        ctx.globalAlpha = 0.55
+        const phase = b.restlessness * 41.7
+        const breathe = Math.sin(time / 1100 + phase) * 0.08 + 1
+        const inner = r * 0.94
+        const outer = r * 1.5 * breathe
+        const rgb = change > 0 ? '74, 222, 128' : '248, 113, 113'
+
+        const moverGlow = ctx.createRadialGradient(x, y, inner, x, y, outer)
+        moverGlow.addColorStop(0, `rgba(${rgb}, 0.5)`)
+        moverGlow.addColorStop(0.35, `rgba(${rgb}, 0.22)`)
+        moverGlow.addColorStop(1, `rgba(${rgb}, 0)`)
         ctx.fillStyle = moverGlow
         ctx.beginPath()
-        ctx.arc(x, y, moverSize, 0, Math.PI * 2)
+        ctx.arc(x, y, outer, 0, Math.PI * 2)
         ctx.fill()
       }
 
@@ -1125,17 +1139,22 @@ export function Visualization({
       if (!simplifyForDrag && isGoldGlower && allowHeavyEffects(coin.id) && r > 14) {
         const t = time
 
-        // Very bright, fast-pulsing golden aura (special for +22%+ moves)
-        const extremePulse = Math.sin(t / 90) * 0.35 + 1.4
-        const extremeSize = r * 1.6 * extremePulse  // performance-only (smaller)
-        const extremeGlow = ctx.createRadialGradient(x, y, r * 0.5, x, y, extremeSize)
-        extremeGlow.addColorStop(0, '#fde047')
-        extremeGlow.addColorStop(0.3, '#fbbf24')
-        extremeGlow.addColorStop(0.7, 'transparent')
-        ctx.globalAlpha = 0.45
+        // Golden aura for the rarest tier. Same treatment as the green halo,
+        // kept a little brighter and a little faster because this one is meant
+        // to catch the eye — but a sixth of the old amplitude, and out of step
+        // with its neighbours.
+        const goldPhase = b.restlessness * 27.3
+        const goldBreathe = Math.sin(t / 820 + goldPhase) * 0.11 + 1
+        const goldInner = r * 0.9
+        const goldOuter = r * 1.85 * goldBreathe
+
+        const extremeGlow = ctx.createRadialGradient(x, y, goldInner, x, y, goldOuter)
+        extremeGlow.addColorStop(0, 'rgba(253, 224, 71, 0.55)')
+        extremeGlow.addColorStop(0.3, 'rgba(251, 191, 36, 0.3)')
+        extremeGlow.addColorStop(1, 'rgba(251, 191, 36, 0)')
         ctx.fillStyle = extremeGlow
         ctx.beginPath()
-        ctx.arc(x, y, extremeSize, 0, Math.PI * 2)
+        ctx.arc(x, y, goldOuter, 0, Math.PI * 2)
         ctx.fill()
 
         // Extra intense orbiting sparkles for extreme movers — only during highlight for performance

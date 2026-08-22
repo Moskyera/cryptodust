@@ -12,7 +12,7 @@
  */
 
 import useSWR from 'swr'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // ==================== CONFIG ====================
 // Main CoinGecko key (can be paid or demo)
@@ -121,12 +121,13 @@ export interface TokenPrice {
   dexOnly?: boolean
   /**
    * Real hourly closes for the last seven days, oldest first — CoinGecko's
-   * sparkline_in_7d. 168 points, present on 98 to 100 percent of every tab.
+   * sparkline_in_7d, 168 points.
    *
-   * This replaces a chart that used to be drawn from a seeded sine wave. It
-   * rides on the list calls the app already makes, so it costs no request; it
-   * costs payload, which is why the 60-second fast lane deliberately does not
-   * ask for it.
+   * NOT filled by the list fetches. Asking for it there added roughly 2.3 MB to
+   * every five-minute cycle so that a visitor could see one chart, because the
+   * chart only ever appears in the detail panel for the single coin that is
+   * open. It is fetched per coin on selection instead, by fetchCoinHistory, and
+   * attached to the card when one is generated.
    */
   history7d?: number[]
 }
@@ -347,18 +348,8 @@ async function fetchCoinGeckoWithRetry(
   return null
 }
 
-/**
- * `withHistory` adds seven days of hourly closes to the response. It roughly
- * quadruples the payload of a 250-coin page, from 253 KB to 1.05 MB, which is
- * fine once every five minutes and absurd on the 60-second fast lane — and the
- * fast lane calls this same function. Hence the flag, defaulting to off.
- */
-async function fetchCoinGeckoPage(
-  page: number,
-  perPage = 250,
-  withHistory = false
-): Promise<TokenPrice[]> {
-  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=${withHistory}&price_change_percentage=1h,24h,7d,30d,1y`
+async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPrice[]> {
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
 
   // Without a retry a single transient 429 wiped all 250 coins of this page, which
   // is how the app could end up rendering ~108 coins instead of ~600.
@@ -434,7 +425,7 @@ async function fetchSpecialPulseChainTokens(): Promise<TokenPrice[]> {
   if (SPECIAL_PULSECHAIN_IDS.length === 0) return []
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
     const res = await fetchCoinGeckoWithRetry(url, { usePulseKey: true, label: 'special PulseChain tokens' })
     if (!res) return []
 
@@ -451,7 +442,7 @@ async function fetchSpecialCoins(): Promise<TokenPrice[]> {
   if (SPECIAL_COINS_IDS.length === 0) return []
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${SPECIAL_COINS_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
     const res = await fetchCoinGeckoWithRetry(url, { label: 'HAC / HACD' })
     if (!res) return []
 
@@ -475,7 +466,7 @@ async function fetchPulseChainEcosystemTokens(): Promise<TokenPrice[]> {
   try {
     // Fetch a good number (250) so we have plenty of Pulse coins to pick the top ~98 from
     // (sorted by market cap). The tab will show only the first 98.
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=250&page=1&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`;
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=pulsechain-ecosystem&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
     const res = await fetchCoinGeckoWithRetry(url, {
       usePulseKey: true,
       label: 'PulseChain ecosystem category',
@@ -505,7 +496,7 @@ async function fetchCuratedPulseChainTokens(): Promise<TokenPrice[]> {
   console.log(`[CryptoDUST] Fetching ${CURATED_PULSECHAIN_IDS.length} curated PulseChain tokens...`);
 
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`;
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${CURATED_PULSECHAIN_IDS.join(',')}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`;
     const res = await fetchCoinGeckoWithRetry(url, {
       usePulseKey: true,
       label: 'curated PulseChain tokens',
@@ -994,6 +985,94 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
 }
 
 // =====================================================
+// SEVEN-DAY HISTORY, FETCHED PER COIN
+//
+// The chart lives in the detail panel, which shows exactly one coin at a time.
+// Asking for sparkline_in_7d on the list calls filled it for all 861 at once
+// and cost about 2.3 MB every five-minute cycle, for a picture the visitor was
+// only ever going to see one of. This fetches it when a coin is opened.
+//
+// Cached for the session and deduplicated in flight, so reopening a coin is
+// free and a double click is one request. The proxy's edge cache means a
+// popular coin costs the API roughly one request a minute across every
+// visitor, not one per visitor.
+// =====================================================
+const historyCache = new Map<string, number[]>()
+const historyInFlight = new Map<string, Promise<number[] | null>>()
+
+async function fetchCoinHistory(id: string): Promise<number[] | null> {
+  const cached = historyCache.get(id)
+  if (cached) return cached
+
+  const pending = historyInFlight.get(id)
+  if (pending) return pending
+
+  const run = (async (): Promise<number[] | null> => {
+    try {
+      const url =
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd` +
+        `&ids=${encodeURIComponent(id)}&sparkline=true`
+      const res = await fetchCoinGecko(url, { usePulseKey: true })
+      if (!res.ok) return null
+
+      const data = await res.json()
+      const raw = Array.isArray(data) ? data[0]?.sparkline_in_7d?.price : null
+      if (!Array.isArray(raw)) return null
+
+      const points = (raw as unknown[]).filter(
+        (n): n is number => typeof n === 'number' && Number.isFinite(n)
+      )
+      if (points.length === 0) return null
+
+      historyCache.set(id, points)
+      return points
+    } catch {
+      return null
+    } finally {
+      historyInFlight.delete(id)
+    }
+  })()
+
+  historyInFlight.set(id, run)
+  return run
+}
+
+/**
+ * Seven days of closes for one coin, or undefined while it loads or when the
+ * coin has none. The DEX-only stubs have no CoinGecko listing to ask, so they
+ * are never requested and simply render without a chart.
+ */
+export function useCoinHistory(coin: TokenPrice | null | undefined): number[] | undefined {
+  const [history, setHistory] = useState<number[] | undefined>(undefined)
+
+  useEffect(() => {
+    if (!coin || coin.dexOnly) {
+      setHistory(undefined)
+      return
+    }
+
+    const cached = historyCache.get(coin.id)
+    if (cached) {
+      setHistory(cached)
+      return
+    }
+
+    // Cleared first, so the previous coin's line never lingers under a new name.
+    setHistory(undefined)
+
+    let alive = true
+    void fetchCoinHistory(coin.id).then(points => {
+      if (alive && points) setHistory(points)
+    })
+    return () => {
+      alive = false
+    }
+  }, [coin?.id, coin?.dexOnly])
+
+  return history
+}
+
+// =====================================================
 // MULTI-CHAIN GALAXIES
 // Extra ecosystem tabs after PulseChain, each fed by its CoinGecko category.
 // Coins already shown in the top-500 or an earlier section are skipped so ids
@@ -1296,7 +1375,7 @@ async function backfillEcosystemFlow(
 async function fetchEcosystemCategory(category: string, label: string): Promise<TokenPrice[]> {
   // 250 per category, not 100: the category's top ranks overlap heavily with the
   // main top-500 list and get deduped away — the tab is built from what remains.
-  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=${category}&order=market_cap_desc&per_page=250&page=1&sparkline=true&price_change_percentage=1h,24h,7d,30d,1y`
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&category=${category}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d,30d,1y`
   const res = await fetchCoinGeckoWithRetry(url, { usePulseKey: true, label: `${label} ecosystem` })
   if (!res) return []
   try {
@@ -1320,8 +1399,8 @@ async function fetchAllCoins(): Promise<MarketData> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
       Promise.all([
-        withLastGood('main page 1', () => fetchCoinGeckoPage(1, 250, true)),
-        withLastGood('main page 2', () => fetchCoinGeckoPage(2, 250, true)),
+        withLastGood('main page 1', () => fetchCoinGeckoPage(1)),
+        withLastGood('main page 2', () => fetchCoinGeckoPage(2)),
       ]),
       withLastGood('special Pulse tokens', fetchSpecialPulseChainTokens),
       withLastGood('HAC/HACD', fetchSpecialCoins),

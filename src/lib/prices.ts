@@ -1038,38 +1038,54 @@ async function fetchCoinHistory(id: string): Promise<number[] | null> {
 }
 
 /**
- * Seven days of closes for one coin, or undefined while it loads or when the
- * coin has none. The DEX-only stubs have no CoinGecko listing to ask, so they
- * are never requested and simply render without a chart.
+ * Seven days of closes for one coin.
+ *
+ * `pending` matters as much as the data. Without it the panel rendered no chart
+ * at all for the couple of hundred milliseconds the fetch took, then grew a
+ * 56-pixel block, shoving everything below it down — and on the phone, where
+ * the sheet is anchored to the bottom edge, that jerks the whole panel. The
+ * caller reserves the space while this is true.
+ *
+ * The DEX-only stubs have no CoinGecko listing to ask, so they are never
+ * requested and never reserve space either.
  */
-export function useCoinHistory(coin: TokenPrice | null | undefined): number[] | undefined {
+export function useCoinHistory(coin: TokenPrice | null | undefined): {
+  history: number[] | undefined
+  pending: boolean
+} {
   const [history, setHistory] = useState<number[] | undefined>(undefined)
+  const [pending, setPending] = useState(false)
 
   useEffect(() => {
     if (!coin || coin.dexOnly) {
       setHistory(undefined)
+      setPending(false)
       return
     }
 
     const cached = historyCache.get(coin.id)
     if (cached) {
       setHistory(cached)
+      setPending(false)
       return
     }
 
     // Cleared first, so the previous coin's line never lingers under a new name.
     setHistory(undefined)
+    setPending(true)
 
     let alive = true
     void fetchCoinHistory(coin.id).then(points => {
-      if (alive && points) setHistory(points)
+      if (!alive) return
+      if (points) setHistory(points)
+      setPending(false)
     })
     return () => {
       alive = false
     }
   }, [coin?.id, coin?.dexOnly])
 
-  return history
+  return { history, pending }
 }
 
 // =====================================================

@@ -379,7 +379,7 @@ export default function App() {
   // Seven days of closes for whichever coin is open. Fetched on selection
   // rather than bundled into the list calls, which would have meant every
   // visitor downloading history for 861 coins to look at one chart.
-  const selectedHistory = useCoinHistory(selectedCoin)
+  const { history: selectedHistory, pending: historyPending } = useCoinHistory(selectedCoin)
 
   /**
    * The coin as the share card should see it. The card draws the same seven-day
@@ -1830,17 +1830,21 @@ export default function App() {
                   </div>
                 )}
 
-                {selectedHistory && selectedHistory.length >= 8 && (
+                {((selectedHistory && selectedHistory.length >= 8) || historyPending) && (
                   <div className="mb-4 pt-3 border-t border-white/[0.07]">
                     <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
                       <span className="tracking-[1px]">7D PRICE</span>
                       <span className="text-[9px]">hourly closes</span>
                     </div>
-                    <PriceChart
-                      history={selectedHistory}
-                      currentPrice={selectedCoin.current_price}
-                      height={52}
-                    />
+                    {/* Held at the chart's own height while the fetch is in
+                        flight, so the sheet does not jump when the line lands. */}
+                    <div style={{ height: 52 }}>
+                      <PriceChart
+                        history={selectedHistory}
+                        currentPrice={selectedCoin.current_price}
+                        height={52}
+                      />
+                    </div>
                   </div>
                 )}
               </>
@@ -2122,18 +2126,20 @@ export default function App() {
                       </div>
                     )}
 
-                    {selectedHistory && selectedHistory.length >= 8 && (
+                    {((selectedHistory && selectedHistory.length >= 8) || historyPending) && (
                       <div className="pt-2 pb-1 border-t border-white/[0.07]">
                         <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
                           <span className="tracking-[1px]">7D PRICE</span>
                           <span className="text-[9px]">hourly closes</span>
                         </div>
-                        <PriceChart
-                          history={selectedHistory}
-                          currentPrice={selectedCoin.current_price}
-                          width={288}
-                          height={56}
-                        />
+                        <div style={{ height: 56 }}>
+                          <PriceChart
+                            history={selectedHistory}
+                            currentPrice={selectedCoin.current_price}
+                            width={288}
+                            height={56}
+                          />
+                        </div>
                       </div>
                     )}
 

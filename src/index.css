@@ -861,12 +861,80 @@ canvas {
 
 /* Mobile list rows: a coloured leading edge tied to the 24h direction.
    Inset shadows follow the border-radius, so the rounded corners stay clean. */
+/* Mobile coin rows.
+ *
+ * These were the flattest surface in the app: a single translucent fill, a
+ * single flat border, no shadow and no gradient, while every other card here
+ * (.panel, .stat-card) has all three. The direction was a hard 3px inset bar
+ * that read as a sticker stuck on the edge rather than part of the row.
+ *
+ * The row is now a pane of glass, and the direction is the colour REFLECTING
+ * in it. That is why the colour arrives at 115 degrees rather than straight
+ * across: a reflection runs at an angle to the surface, a coat of paint does
+ * not. It is brightest where the lit edge is, dies out by just past halfway,
+ * and sits under a separate white specular gradient so the glass reads as
+ * glass rather than as tinted plastic.
+ *
+ * Both live on background-IMAGE so they compose with the Tailwind
+ * background-color already on the element instead of fighting it. The wash is
+ * a background layer and not a pseudo-element on purpose: an absolutely
+ * positioned ::before with auto z-index paints ABOVE the row's text, which
+ * would tint the price and the ticker.
+ */
+.row-edge-up,
+.row-edge-down {
+  position: relative;
+  box-shadow:
+    0 3px 12px -7px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
 .row-edge-up {
-  box-shadow: inset 3px 0 0 0 rgba(74, 222, 128, 0.55);
+  background-image:
+    linear-gradient(115deg, rgba(74, 222, 128, 0.2) 0%, rgba(74, 222, 128, 0.07) 26%, rgba(74, 222, 128, 0) 56%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.012) 55%, rgba(255, 255, 255, 0));
 }
 
 .row-edge-down {
-  box-shadow: inset 3px 0 0 0 rgba(248, 113, 113, 0.5);
+  background-image:
+    linear-gradient(115deg, rgba(248, 113, 113, 0.18) 0%, rgba(248, 113, 113, 0.06) 26%, rgba(248, 113, 113, 0) 56%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.012) 55%, rgba(255, 255, 255, 0));
+}
+
+/* The lit edge. A pseudo-element rather than an inset shadow because it needs
+ * to glow outward, and it is inset top and bottom so it reads as a light
+ * source held inside the glass rather than a border painted on it. */
+.row-edge-up::after,
+.row-edge-down::after {
+  content: '';
+  position: absolute;
+  inset: 7px auto 7px 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  pointer-events: none;
+}
+
+.row-edge-up::after {
+  background: rgba(74, 222, 128, 0.9);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.55);
+}
+
+.row-edge-down::after {
+  background: rgba(248, 113, 113, 0.85);
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
+}
+
+/* The glass edge catching light along the top. Safe as a pseudo-element: it is
+ * a single pixel at the very top, over no text. */
+.row-edge-up::before,
+.row-edge-down::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
 }
 
 /* Hide scrollbar but keep functionality (mobile quick filters / tabs) */

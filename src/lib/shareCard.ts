@@ -4,7 +4,11 @@
  * Filled, not empty: starfield + nebula backdrop, a giant watermark of the
  * coin's own logo bleeding off the right edge, the logo again as a shaded
  * planet up front, holographic gradient border, big % with glow, stat boxes
- * and a seeded sparkline. Branding bottom-right.
+ * and branding bottom-right.
+ *
+ * No price history: the app fetches none, and the seeded sparkline that used to
+ * stand in for it drew an invented shape next to real figures, in the one
+ * artifact of this site that gets posted publicly.
  *
  * Everything draws into an offscreen canvas; logos come through /api/img so
  * the canvas stays untainted and toBlob always works.
@@ -132,15 +136,6 @@ export async function buildShareCard(coin: TokenPrice, period: CardPeriod = '24h
     ctx.clip()
     ctx.drawImage(logo, W - 170 - wm / 2, H / 2 - wm / 2, wm, wm)
     ctx.restore()
-
-    // soft ring around the watermark planet
-    ctx.globalAlpha = 0.25
-    ctx.strokeStyle = accent
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.ellipse(W - 170, H / 2 + 30, wm * 0.62, wm * 0.17, -0.32, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.globalAlpha = 1
   }
 
   // ---------- front planet: logo as shaded sphere ----------
@@ -243,31 +238,71 @@ export async function buildShareCard(coin: TokenPrice, period: CardPeriod = '24h
     ctx.fillText(value, bx + 20, boxY + 66)
   })
 
-  // ---------- seeded sparkline across the midsection ----------
-  // starts after the "LAST 24 HOURS" label so the two never collide
-  const sx = 292
-  const sw = 408
-  const sy = H - 164
-  const sh = 22
-  ctx.save()
-  ctx.globalAlpha = 0.85
-  ctx.strokeStyle = accent
-  ctx.lineWidth = 3
-  ctx.lineJoin = 'round'
-  ctx.beginPath()
-  const pts = 26
-  for (let i = 0; i <= pts; i++) {
-    const progress = i / pts
-    const trend = (change / 100) * (progress - 0.5) * 1.4
-    const wiggle = Math.sin((i + seed % 10) * 0.9) * 0.16 + Math.sin(i * 1.7 + seed % 7) * 0.1
-    const v = Math.max(0.05, Math.min(0.95, 0.5 + trend + wiggle * 0.5))
-    const x = sx + progress * sw
-    const y = sy - (v - 0.5) * sh * 2
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
+  // ---------- seven days of real hourly closes ----------
+  // The sparkline that used to sit here was a seeded sine wave with no caption,
+  // next to real figures, in the one artifact of this site people post publicly.
+  // This is CoinGecko's sparkline_in_7d, and it is labelled seven days because
+  // that is the window it covers — the big percentage above it is 24h or 30d,
+  // so an unlabelled line here would be read as the wrong period.
+  const history = coin.history7d
+  if (history && history.length >= 8) {
+    const points =
+      typeof coin.current_price === 'number' && coin.current_price > 0
+        ? [...history, coin.current_price]
+        : history
+
+    let lo = Infinity
+    let hi = -Infinity
+    for (const p of points) {
+      if (p < lo) lo = p
+      if (p > hi) hi = p
+    }
+
+    if (Number.isFinite(lo) && Number.isFinite(hi)) {
+      const span = hi - lo || Math.abs(hi) || 1
+      const cx = 392
+      const cw = 320
+      const cyTop = 456
+      const ch = 38
+
+      ctx.save()
+      // Right-aligned to the end of its own line. On the left it sat under the
+      // descender of the giant percentage; sharing a baseline with "LAST 24
+      // HOURS" made the two read as one phrase. The far end is clear of both.
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'
+      ctx.font = font('600 16px')
+      ctx.textAlign = 'right'
+      ctx.fillText('7 DAYS', cx + cw, 444)
+      ctx.textAlign = 'left'
+
+      const px = (i: number) => cx + (i / (points.length - 1)) * cw
+      const py = (v: number) => cyTop + ch - ((v - lo) / span) * ch
+
+      // Direction over this window, not the card's headline period.
+      const rising = points[points.length - 1] >= points[0]
+      const lineColor = rising ? '#4ade80' : '#f87171'
+
+      ctx.beginPath()
+      points.forEach((v, i) => (i === 0 ? ctx.moveTo(px(i), py(v)) : ctx.lineTo(px(i), py(v))))
+      ctx.lineTo(cx + cw, cyTop + ch)
+      ctx.lineTo(cx, cyTop + ch)
+      ctx.closePath()
+      const fill = ctx.createLinearGradient(0, cyTop, 0, cyTop + ch)
+      fill.addColorStop(0, rising ? 'rgba(74,222,128,0.30)' : 'rgba(248,113,113,0.30)')
+      fill.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = fill
+      ctx.fill()
+
+      ctx.beginPath()
+      points.forEach((v, i) => (i === 0 ? ctx.moveTo(px(i), py(v)) : ctx.lineTo(px(i), py(v))))
+      ctx.strokeStyle = lineColor
+      ctx.lineWidth = 2.5
+      ctx.lineJoin = 'round'
+      ctx.lineCap = 'round'
+      ctx.stroke()
+      ctx.restore()
+    }
   }
-  ctx.stroke()
-  ctx.restore()
 
   // ---------- holographic border + sheen ----------
   const holo = ctx.createLinearGradient(0, 0, W, H)

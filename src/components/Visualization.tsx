@@ -1767,6 +1767,63 @@ export function Visualization({
           ctx.fill()
         }
       }
+
+      // Order-flow ring: how many of the last 24h of trades went each way.
+      //
+      // The rim above already says which way the PRICE moved. This says which
+      // way the TRADES went, and the two disagree more often than the market
+      // would like: a planet can burn green on its rim while its ring is two
+      // thirds red, which is a token being sold into its own rally.
+      //
+      // Counts, not dollars — see TokenFlow in prices.ts. Drawn last so that
+      // none of the selection decorations above can paint over it: the cyan
+      // selection ring pulses through this exact band, and a signal that
+      // vanishes when you click the planet is worse than no signal.
+      const flow24 = coin.flow?.h24
+      if (!simplifyForDrag && flow24 && r > 16) {
+        const total = flow24.buys + flow24.sells
+        if (total > 0) {
+          const buyShare = Math.max(0, Math.min(1, flow24.buys / total))
+          const ringR = drawRadius + 7
+          const TAU = Math.PI * 2
+          const start = -Math.PI / 2
+          const sweepBuy = buyShare * TAU
+          const sweepSell = TAU - sweepBuy
+
+          // A gap at each junction so the two arcs stay separate colours
+          // rather than blending into one muddy band at small sizes.
+          //
+          // It has to be capped against the SHORTER arc. Each arc is trimmed
+          // at both ends, so a gap wider than half an arc gives it a negative
+          // sweep — and canvas does not then draw nothing. arc() adds 2π
+          // whenever the end precedes the start, so the arc silently sweeps
+          // almost the whole circle the wrong way. With a fixed gap of 0.12
+          // that inverted every token past ~96% one-sided: a pool with 50
+          // buys and 1 sell painted its red sliver over the entire ring and
+          // showed a near-solid sell wall for a token that was almost
+          // entirely bought.
+          const gap = Math.min(0.12, Math.min(sweepBuy || TAU, sweepSell || TAU) / 3)
+
+          ctx.lineWidth = 2.5
+          ctx.lineCap = 'butt'
+          ctx.globalAlpha = 0.9
+
+          if (buyShare > 0) {
+            ctx.strokeStyle = '#34d399' // emerald-400, matching the panel
+            ctx.beginPath()
+            ctx.arc(x, y, ringR, start + gap, start + sweepBuy - gap)
+            ctx.stroke()
+          }
+          if (buyShare < 1) {
+            ctx.strokeStyle = '#f87171' // red-400
+            ctx.beginPath()
+            ctx.arc(x, y, ringR, start + sweepBuy + gap, start + TAU - gap)
+            ctx.stroke()
+          }
+
+          ctx.globalAlpha = 1
+        }
+      }
     })
 
     // Clean paused indicator — only visible when physics paused.

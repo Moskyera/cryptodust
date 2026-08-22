@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
+import { FlowPanel } from './components/FlowPanel'
+import { PriceChart } from './components/PriceChart'
 import { usePrices, formatCompactPrice, coinSourceLink, type TokenPrice } from './lib/prices'
 import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, buildBattlefieldCard, copyBattlefieldCard, downloadBattlefieldCard, shareBattlefieldCard, type CardPeriod } from './lib/shareCard'
 import {
@@ -9,72 +11,6 @@ import {
 import { isPushSupported, getPushSubscription, enablePushAlerts, disablePushAlerts, syncPushPrefs } from './lib/push'
 
 // =====================================================
-// Mini Sparkline (Visual & UX Polish — Desktop Details)
-// Generates a beautiful plausible 24h trend line from the 24h% change.
-// No extra network calls. Looks organic and premium.
-// =====================================================
-function MiniSparkline({ coin, width = 260, height = 52 }: { coin: any; width?: number; height?: number }) {
-  if (!coin) return null
-
-  const chg = coin.price_change_percentage_24h || 0
-  const points = 19
-  const vals: number[] = []
-
-  // Seeded "random" using symbol for stable but varied shape per coin
-  let seed = 0
-  for (let i = 0; i < coin.symbol.length; i++) seed += coin.symbol.charCodeAt(i)
-
-  for (let i = 0; i < points; i++) {
-    // Base trend shape: upward or downward bias based on real 24h change
-    const progress = i / (points - 1)
-    const trend = (chg / 100) * 1.6 * (progress - 0.5) * 2   // stronger curve when big move
-
-    // Nice organic wiggles (seeded)
-    const w1 = Math.sin((i + seed * 0.7) * 0.9) * 0.6
-    const w2 = Math.sin((i * 1.7 + seed) * 0.6) * 0.45
-    const noise = ((seed * (i + 3)) % 17) / 17 - 0.5
-
-    // Combine + clamp
-    let v = 0.5 + trend * 0.65 + (w1 + w2) * 0.22 + noise * 0.11
-    v = Math.max(0.06, Math.min(0.94, v))
-    vals.push(v)
-  }
-
-  // Build SVG path
-  const stepX = width / (points - 1)
-  let d = ''
-  vals.forEach((v, i) => {
-    const px = i * stepX
-    const py = height - v * height
-    d += (i === 0 ? `M ${px} ${py}` : ` L ${px} ${py}`)
-  })
-
-  const isUp = chg >= 0
-  const stroke = isUp ? '#4ade80' : '#f87171'
-  const fillGradId = `spark-${coin.id || coin.symbol}`
-
-  return (
-    <svg width={width} height={height} className="block" style={{ marginTop: 2 }}>
-      <defs>
-        <linearGradient id={fillGradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={isUp ? '#4ade80' : '#f87171'} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={isUp ? '#4ade80' : '#f87171'} stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-
-      {/* Subtle area fill */}
-      <path d={`${d} L ${width} ${height} L 0 ${height} Z`} fill={`url(#${fillGradId})`} />
-
-      {/* Main trend stroke */}
-      <path d={d} fill="none" stroke={stroke} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
-
-      {/* Tiny dots at ends for polish */}
-      <circle cx="2" cy={height - vals[0] * height} r="1.6" fill={stroke} />
-      <circle cx={width - 2} cy={height - vals[vals.length - 1] * height} r="1.6" fill={stroke} />
-    </svg>
-  )
-}
-
 // Known PulseChain token identifiers (used for the "PulseChain" filter)
 // Includes the user's curated list + common ecosystem tokens
 const PULSECHAIN_IDS = new Set([
@@ -454,6 +390,22 @@ export default function App() {
     ctx.fillStyle = '#0a0a12'
     ctx.fillRect(0, 0, out.width, out.height)
     ctx.drawImage(src, 0, 0)
+
+    // The order-flow ring travels with the picture; the panel that explains it
+    // does not. Somebody who receives this PNG in a Telegram group sees a
+    // green/red arc around each planet and no way to know it is a count of
+    // trades in one pool rather than a share of dollar volume, so the caption
+    // goes into the export itself.
+    if (currentPageTokens.some(t => t.flow?.h24)) {
+      const pad = Math.round(out.width * 0.013)
+      const size = Math.max(11, Math.round(out.width * 0.0105))
+      ctx.font = `${size}px Inter, system-ui, sans-serif`
+      ctx.textAlign = 'right'
+      ctx.textBaseline = 'bottom'
+      ctx.fillStyle = 'rgba(156,163,175,0.75)'
+      ctx.fillText('Ring: buy/sell trade count, deepest pool', out.width - pad, out.height - pad)
+    }
+
     return out
   }
 
@@ -802,9 +754,21 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-[10px] border border-emerald-500/25">
-              <div className="live-dot w-1.5 h-1.5 bg-emerald-400 rounded-full" />
-              <span className="text-emerald-400 font-semibold tracking-[1.2px]">LIVE</span>
+            {/* Driven by the feed, not hardcoded. It used to be unconditional
+                JSX, so it went on claiming LIVE while the toast underneath said
+                the app was serving cached values. */}
+            <div
+              className={`flex items-center gap-x-1.5 px-2.5 py-1 rounded-full text-[10px] border ${
+                error
+                  ? 'bg-amber-500/10 border-amber-500/25'
+                  : 'bg-emerald-500/10 border-emerald-500/25'
+              }`}
+              title={error ? 'The last refresh failed, showing the previous values' : 'Refreshed from the feed'}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${error ? 'bg-amber-400' : 'live-dot bg-emerald-400'}`} />
+              <span className={`font-semibold tracking-[1.2px] ${error ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {error ? 'CACHED' : 'LIVE'}
+              </span>
             </div>
           </div>
 
@@ -1012,9 +976,15 @@ export default function App() {
               <span className="font-semibold tracking-[-0.8px] text-lg">Crypto</span>
               <span className="wordmark-dust font-bold tracking-[-0.8px] text-lg">DUST</span>
             </div>
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 flex-shrink-0">
-              <span className="live-dot w-1 h-1 bg-emerald-400 rounded-full" />
-              <span className="text-emerald-400 text-[8px] font-semibold tracking-[1px]">LIVE</span>
+            <span
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border flex-shrink-0 ${
+                error ? 'bg-amber-500/10 border-amber-500/25' : 'bg-emerald-500/10 border-emerald-500/25'
+              }`}
+            >
+              <span className={`w-1 h-1 rounded-full ${error ? 'bg-amber-400' : 'live-dot bg-emerald-400'}`} />
+              <span className={`text-[8px] font-semibold tracking-[1px] ${error ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {error ? 'CACHED' : 'LIVE'}
+              </span>
             </span>
           </div>
 
@@ -1793,7 +1763,7 @@ export default function App() {
 
                 {/* Momentum chips — same language as desktop */}
                 <div className="flex gap-1.5 mb-3">
-                  {([['1H', selectedCoin.price_change_percentage_1h], ['24H', selectedCoin.price_change_percentage_24h], ['7D', selectedCoin.price_change_percentage_7d], ['30D', selectedCoin.price_change_percentage_30d]] as Array<[string, number | undefined]>)
+                  {([['1H', selectedCoin.price_change_percentage_1h], ['24H', selectedCoin.price_change_percentage_24h], ['7D', selectedCoin.price_change_percentage_7d], ['30D', selectedCoin.price_change_percentage_30d], ['1Y', selectedCoin.price_change_percentage_1y]] as Array<[string, number | undefined]>)
                     .filter(([, v]) => v !== undefined && v !== null)
                     .map(([label, v]) => {
                       const val = v as number
@@ -1812,6 +1782,7 @@ export default function App() {
                 {/* Today's low-high position */}
                 {(selectedCoin.high_24h ?? 0) > (selectedCoin.low_24h ?? 0) && (selectedCoin.low_24h ?? 0) > 0 && (
                   <div className="mb-4">
+                    <div className="text-[9px] text-[#6b7280] tracking-[0.8px] mb-1.5">24H RANGE</div>
                     <div className="meter-bar range">
                       <div
                         className="meter-dot"
@@ -1822,6 +1793,40 @@ export default function App() {
                       <span>L {formatPrice(selectedCoin.low_24h)}</span>
                       <span>H {formatPrice(selectedCoin.high_24h)}</span>
                     </div>
+                  </div>
+                )}
+
+                {/* Everything below was desktop-only until now. The phone sheet
+                    was reading the same coin from the same data and showing less
+                    of it, which is backwards: the phone is where people actually
+                    look a coin up. */}
+                {(selectedCoin.ath ?? 0) > 0 && (
+                  <div className="mb-4">
+                    <div className="flex justify-between text-[9px] text-[#6b7280] tracking-[0.8px] mb-1.5">
+                      <span>FROM ATH</span>
+                      <span className="tabular-nums">{(selectedCoin.ath_change_percentage ?? 0).toFixed(0)}%</span>
+                    </div>
+                    <div className="meter-bar track">
+                      <div className="meter-fill" style={{ width: `${Math.min(100, Math.max(2, (selectedCoin.current_price / (selectedCoin.ath as number)) * 100))}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-[#9ca3af] mt-1.5 tabular-nums">
+                      <span>{formatPrice(selectedCoin.ath)} peak</span>
+                      <span>{selectedCoin.ath_date ? new Date(selectedCoin.ath_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}</span>
+                    </div>
+                  </div>
+                )}
+
+                {selectedCoin.history7d && selectedCoin.history7d.length >= 8 && (
+                  <div className="mb-4 pt-3 border-t border-white/[0.07]">
+                    <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
+                      <span className="tracking-[1px]">7D PRICE</span>
+                      <span className="text-[9px]">hourly closes</span>
+                    </div>
+                    <PriceChart
+                      history={selectedCoin.history7d}
+                      currentPrice={selectedCoin.current_price}
+                      height={52}
+                    />
                   </div>
                 )}
               </>
@@ -1869,6 +1874,13 @@ export default function App() {
                     </span>
                   </div>
                 )}
+                <FlowPanel
+                  compact
+                  flow={selectedCoin.flow}
+                  change24h={selectedCoin.price_change_percentage_24h}
+                  dexSource={selectedCoin.flowSource}
+                  poolShare={selectedCoin.flowPoolShare}
+                />
               </div>
             )}
 
@@ -2096,14 +2108,20 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* Mini Sparkline — desktop visual polish (idea 4) */}
-                    <div className="pt-2 pb-1 border-t border-white/[0.07]">
-                      <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
-                        <span className="tracking-[1px]">24H TREND</span>
-                        <span title="Shape generated from the 24h change — not tick data">simulated</span>
+                    {selectedCoin.history7d && selectedCoin.history7d.length >= 8 && (
+                      <div className="pt-2 pb-1 border-t border-white/[0.07]">
+                        <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
+                          <span className="tracking-[1px]">7D PRICE</span>
+                          <span className="text-[9px]">hourly closes</span>
+                        </div>
+                        <PriceChart
+                          history={selectedCoin.history7d}
+                          currentPrice={selectedCoin.current_price}
+                          width={288}
+                          height={56}
+                        />
                       </div>
-                      <MiniSparkline coin={selectedCoin} width={288} height={52} />
-                    </div>
+                    )}
 
                     {/* Market cap when it is a real circulating figure. For most PulseChain
                         tokens no source has circulating supply, so DexScreener's fully
@@ -2157,6 +2175,13 @@ export default function App() {
                           </span>
                         </div>
                       )}
+
+                      <FlowPanel
+                        flow={selectedCoin.flow}
+                        change24h={selectedCoin.price_change_percentage_24h}
+                        dexSource={selectedCoin.flowSource}
+                        poolShare={selectedCoin.flowPoolShare}
+                      />
                     </div>
 
                     <a

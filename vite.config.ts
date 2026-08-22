@@ -4,9 +4,70 @@ import tailwindcss from 'tailwindcss'
 import autoprefixer from 'autoprefixer'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * Serves /api/token-addresses locally.
+ *
+ * Every other /api route is proxied to production below, which works because
+ * those functions are already deployed there. A function that only exists in
+ * the working tree is not, so without this it would 404 in dev and the flow
+ * rings would silently be missing from the ecosystem tabs on the very machine
+ * they are being built on.
+ *
+ * configureServer runs in dev only. The production build never sees this.
+ */
+function devTokenAddresses() {
+  return {
+    name: 'dev-token-addresses',
+    configureServer(server: any) {
+      server.middlewares.use('/api/token-addresses', async (req: any, res: any) => {
+        // Hand-parsed rather than via URL/URLSearchParams: this file is compiled
+        // under tsconfig.node.json, which carries no DOM lib and the project has
+        // no @types/node, so both of those are types here and not values. Using
+        // them compiles in the editor and then fails `tsc -b`, which is the
+        // first half of the build script, so the deploy dies before Vite runs.
+        const qs = (req.url || '').split('?')[1] || ''
+        const query: Record<string, string> = {}
+        for (const part of qs.split('&')) {
+          if (!part) continue
+          const eq = part.indexOf('=')
+          const k = eq < 0 ? part : part.slice(0, eq)
+          const v = eq < 0 ? '' : part.slice(eq + 1)
+          query[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' '))
+        }
+        let handler: any
+        try {
+          handler = (await server.ssrLoadModule('/api/token-addresses.ts')).default
+        } catch (error) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(error) }))
+          return
+        }
+        try {
+        await handler(
+          { method: req.method, query },
+          {
+            status(code: number) { res.statusCode = code; return this },
+            setHeader(k: string, v: string) { res.setHeader(k, v); return this },
+            send(body: string) { res.end(body) },
+            json(body: unknown) {
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify(body))
+            },
+          }
+        )
+        } catch (error) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(error) }))
+        }
+      })
+    },
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    devTokenAddresses(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',

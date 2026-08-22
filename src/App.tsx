@@ -1936,7 +1936,7 @@ export default function App() {
         {/* Details Panel - Opens automatically when you select a planet.
             Hidden on mobile to not block the visualization. */}
         {selectedCoin && (
-          <div className={`${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'panel-up' : 'panel-down'} pop-in absolute top-4 right-4 z-50 w-[336px] rounded-3xl overflow-hidden hidden md:block backdrop-blur-2xl`}>
+          <div className={`${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'panel-up' : 'panel-down'} pop-in absolute top-4 right-4 z-50 w-[336px] rounded-3xl overflow-y-auto overflow-x-hidden max-h-[calc(100%-2rem)] custom-scrollbar hidden md:block backdrop-blur-2xl`}>
             <div
               className="relative px-5 pt-4 pb-4 border-b border-white/[0.07] overflow-hidden"
               style={{ background: `radial-gradient(340px 160px at 80% -30%, ${(selectedCoin.price_change_percentage_24h || 0) >= 0 ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.13)'}, transparent 70%)` }}

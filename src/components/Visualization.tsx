@@ -1120,14 +1120,22 @@ export function Visualization({
       // halo actually falls off instead of ending.
       if (!simplifyForDrag && isGreenGlower && allowHeavyEffects(coin.id) && r > 16) {
         const phase = b.restlessness * 41.7
-        const breathe = Math.sin(time / 1100 + phase) * 0.08 + 1
-        const inner = r * 0.94
-        const outer = r * 1.5 * breathe
+        const breathe = Math.sin(time / 1100 + phase) * 0.06 + 1
+        // Begins at the disc edge and reaches twice the planet's radius. The
+        // first version started inside the disc and died at 1.5r, which put a
+        // saturated band right on the rim and ended it quickly — it read as a
+        // thick green collar drawn around the planet rather than light coming
+        // off it, and it buried the planet's own rim. Lower at the edge, longer
+        // tail: the rim stays visible and the glow falls away.
+        const inner = r * 0.98
+        const outer = r * 2 * breathe
         const rgb = change > 0 ? '74, 222, 128' : '248, 113, 113'
 
         const moverGlow = ctx.createRadialGradient(x, y, inner, x, y, outer)
-        moverGlow.addColorStop(0, `rgba(${rgb}, 0.5)`)
-        moverGlow.addColorStop(0.35, `rgba(${rgb}, 0.22)`)
+        moverGlow.addColorStop(0, `rgba(${rgb}, 0.3)`)
+        moverGlow.addColorStop(0.12, `rgba(${rgb}, 0.24)`)
+        moverGlow.addColorStop(0.34, `rgba(${rgb}, 0.11)`)
+        moverGlow.addColorStop(0.62, `rgba(${rgb}, 0.04)`)
         moverGlow.addColorStop(1, `rgba(${rgb}, 0)`)
         ctx.fillStyle = moverGlow
         ctx.beginPath()
@@ -1144,13 +1152,15 @@ export function Visualization({
         // to catch the eye — but a sixth of the old amplitude, and out of step
         // with its neighbours.
         const goldPhase = b.restlessness * 27.3
-        const goldBreathe = Math.sin(t / 820 + goldPhase) * 0.11 + 1
-        const goldInner = r * 0.9
-        const goldOuter = r * 1.85 * goldBreathe
+        const goldBreathe = Math.sin(t / 820 + goldPhase) * 0.08 + 1
+        const goldInner = r * 0.98
+        const goldOuter = r * 2.4 * goldBreathe
 
         const extremeGlow = ctx.createRadialGradient(x, y, goldInner, x, y, goldOuter)
-        extremeGlow.addColorStop(0, 'rgba(253, 224, 71, 0.55)')
-        extremeGlow.addColorStop(0.3, 'rgba(251, 191, 36, 0.3)')
+        extremeGlow.addColorStop(0, 'rgba(253, 224, 71, 0.34)')
+        extremeGlow.addColorStop(0.12, 'rgba(253, 224, 71, 0.27)')
+        extremeGlow.addColorStop(0.36, 'rgba(251, 191, 36, 0.13)')
+        extremeGlow.addColorStop(0.66, 'rgba(251, 191, 36, 0.04)')
         extremeGlow.addColorStop(1, 'rgba(251, 191, 36, 0)')
         ctx.fillStyle = extremeGlow
         ctx.beginPath()
@@ -1191,6 +1201,34 @@ export function Visualization({
         ctx.beginPath()
         ctx.arc(x, y, r * 2.1, 0, Math.PI * 2)
         ctx.fill()
+      }
+
+      /**
+       * Orbital ring for coins up more than 50%.
+       *
+       * Split in two on purpose. It used to be drawn as one whole ellipse on
+       * top of everything, which is why it never sat on the planet: a ring
+       * around a sphere passes BEHIND it on the far side, and drawing the far
+       * half over the disc turns it into a sticker laid across the face. The
+       * far half goes down here, before the planet; the near half goes on after
+       * it, and both land before the labels so the ticker is no longer crossed
+       * out by it.
+       */
+      const showOrbit = !simplifyForDrag && change > 50 && allowHeavyEffects(coin.id) && r > 26
+      const orbit = showOrbit
+        ? { cy: y + r * 0.08, rx: r * 1.62, ry: r * 0.3, tilt: -0.4, w: Math.max(1.2, r * 0.055),
+            color: isGainer ? '#86efac' : '#fda4af' }
+        : null
+
+      if (orbit) {
+        // Dimmer than the near half: this arc is on the far side of the planet.
+        ctx.globalAlpha = 0.3
+        ctx.strokeStyle = orbit.color
+        ctx.lineWidth = orbit.w
+        ctx.beginPath()
+        ctx.ellipse(x, orbit.cy, orbit.rx, orbit.ry, orbit.tilt, Math.PI, Math.PI * 2)
+        ctx.stroke()
+        ctx.globalAlpha = 1
       }
 
       // The logo IS the planet: one pre-composed sphere sprite per coin
@@ -1258,6 +1296,16 @@ export function Visualization({
         ctx.beginPath()
         ctx.arc(x, y, drawRadius * 1.35, 0, Math.PI * 2)
         ctx.fill()
+        ctx.globalAlpha = 1
+      }
+
+      if (orbit) {
+        ctx.globalAlpha = 0.6
+        ctx.strokeStyle = orbit.color
+        ctx.lineWidth = orbit.w
+        ctx.beginPath()
+        ctx.ellipse(x, orbit.cy, orbit.rx, orbit.ry, orbit.tilt, 0, Math.PI)
+        ctx.stroke()
         ctx.globalAlpha = 1
       }
 
@@ -1366,16 +1414,6 @@ export function Visualization({
         ctx.lineWidth = Math.max(2.5, r * 0.06)
         ctx.strokeText(coin.symbol, x, bandCenterY - r * 0.11)
         ctx.fillText(coin.symbol, x, bandCenterY - r * 0.11)
-      }
-
-      // Attractive rings (especially visible on larger planets) — only for >50% up (as requested)
-      if (!simplifyForDrag && change > 50 && allowHeavyEffects(coin.id) && r > 26) {
-        ctx.globalAlpha = 0.55
-        ctx.strokeStyle = isGainer ? '#86efac' : '#fda4af'
-        ctx.lineWidth = r * 0.09
-        ctx.beginPath()
-        ctx.ellipse(x, y + r * 0.08, r * 1.65, r * 0.32, -0.4, 0, Math.PI * 2)
-        ctx.stroke()
       }
 
       ctx.globalAlpha = 1.0

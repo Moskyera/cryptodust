@@ -120,6 +120,12 @@ export interface TokenPrice {
    */
   dexOnly?: boolean
   /**
+   * Set when neither source can honestly describe the coin's last 24 hours.
+   * Such a coin is removed before render rather than shown with a percentage
+   * we know to be wrong.
+   */
+  unpriceable?: boolean
+  /**
    * Real hourly closes for the last seven days, oldest first — CoinGecko's
    * sparkline_in_7d, 168 points.
    *
@@ -805,6 +811,13 @@ const FLOW_MIN_TRADES = 15
 const FLOW_MIN_VOLUME_SHARE = 0.1
 
 /**
+ * A pool must hold at least this much before its price is allowed to override
+ * an aggregator's. Deliberately low: PulseChain pools are small in dollar terms
+ * and the alternative on that tab is a figure that is wrong by 337x.
+ */
+const PRICE_AUTHORITY_MIN_LIQUIDITY_USD = 250
+
+/**
  * What fraction of the token's 24h volume ran through this pool.
  *
  * `tokenVolume24` MUST be a figure from somewhere other than this pair. Passing
@@ -1317,10 +1330,27 @@ async function resolveChainTokens(ids: string[], chain: string): Promise<ChainLo
  * Fails closed. Any error anywhere leaves the tab exactly as it was, which the
  * UI already renders correctly as "no flow data for this token".
  */
+/**
+ * When `priceAuthority` is set, the pool's own price and 24h move replace
+ * CoinGecko's for tokens whose pool is deep enough to be their real market.
+ *
+ * Only PulseChain passes this, and it is not a preference — it is a measured
+ * repair. On the day this was written CoinGecko had 26 of 110 PulseChain coins
+ * showing moves between +35,000% and +45,000%, and 32 of 103 priced more than
+ * 5x away from their own pool. The error was systematic: PINU, URMOM, PUPPERS,
+ * BLAST and WHETH were all off by almost exactly the same factor, ~337x, which
+ * is a broken conversion upstream rather than a market.
+ *
+ * The other three tabs measured clean — zero wild moves, and price disagreement
+ * on 1 to 5 coins out of ~86, which look like genuinely thin bridged pools.
+ * Overriding there would replace a good aggregate with a worse sample, so they
+ * stay on CoinGecko.
+ */
 async function backfillEcosystemFlow(
   tokens: TokenPrice[],
   chain: string,
-  known: ChainTokenInfo
+  known: ChainTokenInfo,
+  priceAuthority = false
 ): Promise<number> {
   if (tokens.length === 0) return 0
 
@@ -1381,12 +1411,43 @@ async function backfillEcosystemFlow(
   for (const [key, pair] of deepest) {
     const token = byAddress.get(key)
     if (!token) continue
-    const flow = readFlow(pair)
-    if (!flow) continue
     const pairVolume24 = pair.volume?.h24 ?? 0
     // total_volume is CoinGecko's here and stays CoinGecko's: this function
     // never writes it, so it is a genuinely independent denominator.
     const share = poolVolumeShare(pairVolume24, token.total_volume)
+
+    if (priceAuthority) {
+      const pairPrice = parseFloat(pair.priceUsd)
+      const liquidity = pair.liquidity?.usd ?? 0
+      // A pool has to be a market before it is allowed to set a price. Without
+      // this a dead pool holding a few dollars could overwrite a good figure.
+      if (pairPrice > 0 && liquidity >= PRICE_AUTHORITY_MIN_LIQUIDITY_USD) {
+        // How far the aggregator was from the pool. Worth keeping, because a
+        // large gap also condemns the 24h change: that figure is computed from
+        // the same broken series as the price.
+        const priceGap = Math.max(pairPrice / token.current_price, token.current_price / pairPrice)
+
+        token.current_price = pairPrice
+        if (typeof pair.priceChange?.h24 === 'number') {
+          token.price_change_percentage_24h = pair.priceChange.h24
+        } else if (Number.isFinite(priceGap) && priceGap > 5) {
+          // The pool priced it but has no 24h move to report, and CoinGecko's
+          // is derived from a series that was out by more than 5x. Neither
+          // source can describe this coin's day, so it is marked and dropped
+          // rather than shown with an invented or a known-false percentage —
+          // the same rule this file already applies to an unpriced DEX stub.
+          token.unpriceable = true
+        }
+        if ((token.liquidity ?? 0) <= 0) token.liquidity = liquidity
+        if ((token.fdv ?? 0) <= 0 && (pair.fdv ?? pair.marketCap ?? 0) > 0) {
+          token.fdv = pair.fdv ?? pair.marketCap
+        }
+        if (!token.dexSource) token.dexSource = pair.dexId || 'dexscreener'
+      }
+    }
+
+    const flow = readFlow(pair)
+    if (!flow) continue
     if (!flowIsRepresentative(flow, share)) continue
     token.flow = flow
     token.flowSource = pair.dexId || undefined
@@ -1586,12 +1647,30 @@ async function fetchAllCoins(): Promise<MarketData> {
     await backfillFromCoinPaprika(limitedPulseTail)
     await backfillFromDexScreener(limitedPulseTail)
 
+    // The pass above only knows the 35 hand-mapped addresses. This one covers
+    // the whole tab from the lookup already done for the visitor filter, and it
+    // is where the CoinGecko price breakage actually gets repaired: 32 of 103
+    // PulseChain coins were priced more than 5x away from their own pool, and
+    // 26 of them were showing moves above +35,000%.
+    const repaired = await backfillEcosystemFlow(
+      limitedPulseTail,
+      'pulsechain',
+      pulseKnown.info,
+      true
+    )
+    if (repaired > 0) {
+      console.log(`[CryptoDUST] PulseChain: ${repaired} token(s) priced from their own pool.`)
+    }
+
     // A DEX-only stub is only real once DexScreener has priced it. If the call
     // failed or the pool vanished, drop it rather than render a $0 planet.
     for (let i = limitedPulseTail.length - 1; i >= 0; i--) {
       const t = limitedPulseTail[i]
       if (DEX_ONLY_PULSE_IDS.has(t.id) && !(t.current_price > 0)) {
         console.warn(`[CryptoDUST] ${t.symbol} has no live DexScreener price this cycle, omitting it.`)
+        limitedPulseTail.splice(i, 1)
+      } else if (t.unpriceable) {
+        console.warn(`[CryptoDUST] ${t.symbol}: no trustworthy 24h move from either source, omitting it.`)
         limitedPulseTail.splice(i, 1)
       }
     }

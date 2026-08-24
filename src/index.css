@@ -968,6 +968,20 @@ canvas {
   to { transform: translateX(320%); }
 }
 
+/* A tab whose coins are still being assembled. Dimmed rather than disabled —
+   it is selectable on purpose, and choosing it explains what is being waited
+   on. The breathing is slow and small: this sits in a row of tabs the reader is
+   scanning, and anything faster would pull the eye off the ones that work. */
+.tab-pending {
+  opacity: 0.5;
+  animation: tabPending 2.4s ease-in-out infinite;
+}
+
+@keyframes tabPending {
+  0%, 100% { opacity: 0.42; }
+  50% { opacity: 0.72; }
+}
+
 /* =====================================================
    Scrollbars
    ===================================================== */

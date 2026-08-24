@@ -1481,6 +1481,24 @@ const EXTRA_ECOSYSTEMS = [
   { key: 'bnb', label: 'BNB', category: 'binance-smart-chain', limit: 100, chain: 'bsc', native: 'BNB', nativeIsOwn: true },
 ]
 
+/**
+ * Every chain tab this app intends to build, in the order they appear.
+ *
+ * Exported so the tab strip can be drawn complete on the first paint. The tabs
+ * used to be derived from the sections that had actually arrived, which was
+ * fine while nothing rendered until everything was ready — but now that the top
+ * 500 go up after one round trip, deriving them meant three tabs appearing ten
+ * seconds later and the strip growing under the reader's hand.
+ *
+ * What is intended and what has arrived are different questions, so they now
+ * have different answers: this list draws the strip, and `sections` decides
+ * which of them have coins behind them yet.
+ */
+export const ECOSYSTEM_TABS: Array<{ key: string; label: string }> = [
+  { key: 'pulsechain', label: 'PulseChain' },
+  ...EXTRA_ECOSYSTEMS.map(e => ({ key: e.key, label: e.label })),
+]
+
 // =====================================================
 // KEEPING EACH CHAIN TAB TO ITS OWN COINS
 //

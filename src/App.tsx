@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react'
 import { Visualization } from './components/Visualization'
 import { FlowPanel } from './components/FlowPanel'
 import { CoinPriceChart } from './components/CoinPriceChart'
-import { usePrices, getCoinHistory, formatCompactPrice, coinSourceLink, type TokenPrice } from './lib/prices'
+import { TabLoading } from './components/TabLoading'
+import { usePrices, getCoinHistory, formatCompactPrice, coinSourceLink, ECOSYSTEM_TABS, type TokenPrice } from './lib/prices'
 import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, buildBattlefieldCard, copyBattlefieldCard, downloadBattlefieldCard, shareBattlefieldCard, type CardPeriod } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
@@ -574,18 +575,29 @@ export default function App() {
   // Pages = five top-500 slices + one galaxy tab per ecosystem section
   // (PulseChain, Base, Solana, ... — whatever prices.ts delivered).
   const pageDefs = React.useMemo(() => {
-    const defs: Array<{ label: string; start: number; end: number; key?: string }> = []
+    const defs: Array<{ label: string; start: number; end: number; key?: string; pending?: boolean }> = []
     for (let i = 0; i < MAIN_PAGES; i++) {
       const start = i * PAGE_SIZE
       const end = Math.max(start, Math.min(start + PAGE_SIZE, Math.min(tokens.length, MAIN_SECTION_SIZE)))
       defs.push({ label: `${start}–${end}`, start, end: start + PAGE_SIZE })
     }
-    for (const s of sections) {
-      defs.push({ label: s.label, start: s.start, end: s.end, key: s.key })
+    // Every chain tab is drawn from the first paint, whether its coins have
+    // arrived or not. Deriving the strip from `sections` alone meant three tabs
+    // appearing ten seconds after the rest of the page and the row growing under
+    // the reader's hand. A tab with no section yet is marked pending: it is
+    // still selectable, and selecting it shows what is being waited on.
+    for (const tab of ECOSYSTEM_TABS) {
+      const s = sections.find(x => x.key === tab.key)
+      if (s) defs.push({ label: s.label, start: s.start, end: s.end, key: s.key })
+      else defs.push({ label: tab.label, start: 0, end: 0, key: tab.key, pending: true })
     }
-    // Before the first fetch resolves there are no sections yet — keep a
-    // placeholder PulseChain tab so the layout doesn't jump.
-    if (sections.length === 0) defs.push({ label: 'PulseChain', start: MAIN_SECTION_SIZE, end: Infinity, key: 'pulsechain' })
+    // Anything the build delivered that this list did not anticipate still gets
+    // a tab, so a new ecosystem cannot go missing by being forgotten here.
+    for (const s of sections) {
+      if (!ECOSYSTEM_TABS.some(t => t.key === s.key)) {
+        defs.push({ label: s.label, start: s.start, end: s.end, key: s.key })
+      }
+    }
     return defs
   }, [tokens.length, sections])
 
@@ -603,6 +615,15 @@ export default function App() {
     ),
     [tokens, activePageDef, applyMarketFilters, isGlobalScope]
   )
+
+  /**
+   * This tab has not been built yet AND there is nothing to put in it.
+   *
+   * The second half matters: search and favourites look across the whole list,
+   * so they can legitimately fill a tab whose own section has not arrived, and
+   * a loader drawn over real results would be a lie about what is on screen.
+   */
+  const showTabLoader = !!activePageDef?.pending && currentPageTokens.length === 0
 
   // No planet scale boosts (as requested).
   const baseScale = isMobile ? 0.45 : 1
@@ -1342,6 +1363,9 @@ export default function App() {
             marketTableOpen={isMarketOpen}
           />
         )}
+        {/* Sits over the empty galaxy, under the tabs panel at z-45 so the
+            reader can still move to another tab while this one is building. */}
+        {!isMobile && showTabLoader && <TabLoading label={activePageDef.label} />}
 
         {/* Desktop-only collapsible Pages/Tabs panel (absolute overlay on viz for max planet space).
             Left-aligned tabs (old position) + centered ▲/▼ arrow to toggle.
@@ -1364,7 +1388,8 @@ export default function App() {
                         isActive
                           ? 'bg-[#67f6ff] text-black border-[#67f6ff] font-semibold'
                           : 'bg-white/[0.04] border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                      } ${def.key === 'pulsechain' && !isActive ? 'glow-special' : ''} ${isGalaxy && def.key !== 'pulsechain' && !isActive ? 'border-violet-400/30 text-violet-200/70' : ''}`}
+                      } ${def.key === 'pulsechain' && !isActive ? 'glow-special' : ''} ${isGalaxy && def.key !== 'pulsechain' && !isActive ? 'border-violet-400/30 text-violet-200/70' : ''} ${def.pending && !isActive ? 'tab-pending' : ''}`}
+                      title={def.pending ? `${def.label} is still being built` : undefined}
                     >
                       {def.label}
                     </button>
@@ -1414,7 +1439,7 @@ export default function App() {
                     <button
                       key={def.key}
                       onClick={() => setCurrentPage(index)}
-                      className={`mseg-item font-semibold ${safePage === index ? 'mseg-item-on' : ''}`}
+                      className={`mseg-item font-semibold ${safePage === index ? 'mseg-item-on' : ''} ${def.pending && safePage !== index ? 'tab-pending' : ''}`}
                     >
                       {def.label}
                     </button>
@@ -1637,7 +1662,9 @@ export default function App() {
               })}
             </div>
 
-            {currentPageTokens.length === 0 && !isLoading && (
+            {showTabLoader && <TabLoading label={activePageDef.label} compact />}
+
+            {currentPageTokens.length === 0 && !isLoading && !showTabLoader && (
               <div className="text-center py-14 px-6">
                 <div className="text-[#6b7280] text-sm mb-1">No coins match your filters</div>
                 <button
@@ -2413,7 +2440,7 @@ export default function App() {
                     safePage === index
                       ? 'bg-[#67f6ff] text-[#0b0b12] border-[#67f6ff] shadow-sm'
                       : 'bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white'
-                  } ${def.key && def.key !== 'pulsechain' && safePage !== index ? 'border-violet-400/30 text-violet-200/80' : ''}`}
+                  } ${def.key && def.key !== 'pulsechain' && safePage !== index ? 'border-violet-400/30 text-violet-200/80' : ''} ${def.pending && safePage !== index ? 'tab-pending' : ''}`}
                 >
                   {def.label}
                 </button>

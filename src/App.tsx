@@ -16,7 +16,12 @@ import { isPushSupported, getPushSubscription, enablePushAlerts, disablePushAler
 const PULSECHAIN_IDS = new Set([
   'pulsechain', 'hex-pulsechain', 'pulsex', 'pulsex-incentive-token', 'pcock',
   'provex', 'ptgc', 'most', 'zerø', 'prvx', 'phex', 'plsx', 'inc',
-  'ehex', 'hex', 'pls', 'phex-pulsechain',
+  // 'hex' and 'ehex' deliberately absent: this set is probed by id AND by
+  // symbol, and the Ethereum HEX matches both, so either one would badge it
+  // PulseChain on a tab where the whole point of showing it is that it is not.
+  // The PulseChain HEX is unaffected — its id 'hex-pulsechain' is on the line
+  // above and also matches the `id.includes('pulse')` test.
+  'pls', 'phex-pulsechain',
   // User's specific curated list
   'dai-on-pulsechain', 'wrapped-pulse-wpls', 'the-grays-currency',
   'pulsechain-peacock', 'most-wanted-2', 'liquid-loans-usdl', 'upx',
@@ -1596,7 +1601,7 @@ export default function App() {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold uppercase tracking-tight">{coin.symbol}</span>
+                        <span className="font-semibold tracking-tight">{coin.symbol}</span>
                         {isFav && <span className="text-amber-400 text-xs leading-none">★</span>}
                       </div>
                       <div className="text-[11px] text-[#9ca3af] truncate">{coin.name}</div>
@@ -1950,7 +1955,7 @@ export default function App() {
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xl tracking-tight uppercase">{selectedCoin.symbol}</span>
+                    <span className="font-semibold text-xl tracking-tight">{selectedCoin.symbol}</span>
                     {/* Skip the chain badge when it just repeats the coin name (BTC → "Bitcoin") */}
                     {!isWhales && getBlockchain(selectedCoin).toLowerCase() !== selectedCoin.name.toLowerCase() && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/[0.08] border border-white/10 text-[#9ca3af] font-medium">
@@ -2455,7 +2460,7 @@ export default function App() {
                           )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-white/90 uppercase">{coin.symbol}</span>
+                              <span className="font-semibold text-white/90">{coin.symbol}</span>
                               {/* Skipped when it just repeats the coin name, e.g. BTC / "Bitcoin" / "Bitcoin" */}
                               {chain.toLowerCase() !== coin.name.toLowerCase() && (
                                 <span className={`text-[8px] px-1.5 py-px rounded font-medium ${isPulseChain ? 'bg-violet-500/20 text-violet-300' : 'bg-white/[0.07] text-[#8b93a1]'}`}>
@@ -2773,7 +2778,11 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  const url = `https://app.rampnow.io/order/quote?dstCurrency=${selectedCoin.symbol}`;
+                  // The ticker the source publishes, not the one we display.
+                  // RampNow has never heard of "eHEX"; sending our own label
+                  // would hand it a currency code that resolves to nothing.
+                  const ticker = selectedCoin.sourceSymbol ?? selectedCoin.symbol;
+                  const url = `https://app.rampnow.io/order/quote?dstCurrency=${ticker}`;
                   window.open(url, '_blank');
                   setShowRampModal(false);
                 }}

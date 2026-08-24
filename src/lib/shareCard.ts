@@ -528,7 +528,12 @@ const WAR_ROSTER = [
 
 export function pickWarTokens(tokens: TokenPrice[]): TokenPrice[] {
   return WAR_ROSTER
-    .map(w => tokens.find(t => t.id === w.id) ?? tokens.find(t => t.symbol.toUpperCase() === w.symbol))
+    // Matched on id only. The symbol fallback that used to sit here was written
+    // when HEX meant one coin; with the Ethereum HEX on the same tab, a cycle
+    // that dropped pHEX would have quietly enlisted the wrong asset into a
+    // PulseChain war report under the label HEX. A missing combatant is filtered
+    // out below, which is the honest outcome.
+    .map(w => tokens.find(t => t.id === w.id))
     .filter(Boolean) as TokenPrice[]
 }
 

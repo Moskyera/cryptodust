@@ -72,6 +72,12 @@ export function flowShare(w: FlowWindow | undefined): number | null {
 export interface TokenPrice {
   id: string
   symbol: string
+  /**
+   * The ticker as the source publishes it, present only where the displayed one
+   * was overridden. Anything handing a ticker to a third party that has to
+   * recognise it — the on-ramp link — needs this rather than our label.
+   */
+  sourceSymbol?: string
   name: string
   current_price: number
   price_change_percentage_24h: number
@@ -170,7 +176,8 @@ function mapCoinGeckoCoin(coin: any): TokenPrice {
 
   return {
     id: coin.id,
-    symbol: coin.symbol.toUpperCase(),
+    symbol: SYMBOL_OVERRIDES[coin.id] ?? coin.symbol.toUpperCase(),
+    sourceSymbol: SYMBOL_OVERRIDES[coin.id] ? coin.symbol.toUpperCase() : undefined,
     name: coin.name,
     current_price: coin.current_price ?? 0,
     // CoinGecko populates fully_diluted_valuation even for the 44 PulseChain tokens
@@ -371,6 +378,24 @@ async function fetchCoinGeckoPage(page: number, perPage = 250): Promise<TokenPri
   }
 }
 
+/**
+ * Ticker shown in place of the one the source reports, keyed by coin id.
+ *
+ * The PulseChain tab carries two coins that both report the ticker HEX, and the
+ * planet band, the hover pill and the list row are the only text either of them
+ * gets — so without this they are two identical labels separated by their price
+ * digits. CoinGecko itself splits them, and says why on the Ethereum one: due to
+ * the price difference, HEX (PulseChain) is tracked separately to avoid
+ * confusion.
+ *
+ * Keyed by id, never by symbol, for the same reason the CoinPaprika map below is:
+ * the symbol is exactly the thing that is ambiguous here. The PulseChain one keeps
+ * the plain ticker because that is the one this site is about.
+ */
+const SYMBOL_OVERRIDES: Record<string, string> = {
+  hex: 'eHEX',
+}
+
 // Special PulseChain tokens we still want to ensure are included
 // (especially native PLS which may not always rank high in the category)
 const SPECIAL_PULSECHAIN_IDS = [
@@ -393,6 +418,9 @@ const SPECIAL_COINS_IDS = [
 // Curated list of PulseChain tokens the user specifically wants to show
 // These are fetched efficiently using one ids= call (very API friendly)
 const CURATED_PULSECHAIN_IDS = [
+  // The Ethereum HEX, on this tab because the owner asked for it beside the
+  // PulseChain one — see PULSE_TAB_BY_CHOICE for what that costs to keep true.
+  'hex',
   'dai-on-pulsechain',
   'wrapped-pulse-wpls',
   'the-grays-currency',
@@ -649,6 +677,14 @@ const PULSECHAIN_TOKEN_ADDRESSES: Record<string, string> = {
   // rpc.pulsechain.com: name "DEV Coin", symbol "DEVC", 18 decimals.
   'devc-pulsechain': '0xA804b9E522A2D1645a19227514CFe856Ad8C2fbC',          // DEVC
   'pulsex': '0x95B303987A60C71504D99Aa1b13B4DA07b0790ab',                  // PLSX
+  // PulseChain is a fork of Ethereum, so this exact string is ALSO the Ethereum
+  // HEX's contract — CoinGecko returns it for coin id `hex` under `ethereum` and
+  // for `hex-pulsechain` under `pulsechain`, byte for byte. Never add a second
+  // key here holding it: this map is fed to DexScreener's pulsechain route, which
+  // answers with the PulseX pool either way, so both ids would take pHEX's price,
+  // liquidity and flow. It would not announce itself — the two prices are 2.46x
+  // apart, well under the 20x that trips the repair branch — and the fast lane's
+  // address -> id inversion would quietly drop whichever id came first.
   'hex-pulsechain': '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39',          // HEX
   'pulsex-incentive-token': '0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d',  // INC
   'axis-alive': '0x8BDB63033b02C15f113De51EA1C3a96Af9e8ecb5',              // AXIS
@@ -743,6 +779,52 @@ export function coinSourceLink(coin: TokenPrice): { url: string; label: string }
 const DEX_ONLY_PULSE_IDS = new Set(DEX_ONLY_PULSE_TOKENS.map(t => t.id))
 
 const DEXSCREENER_BATCH_SIZE = 30
+
+/**
+ * Ids that sit on the PulseChain tab because the owner put them there, not
+ * because they have a contract on the chain. They skip the visiting-token test,
+ * which exists to keep coins off a tab they have no claim to and would otherwise
+ * be right to remove these.
+ */
+const PULSE_TAB_BY_CHOICE = new Set(['hex'])
+
+/**
+ * The head of the PulseChain tab, in this order, by the owner's instruction.
+ *
+ * Ids rather than tickers, because HEX means two different coins on this tab and
+ * PRVX means nothing to CoinGecko at all. PRVX is also the one that can go
+ * missing: it has no listing anywhere and exists here only while DexScreener
+ * prices its pool, so a cycle that loses the pool drops it entirely rather than
+ * draw a $0 planet — better four pinned rows than a fifth that is a placeholder.
+ */
+const PULSE_PINNED_IDS = [
+  'hex-pulsechain',         // HEX
+  'pulsechain',             // PLS
+  'pulsex',                 // PLSX
+  'pulsex-incentive-token', // INC
+  'provex',                 // PRVX
+]
+
+/**
+ * Where a by-choice token's real pool lives, when it is not on PulseChain.
+ *
+ * The Ethereum HEX has no PulseChain pool at all, so the tab's own DexScreener
+ * pass cannot see it and it would arrive with no liquidity and no flow — which
+ * matters beyond a blank field, because the tab is ordered by market cap falling
+ * back to pool depth, and CoinGecko reports a market cap of 0 for both HEX
+ * listings. With neither, it would rank 0 and sort below all hundred-odd coins,
+ * about as far from the HEX it is meant to sit beside as the tab allows.
+ *
+ * So it is read from the pool it actually trades in: Uniswap v2 on Ethereum,
+ * measured at $589k depth against pHEX's $871k on PulseX. One keyless request
+ * per cycle. Its price is deliberately NOT taken from there — unlike the
+ * PulseChain tokens, eHEX trades across many venues and CoinGecko's aggregate is
+ * the better figure, and its data is healthy: a clean 168-point week whose
+ * largest hourly step is 9%, nothing like the 345x break next door.
+ */
+const ETHEREUM_POOL_TOKENS: Record<string, string> = {
+  hex: '0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39',
+}
 
 /**
  * Uses /tokens/v1/{chain}/{addresses}, not the older /latest/dex/tokens.
@@ -1111,6 +1193,89 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
   if (filled > 0) {
     console.log(`[CryptoDUST] DexScreener added FDV/liquidity for ${filled} PulseChain token(s).`)
   }
+  return filled
+}
+
+/**
+ * Pool depth and order flow for the by-choice tokens, read from Ethereum.
+ *
+ * Deliberately a separate pass rather than a chain argument on the one above:
+ * that function is the PulseChain price authority and overwrites price and 24h
+ * move from the pool it finds. Routing an Ethereum token through it would be one
+ * refactor away from the exact accident the comment on the address map warns
+ * about, so this one is kept small and writes nothing that CoinGecko already
+ * answered — no price, and volume and FDV only where the value is missing.
+ *
+ * The chainId check is not ceremony. The same contract exists on PulseChain, and
+ * a route that answered with the fork's pool would put pHEX's numbers on the
+ * Ethereum row, which is the one failure this whole arrangement is built to
+ * avoid.
+ */
+async function backfillFromEthereumPools(tokens: TokenPrice[]): Promise<number> {
+  const targets = tokens.filter(t => ETHEREUM_POOL_TOKENS[t.id])
+  if (targets.length === 0) return 0
+
+  let pairs: any[] = []
+  try {
+    const addresses = targets.map(t => ETHEREUM_POOL_TOKENS[t.id])
+    const res = await fetch(
+      `https://api.dexscreener.com/tokens/v1/ethereum/${addresses.join(',')}`
+    )
+    if (!res.ok) {
+      console.warn(`[DexScreener] ethereum batch failed: ${res.status}`)
+      return 0
+    }
+    const data = await res.json()
+    pairs = Array.isArray(data) ? data : []
+  } catch (error) {
+    console.warn('[DexScreener] ethereum batch threw:', error)
+    return 0
+  }
+
+  const deepest = new Map<string, any>()
+  for (const pair of pairs) {
+    if (pair?.chainId !== 'ethereum') continue
+    const key = pair?.baseToken?.address?.toLowerCase()
+    if (!key) continue
+    const current = deepest.get(key)
+    if (!current || (pair.liquidity?.usd || 0) > (current.liquidity?.usd || 0)) {
+      deepest.set(key, pair)
+    }
+  }
+
+  let filled = 0
+  for (const token of targets) {
+    const pair = deepest.get(ETHEREUM_POOL_TOKENS[token.id].toLowerCase())
+    if (!pair) continue
+
+    // Read before the fallback below can replace it with this pair's own volume:
+    // a pool judged against a denominator it supplied is not judged at all.
+    const independentVolume24 = token.total_volume
+
+    if ((pair.liquidity?.usd ?? 0) > 0) token.liquidity = pair.liquidity.usd
+    if ((token.fdv ?? 0) <= 0 && (pair.fdv ?? pair.marketCap ?? 0) > 0) {
+      token.fdv = pair.fdv ?? pair.marketCap
+    }
+    if ((token.total_volume ?? 0) <= 0 && (pair.volume?.h24 ?? 0) > 0) {
+      token.total_volume = pair.volume.h24
+    }
+    token.dexSource = pair.dexId || 'dexscreener'
+
+    const flow = readFlow(pair)
+    const share = poolVolumeShare(pair.volume?.h24, independentVolume24)
+    // The same test every other pool on the site has to pass. eHEX trades on
+    // centralised venues too, so one Uniswap pair is a smaller slice of its day
+    // than a PulseX pair is of a PulseChain token's, and it is allowed to say so
+    // only when it carries enough of the volume to mean anything.
+    if (flow && flowIsRepresentative(flow, share)) {
+      token.flow = flow
+      token.flowSource = pair.dexId || undefined
+      token.flowPoolShare = displayableShare(share)
+    }
+
+    filled++
+  }
+
   return filled
 }
 
@@ -1717,6 +1882,12 @@ async function fetchAllCoins(): Promise<MarketData> {
     const ownPulse = pulseTail.filter(t => {
       // Never judged on evidence we do not have: a coin the lookup was not
       // asked about, or whose chunk failed, stays on the tab.
+      // On the tab by the owner's decision rather than by contract. Checked
+      // before the address evidence, because the evidence would say no: the
+      // Ethereum HEX has no PulseChain deployment for the lookup to find, so
+      // it falls into the `!info` branch below and is dropped every cycle with
+      // nothing on screen and only a count in the console to show for it.
+      if (PULSE_TAB_BY_CHOICE.has(t.id)) return true
       if (!pulseKnown.asked.has(t.id)) return true
       const info = pulseKnown.info.get(t.id)
       if (!info) return t.symbol.toUpperCase() === 'PLS'
@@ -1763,6 +1934,8 @@ async function fetchAllCoins(): Promise<MarketData> {
     // DexScreener only ever adds FDV/liquidity alongside them.
     await backfillFromCoinPaprika(limitedPulseTail)
     await backfillFromDexScreener(limitedPulseTail)
+    // Neither pass above can see a token whose pool is on another chain.
+    await backfillFromEthereumPools(limitedPulseTail)
 
     // The pass above only knows the 35 hand-mapped addresses. This one covers
     // the whole tab from the lookup already done for the visitor filter, and it
@@ -1800,7 +1973,25 @@ async function fetchAllCoins(): Promise<MarketData> {
     // liquidity rather than FDV: FDV would put AXIS ($359M FDV / $10k liquidity)
     // above HEX, which is not a useful ordering for anyone.
     const rank = (t: TokenPrice) => t.market_cap || t.liquidity || 0
-    limitedPulseTail.sort((a, b) => rank(b) - rank(a))
+    limitedPulseTail.sort((a, b) => {
+      // Five the owner wants held at the top in a fixed order, whatever the
+      // ranking would otherwise do with them. Everything below them still sorts
+      // on its own merits.
+      //
+      // Pinned HERE rather than in the list component so the tab reads the same
+      // on the phone and on the desktop table, and so the section boundaries —
+      // absolute offsets into this array — are computed after the order is final.
+      //
+      // The filter buttons above the list still win: Gainers, Losers, Volume and
+      // Favs are applied to the page slice afterwards, and a pin that survived
+      // them would leave those buttons doing nothing at the top of the screen.
+      const pa = PULSE_PINNED_IDS.indexOf(a.id)
+      const pb = PULSE_PINNED_IDS.indexOf(b.id)
+      if (pa !== -1 && pb !== -1) return pa - pb
+      if (pa !== -1) return -1
+      if (pb !== -1) return 1
+      return rank(b) - rank(a)
+    })
 
     // First 500 (with HAC/HACD at 498-499) + every Pulse coin the sources returned.
     const result = [...mainSection, ...limitedPulseTail]

@@ -17,6 +17,50 @@ import { useId } from 'react'
 /** Fewer points than this and a line is not a chart, it is a rumour. */
 const MIN_POINTS = 8
 
+/**
+ * A close this far from the live price is a data fault rather than a candle.
+ * CoinGecko's PulseChain series broke as a ~337x step three hours from the end,
+ * which drew here as a vertical wall up and then, once the price beside it was
+ * repaired from the pool, straight back down again.
+ */
+const BROKEN_POINT_GAP = 20
+
+/**
+ * How much of the week may be dropped before the rest stops being the week. Past
+ * this the remaining line is honest but the label above it is not, so nothing is
+ * drawn at all.
+ */
+const MAX_TRIMMED_SHARE = 0.1
+
+/**
+ * The closes worth plotting, or null when there is no honest chart to draw.
+ *
+ * This lives outside the component because the block around it has to reach the
+ * same verdict: deciding separately left a "7D PRICE" heading sitting above an
+ * empty box on exactly the tokens whose data had just been thrown out.
+ */
+export function usableHistory(
+  history: number[] | undefined,
+  currentPrice?: number
+): number[] | null {
+  if (!history || history.length < MIN_POINTS) return null
+  if (!(typeof currentPrice === 'number' && currentPrice > 0)) return history
+
+  // Drop a broken tail, and only a tail. Points are tested against the live
+  // price and removed from the end while they fail, stopping at the first one
+  // that passes: a coin that genuinely went up twentyfold this week is also far
+  // from its own oldest closes, and every one of those is real and must stay.
+  let end = history.length
+  while (end > 0) {
+    const p = history[end - 1]
+    if (p > 0 && Math.max(p / currentPrice, currentPrice / p) <= BROKEN_POINT_GAP) break
+    end--
+  }
+  if (end === history.length) return history
+  if (end < history.length * (1 - MAX_TRIMMED_SHARE) || end < MIN_POINTS) return null
+  return history.slice(0, end)
+}
+
 export function PriceChart({
   history,
   width = 288,
@@ -31,15 +75,16 @@ export function PriceChart({
 }) {
   const gradientId = useId()
 
-  if (!history || history.length < MIN_POINTS) return null
+  const series = usableHistory(history, currentPrice)
+  if (!series) return null
 
   // The fast lane refreshes the price every 60 seconds while the history only
   // rebuilds every five, so the live price is often the newer number. Appending
   // it keeps the right-hand end of the line agreeing with the price above it.
   const points =
     typeof currentPrice === 'number' && currentPrice > 0
-      ? [...history, currentPrice]
-      : history
+      ? [...series, currentPrice]
+      : series
 
   let min = Infinity
   let max = -Infinity

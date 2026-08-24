@@ -1,5 +1,5 @@
 import { useCoinHistory, type TokenPrice } from '../lib/prices'
-import { PriceChart } from './PriceChart'
+import { PriceChart, usableHistory } from './PriceChart'
 
 /**
  * The seven-day chart block, including its own loading state.
@@ -29,7 +29,9 @@ export function CoinPriceChart({
 }) {
   const { history, pending } = useCoinHistory(coin)
 
-  const hasChart = !!history && history.length >= 8
+  // Asked of the same function the chart uses, so the heading never survives a
+  // series the chart has decided it cannot draw.
+  const hasChart = !!usableHistory(history, coin?.current_price)
   if (!coin || (!hasChart && !pending)) return null
 
   return (

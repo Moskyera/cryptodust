@@ -818,6 +818,123 @@ const FLOW_MIN_VOLUME_SHARE = 0.1
 const PRICE_AUTHORITY_MIN_LIQUIDITY_USD = 250
 
 /**
+ * A gap this wide between the aggregator and the token's own deepest pool is a
+ * data fault, not a market condition. Two pools of one token cannot sit twenty
+ * times apart while anyone is watching, so a figure that far from the pool means
+ * the aggregator's derivation broke rather than that the price moved.
+ *
+ * Measured across the live PulseChain tab: 29 coins sat above 100x on a uniform
+ * ~337x break, 67 sat within 1.2x, and nothing at all sat between 8.6x and 100x.
+ * The line is drawn inside that empty band rather than at either cluster's edge,
+ * so it separates the two without having to adjudicate a borderline case.
+ */
+const PRICE_SERIES_BROKEN_GAP = 20
+
+/**
+ * Restates a percentage change against a corrected current price.
+ *
+ * A change is (now / then - 1). When `now` was out by a known factor, dividing
+ * the ratio by that factor recovers the same real change measured against the
+ * corrected price — but only while `then` predates the break, which is why the
+ * caller applies this to large recent faults and never to standing mismatches.
+ */
+function rescaleChange(change: number | undefined, factor: number): number | undefined {
+  if (typeof change !== 'number' || !Number.isFinite(change)) return undefined
+  const restated = ((1 + change / 100) / factor - 1) * 100
+  return Number.isFinite(restated) ? restated : undefined
+}
+
+/**
+ * Brings one absolute price back onto the real scale, but only if it is on the
+ * discarded one. Each figure is judged on its own against the pool rather than
+ * as part of a pair: measured across the 29 broken tokens, every single 24h high
+ * had been recorded during the break while every single 24h low predated it, so
+ * treating the two together would have dragged a good number down with a bad one.
+ */
+function rescalePrice(
+  value: number | undefined,
+  poolPrice: number,
+  factor: number
+): number | undefined {
+  if (typeof value !== 'number' || !(value > 0)) return value
+  if (Math.max(value / poolPrice, poolPrice / value) <= PRICE_SERIES_BROKEN_GAP) return value
+  const restated = value / factor
+  return Number.isFinite(restated) && restated > 0 ? restated : undefined
+}
+
+/**
+ * Hands a token's price over to its own pool, and repairs what that breaks.
+ * Returns how far apart the two sources were.
+ *
+ * 7d, 30d and 1y are each (price now / price then). Replacing the price now
+ * leaves all three quoting the one that was just discarded, which is how a week
+ * that moved +54% ends up on screen as +52,280%. DexScreener publishes no window
+ * past 24h to swap in and does not need to: the past point was never touched, so
+ * dividing out the measured factor restates the same real change against the
+ * price now beside it.
+ *
+ * Checked against PUPPERS, whose sparkline carries the break as a 345x step three
+ * hours from the end. Every point before it sits 1.17x from the pool, so the
+ * reference is sound. Rescaling returns +53.7%, and measuring the pool against
+ * the sparkline's own oldest close returns +54.6% — two independent routes to the
+ * same week.
+ *
+ * Below the threshold this is deliberately not done. A steady 5x mismatch is
+ * likelier to be CoinGecko following a different pair, and then its ratio is
+ * internally consistent while a rescale would invent one: PRS at 4.6x would go
+ * from +10% to +407%.
+ *
+ * Both PulseChain passes route through here. They used to overwrite the price
+ * separately, and the first one doing it silently disarmed the second: by the
+ * time the wider pass measured the gap it was reading its own repair, so 13
+ * tokens kept a correct 24h move above a five-figure week.
+ */
+function adoptPoolPrice(token: TokenPrice, pairPrice: number, pair: any): number {
+  // A token with no price yet — a DEX-only stub — has nothing to disagree with,
+  // so it is adopted outright rather than treated as an infinite break.
+  const cgOverPool = token.current_price > 0 ? token.current_price / pairPrice : 1
+  const priceGap = Math.max(cgOverPool, 1 / cgOverPool)
+
+  token.current_price = pairPrice
+
+  if (Number.isFinite(priceGap) && priceGap > PRICE_SERIES_BROKEN_GAP) {
+    token.price_change_percentage_7d = rescaleChange(token.price_change_percentage_7d, cgOverPool)
+    token.price_change_percentage_30d = rescaleChange(token.price_change_percentage_30d, cgOverPool)
+    token.price_change_percentage_1y = rescaleChange(token.price_change_percentage_1y, cgOverPool)
+    // 1h is a ratio taken inside the broken scale, so it comes out right whenever
+    // both of its ends fall after the break and wrong for the single hour that
+    // straddles it. The pool reports that window from data that never broke, so
+    // here it is preferred outright rather than only filling in a blank.
+    if (typeof pair.priceChange?.h1 === 'number') {
+      token.price_change_percentage_1h = pair.priceChange.h1
+    }
+
+    // The day's high can only have been recorded while the feed was wrong: every
+    // close from before the break is smaller than every close after it, so the
+    // maximum of the two is always the broken one. It came out that way in all
+    // 29 cases, sitting exactly on the discarded price while the low sat on the
+    // real one — which is why the panel was printing a high of $0.0160 above a
+    // price of $0.000047.
+    token.high_24h = rescalePrice(token.high_24h, pairPrice, cgOverPool)
+    token.low_24h = rescalePrice(token.low_24h, pairPrice, cgOverPool)
+
+    // The all-time high, unlike everything above, cannot be recovered. On 25 of
+    // the 29 the break simply overwrote it — CoinGecko now records the glitch as
+    // the peak and dates it hours ago — so the real one is gone from the feed and
+    // "10% below its all-time high" is describing a spike that never traded. On
+    // the remaining 4 the stored peak is genuinely years old and it is the
+    // percentage beside it that is wrong instead. Nothing here can separate a
+    // rescued figure from an invented one, so the block is dropped rather than
+    // shown. Sizing by ATH already has a path for a coin that publishes none.
+    token.ath = undefined
+    token.ath_change_percentage = undefined
+    token.ath_date = undefined
+  }
+
+  return priceGap
+}
+
+/**
  * What fraction of the token's 24h volume ran through this pool.
  *
  * `tokenVolume24` MUST be a figure from somewhere other than this pair. Passing
@@ -929,7 +1046,7 @@ async function backfillFromDexScreener(tokens: TokenPrice[]): Promise<number> {
     // 5-minute full refresh kept reverting the fast lane's live pool prices
     // back to CoinGecko's staler ones and values flapped between sources.
     const pairPrice = parseFloat(pair.priceUsd)
-    if (pairPrice > 0) token.current_price = pairPrice
+    if (pairPrice > 0) adoptPoolPrice(token, pairPrice, pair)
     if (typeof pair.priceChange?.h24 === 'number') {
       token.price_change_percentage_24h = pair.priceChange.h24
     }
@@ -1422,12 +1539,11 @@ async function backfillEcosystemFlow(
       // A pool has to be a market before it is allowed to set a price. Without
       // this a dead pool holding a few dollars could overwrite a good figure.
       if (pairPrice > 0 && liquidity >= PRICE_AUTHORITY_MIN_LIQUIDITY_USD) {
-        // How far the aggregator was from the pool. Worth keeping, because a
-        // large gap also condemns the 24h change: that figure is computed from
-        // the same broken series as the price.
-        const priceGap = Math.max(pairPrice / token.current_price, token.current_price / pairPrice)
+        // Takes the price from the pool and, where the two were far enough apart
+        // to be a fault rather than a spread, restates the longer windows that
+        // were built on the price it just replaced.
+        const priceGap = adoptPoolPrice(token, pairPrice, pair)
 
-        token.current_price = pairPrice
         if (typeof pair.priceChange?.h24 === 'number') {
           token.price_change_percentage_24h = pair.priceChange.h24
         } else if (Number.isFinite(priceGap) && priceGap > 5) {
@@ -1438,6 +1554,7 @@ async function backfillEcosystemFlow(
           // the same rule this file already applies to an unpriced DEX stub.
           token.unpriceable = true
         }
+
         if ((token.liquidity ?? 0) <= 0) token.liquidity = liquidity
         if ((token.fdv ?? 0) <= 0 && (pair.fdv ?? pair.marketCap ?? 0) > 0) {
           token.fdv = pair.fdv ?? pair.marketCap

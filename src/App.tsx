@@ -2546,19 +2546,23 @@ export default function App() {
       )}
 
       {isLoading && tokens.length === 0 && (
-        <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center gap-5 bg-[#0a0a12]">
-          <img
-            src="/cryptodust-logo.png"
-            alt=""
-            className="w-14 h-14 object-contain drop-shadow-[0_0_16px_rgba(251,191,36,0.35)]"
-          />
+        <div className="boot-screen fixed inset-0 z-[90] flex flex-col items-center justify-center gap-6">
+          {/* The rings are absolutely positioned against this, so it has to hug
+              the logo rather than stretch across the column. */}
+          <div className="boot-planet relative flex items-center justify-center w-14 h-14">
+            <span className="boot-ring" />
+            <span className="boot-ring boot-ring--outer" />
+            <img
+              src="/cryptodust-logo.png"
+              alt=""
+              className="relative w-14 h-14 object-contain drop-shadow-[0_0_18px_rgba(251,191,36,0.4)]"
+            />
+          </div>
           <div className="flex items-baseline gap-1">
             <span className="font-semibold tracking-[-1px] text-[22px]">Crypto</span>
             <span className="font-semibold tracking-[-1px] text-[22px] text-orange-400">DUST</span>
           </div>
-          <div className="w-36 h-0.5 rounded-full bg-white/10 overflow-hidden">
-            <div className="skeleton h-full w-full rounded-full" />
-          </div>
+          <div className="boot-bar w-36 h-0.5 rounded-full bg-white/10" />
           <div className="text-[11px] text-[#6b7280] tracking-wide">Loading market data…</div>
         </div>
       )}

@@ -1829,7 +1829,12 @@ export interface MarketData {
   sections: EcosystemSection[]
 }
 
-async function fetchAllCoins(): Promise<MarketData> {
+/**
+ * @param onPartial called once, with the top 500 alone, the moment CoinGecko has
+ * answered — long before the DexScreener and CoinPaprika work that follows. See
+ * the call site for why it is safe to hand this list over early.
+ */
+async function fetchAllCoins(onPartial?: (partial: MarketData) => void): Promise<MarketData> {
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
       Promise.all([
@@ -1924,6 +1929,29 @@ async function fetchAllCoins(): Promise<MarketData> {
     //   from the category are included (not just those with 'pulse' in the name).
     // ============================================
     const mainSection = all.slice(0, 500)
+
+    // Hand the main list over NOW, and let the rest of this function keep going.
+    //
+    // Everything below this line is enrichment: pool depth, order flow, the
+    // PulseChain price repair. On a bad afternoon at DexScreener that is four
+    // serial rounds of six-second timeouts in front of a first paint that the
+    // top 500 do not need at all — the site sat on "Loading market data" past
+    // thirty seconds with these five hundred coins already sitting in memory.
+    //
+    // Safe because mainSection is FINISHED here, not a work in progress. The
+    // filters and the HAC/HACD splice at 498 have run, so the offsets the tabs
+    // are cut on are already final, and every pass after this point works on
+    // limitedPulseTail or a per-ecosystem list — the tail only ever accepts ids
+    // that are NOT in `seen`, so no object in this array is even reachable. It
+    // is copied rather than passed by reference so that stays true no matter
+    // what a later edit does.
+    //
+    // It also cannot leak an unrepaired PulseChain coin: every coin the repair
+    // and the drop loop touch lives at index 500 or beyond, and this publishes
+    // no sections at all, so the PulseChain tab renders its own empty state
+    // until the real build lands.
+    onPartial?.({ tokens: mainSection.slice(), sections: [] })
+
     const seen = new Set(mainSection.map(t => t.id))
     const pulseTail: TokenPrice[] = []
 
@@ -2299,10 +2327,33 @@ function mergeFastLane(
 
 // ==================== MAIN HOOK ====================
 export function usePrices() {
+  const dataRef = useRef<MarketData | undefined>(undefined)
+
+  /**
+   * The top 500, shown while the rest of the build is still running.
+   *
+   * Held OUTSIDE SWR deliberately. The obvious way to publish early is to call
+   * mutate, and the fast lane a few lines down carries the scar from doing
+   * exactly that: SWR treats a mutation as fresher than the fetch already in
+   * flight and throws that fetch's result away. Its own state cannot collide
+   * with the fetch it is racing.
+   */
+  const [partial, setPartial] = useState<MarketData | undefined>(undefined)
+  const partialShown = useRef(false)
+
   const { data, error, isLoading, mutate } = useSWR<MarketData>(
     // Key bumped: the cached shape changed from TokenPrice[] to MarketData
     'coingecko-markets-v2',
-    fetchAllCoins,
+    () =>
+      fetchAllCoins(early => {
+        // Only ever for the first paint. Once a complete build exists the
+        // partial is ignored below, so setting it again would be a re-render of
+        // the whole page every five minutes for nothing. The second guard is
+        // for StrictMode, which runs this twice in development.
+        if (dataRef.current || partialShown.current) return
+        partialShown.current = true
+        setPartial(early)
+      }),
     {
       refreshInterval: REFRESH_INTERVAL,
       revalidateOnFocus: false,
@@ -2312,7 +2363,6 @@ export function usePrices() {
 
   // Fast lane: 60s price-only updates between the 5-minute full rebuilds
   const lastFastRun = useRef(0)
-  const dataRef = useRef<MarketData | undefined>(undefined)
   useEffect(() => { dataRef.current = data }, [data])
 
   useEffect(() => {
@@ -2350,8 +2400,9 @@ export function usePrices() {
   }, [mutate])
 
   return {
-    tokens: data?.tokens ?? [],
-    sections: data?.sections ?? [],
+    // The complete build wins the moment it exists, and on every cycle after.
+    tokens: data?.tokens ?? partial?.tokens ?? [],
+    sections: data?.sections ?? partial?.sections ?? [],
     isLoading,
     error,
     lastUpdated: Date.now(),

@@ -835,6 +835,140 @@ canvas {
 }
 
 /* =====================================================
+   First-load screen
+   =====================================================
+   This used to be a flat #0a0a12 fill with a two-pixel hairline on it, laid
+   over the top of an app whose whole backdrop is a drifting star field. The
+   one screen where there is nothing else to look at was the one screen that
+   painted over the view.
+   So it keeps the sky — the same washes and a lighter star tile than
+   .app-backdrop, since a loading screen does not need fourteen gradients — and
+   puts a planet in front of it wearing the same tilted orbit the real ones do.
+   All CSS: the galaxy canvas does not exist on mobile, and this has to work
+   there too. The global prefers-reduced-motion rule further down stops every
+   bit of it. */
+.boot-screen {
+  background:
+    radial-gradient(1100px 700px at 18% -12%, rgba(167, 139, 250, 0.22), transparent 62%),
+    radial-gradient(1300px 800px at 88% 112%, rgba(103, 246, 255, 0.16), transparent 60%),
+    radial-gradient(1000px 900px at 50% 50%, #0e0e19, var(--bg) 75%);
+}
+
+.boot-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 21px 33px, rgba(255, 255, 255, 0.95), transparent 55%),
+    radial-gradient(1px 1px at 97px 141px, rgba(255, 255, 255, 0.7), transparent 55%),
+    radial-gradient(1.5px 1.5px at 163px 67px, rgba(255, 255, 255, 0.8), transparent 55%),
+    radial-gradient(1px 1px at 219px 173px, rgba(255, 255, 255, 0.6), transparent 55%),
+    radial-gradient(2px 2px at 53px 211px, rgba(214, 249, 255, 0.9), transparent 55%),
+    radial-gradient(2px 2px at 251px 89px, rgba(196, 181, 253, 0.75), transparent 55%);
+  background-size: 271px 263px;
+  animation: twinkleA 9s ease-in-out infinite alternate;
+}
+
+/* Depth for the tilted rings, so they read as orbits rather than as squashed
+   circles. Sits on the element that holds the logo. */
+.boot-planet {
+  position: relative;
+  perspective: 460px;
+}
+
+/* The glow the planet sits in, breathing rather than blinking. */
+.boot-planet::before {
+  content: '';
+  position: absolute;
+  inset: -34px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(103, 246, 255, 0.22), transparent 66%);
+  animation: bootBreathe 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* One ring, one bright mote riding it. Only the leading edge of the ring is
+   lit, so the rotation is legible instead of a uniform circle turning
+   invisibly. */
+.boot-ring {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top-color: rgba(103, 246, 255, 0.85);
+  border-right-color: rgba(167, 139, 250, 0.4);
+  transform: rotateX(72deg);
+  animation: bootSpin 2.8s linear infinite;
+  pointer-events: none;
+}
+
+.boot-ring::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: #67f6ff;
+  box-shadow: 0 0 10px 2px rgba(103, 246, 255, 0.7);
+}
+
+/* A second, wider orbit the other way, dimmer and slower. */
+.boot-ring--outer {
+  inset: -28px;
+  border-top-color: rgba(167, 139, 250, 0.65);
+  border-right-color: transparent;
+  animation: bootSpinBack 4.6s linear infinite;
+}
+
+.boot-ring--outer::after {
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  top: -2.5px;
+  background: #a78bfa;
+  box-shadow: 0 0 9px 2px rgba(167, 139, 250, 0.6);
+}
+
+/* The bar, in the same cyan-to-violet the segmented control and the chips use
+   for "this is the live one". */
+.boot-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.boot-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, #67f6ff, #a78bfa, transparent);
+  animation: bootSweep 1.5s ease-in-out infinite;
+}
+
+@keyframes bootSpin {
+  to { transform: rotateX(72deg) rotate(360deg); }
+}
+
+@keyframes bootSpinBack {
+  from { transform: rotateX(72deg) rotate(360deg); }
+  to { transform: rotateX(72deg) rotate(0deg); }
+}
+
+@keyframes bootBreathe {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.95; transform: scale(1.07); }
+}
+
+@keyframes bootSweep {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(320%); }
+}
+
+/* =====================================================
    Scrollbars
    ===================================================== */
 .custom-scrollbar {

@@ -132,6 +132,13 @@ export interface TokenPrice {
    */
   unpriceable?: boolean
   /**
+   * Its price was compared against its own pool this cycle. False or absent
+   * means the comparison never happened — no pool, or the source was down —
+   * which is the difference between a figure that has been checked and one that
+   * has only been received.
+   */
+  poolChecked?: boolean
+  /**
    * Real hourly closes for the last seven days, oldest first — CoinGecko's
    * sparkline_in_7d, 168 points.
    *
@@ -265,6 +272,45 @@ function mergeTokenData(existing: TokenPrice, incoming: TokenPrice): TokenPrice 
   return merged
 }
 
+/**
+ * How long any one outbound call may hold the page shut.
+ *
+ * There was no limit of any kind here, and the first render waits on a chain of
+ * these. On 2026-08-24 DexScreener slowed to 6 seconds a call with two of them at
+ * 25, and the site sat on "Loading market data" past thirty seconds — a third
+ * party having a bad afternoon holding the whole page closed, with no way for it
+ * to ever give up.
+ *
+ * The enrichment sources get the shorter budget: every one of those calls is
+ * already written to survive coming back empty, so a deadline turns an outage
+ * into a cycle with some fields missing that the next cycle fills. CoinGecko gets
+ * longer because it is not enrichment — it is the coin list itself, and there is
+ * nothing to draw without it. Both are far above the healthy response, measured
+ * at well under a second for either.
+ */
+const MARKET_FETCH_TIMEOUT_MS = 12000
+const ENRICH_FETCH_TIMEOUT_MS = 6000
+
+/**
+ * fetch that gives up. An abort rejects, which every caller here already treats
+ * as "no data from this source this cycle".
+ */
+async function fetchWithTimeout(
+  url: string,
+  ms: number,
+  init?: RequestInit
+): Promise<Response> {
+  // Wired by hand rather than with AbortSignal.timeout, which Safari only got in
+  // 16 and this site is opened on older phones.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function fetchCoinGecko(
   url: string,
   options: { usePulseKey?: boolean } = {}
@@ -273,7 +319,7 @@ async function fetchCoinGecko(
 
   if (USE_API_PROXY) {
     const proxyUrl = `/api/coingecko?url=${encodeURIComponent(url)}&pulse=${usePulseKey ? '1' : '0'}`
-    return fetch(proxyUrl)
+    return fetchWithTimeout(proxyUrl, MARKET_FETCH_TIMEOUT_MS)
   }
 
   const apiKey = usePulseKey ? COINGECKO_PULSE_DEMO_KEY : COINGECKO_API_KEY
@@ -288,7 +334,7 @@ async function fetchCoinGecko(
     finalUrl += `${url.includes('?') ? '&' : '?'}x_cg_demo_api_key=${apiKey}`
   }
 
-  return fetch(finalUrl)
+  return fetchWithTimeout(finalUrl, MARKET_FETCH_TIMEOUT_MS)
 }
 
 // =====================================================
@@ -592,7 +638,10 @@ interface PaprikaQuote {
 
 async function fetchPaprikaTicker(paprikaId: string): Promise<PaprikaQuote | null> {
   try {
-    const res = await fetch(`https://api.coinpaprika.com/v1/tickers/${paprikaId}?quotes=USD`)
+    const res = await fetchWithTimeout(
+      `https://api.coinpaprika.com/v1/tickers/${paprikaId}?quotes=USD`,
+      ENRICH_FETCH_TIMEOUT_MS
+    )
     if (!res.ok) return null
 
     const data = await res.json()
@@ -835,8 +884,9 @@ const ETHEREUM_POOL_TOKENS: Record<string, string> = {
  */
 async function fetchDexScreenerBatch(addresses: string[]): Promise<any[]> {
   try {
-    const res = await fetch(
-      `https://api.dexscreener.com/tokens/v1/pulsechain/${addresses.join(',')}`
+    const res = await fetchWithTimeout(
+      `https://api.dexscreener.com/tokens/v1/pulsechain/${addresses.join(',')}`,
+      ENRICH_FETCH_TIMEOUT_MS
     )
     if (!res.ok) {
       console.warn(`[DexScreener] batch failed: ${res.status}`)
@@ -913,6 +963,18 @@ const PRICE_AUTHORITY_MIN_LIQUIDITY_USD = 250
 const PRICE_SERIES_BROKEN_GAP = 20
 
 /**
+ * A 24h move past this is not a day on this tab, it is the breakage.
+ *
+ * Measured: the broken coins printed between +26,000% and +45,000%, while the
+ * whole PulseChain tab's real days sit under 40% and its wildest real week was
+ * +204%. The line is drawn an order of magnitude above anything real seen here
+ * and an order of magnitude below the fault — and it only ever applies to a coin
+ * whose price could not be checked against a pool, so a genuine launch that ran
+ * this far is still shown as long as its own pool confirms it.
+ */
+const IMPLAUSIBLE_24H_MOVE = 1000
+
+/**
  * Restates a percentage change against a corrected current price.
  *
  * A change is (now / then - 1). When `now` was out by a known factor, dividing
@@ -978,6 +1040,7 @@ function adoptPoolPrice(token: TokenPrice, pairPrice: number, pair: any): number
   const priceGap = Math.max(cgOverPool, 1 / cgOverPool)
 
   token.current_price = pairPrice
+  token.poolChecked = true
 
   if (Number.isFinite(priceGap) && priceGap > PRICE_SERIES_BROKEN_GAP) {
     token.price_change_percentage_7d = rescaleChange(token.price_change_percentage_7d, cgOverPool)
@@ -1218,8 +1281,9 @@ async function backfillFromEthereumPools(tokens: TokenPrice[]): Promise<number> 
   let pairs: any[] = []
   try {
     const addresses = targets.map(t => ETHEREUM_POOL_TOKENS[t.id])
-    const res = await fetch(
-      `https://api.dexscreener.com/tokens/v1/ethereum/${addresses.join(',')}`
+    const res = await fetchWithTimeout(
+      `https://api.dexscreener.com/tokens/v1/ethereum/${addresses.join(',')}`,
+      ENRICH_FETCH_TIMEOUT_MS
     )
     if (!res.ok) {
       console.warn(`[DexScreener] ethereum batch failed: ${res.status}`)
@@ -1561,8 +1625,9 @@ async function resolveChainTokens(ids: string[], chain: string): Promise<ChainLo
   const results = await Promise.all(
     chunks.map(async chunk => {
       try {
-        const res = await fetch(
-          `/api/token-addresses?chain=${chain}&ids=${encodeURIComponent(chunk.join(','))}`
+        const res = await fetchWithTimeout(
+          `/api/token-addresses?chain=${chain}&ids=${encodeURIComponent(chunk.join(','))}`,
+          ENRICH_FETCH_TIMEOUT_MS
         )
         if (!res.ok) return null
         return { chunk, map: (await res.json()) as Record<string, { a: string; n: number }> }
@@ -1653,8 +1718,9 @@ async function backfillEcosystemFlow(
   try {
     groups = await Promise.all(
       batches.map(async addrs => {
-        const res = await fetch(
-          `https://api.dexscreener.com/tokens/v1/${chain}/${addrs.join(',')}`
+        const res = await fetchWithTimeout(
+          `https://api.dexscreener.com/tokens/v1/${chain}/${addrs.join(',')}`,
+          ENRICH_FETCH_TIMEOUT_MS
         )
         if (!res.ok) return []
         const data = await res.json()
@@ -1933,9 +1999,15 @@ async function fetchAllCoins(): Promise<MarketData> {
     // nothing. CoinPaprika first because it supplies real circulating market caps;
     // DexScreener only ever adds FDV/liquidity alongside them.
     await backfillFromCoinPaprika(limitedPulseTail)
-    await backfillFromDexScreener(limitedPulseTail)
-    // Neither pass above can see a token whose pool is on another chain.
-    await backfillFromEthereumPools(limitedPulseTail)
+    // The Ethereum pass runs alongside rather than after. It is the only one that
+    // touches 'hex', which appears in neither of the other two maps, so there is
+    // nothing here for the two to race over — and a slow afternoon at DexScreener
+    // then costs the first render one wait instead of two.
+    await Promise.all([
+      backfillFromDexScreener(limitedPulseTail),
+      // Neither pass beside it can see a token whose pool is on another chain.
+      backfillFromEthereumPools(limitedPulseTail),
+    ])
 
     // The pass above only knows the 35 hand-mapped addresses. This one covers
     // the whole tab from the lookup already done for the visitor filter, and it
@@ -1961,6 +2033,21 @@ async function fetchAllCoins(): Promise<MarketData> {
         limitedPulseTail.splice(i, 1)
       } else if (t.unpriceable) {
         console.warn(`[CryptoDUST] ${t.symbol}: no trustworthy 24h move from either source, omitting it.`)
+        limitedPulseTail.splice(i, 1)
+      } else if (
+        !t.poolChecked &&
+        Math.abs(t.price_change_percentage_24h || 0) > IMPLAUSIBLE_24H_MOVE
+      ) {
+        // A figure this size is the known CoinGecko breakage, and this coin is
+        // one the pool comparison never reached — no pool of its own, or the
+        // source was down for the cycle. Found the hard way: with DexScreener
+        // timing out on every call, the repair could not run and MONAT rendered
+        // at +26,271%. The whole point of the repair is that this number does
+        // not reach the screen, so when it cannot be checked the coin waits for
+        // a cycle that can rather than being shown unverified.
+        console.warn(
+          `[CryptoDUST] ${t.symbol}: ${Math.round(t.price_change_percentage_24h)}% with no pool to check it against, omitting it.`
+        )
         limitedPulseTail.splice(i, 1)
       }
     }

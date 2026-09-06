@@ -139,6 +139,25 @@ export interface TokenPrice {
    */
   poolChecked?: boolean
   /**
+   * Provenance of the price on screen. `priceSource` says which source wrote
+   * current_price; `sourcePrice` is what the aggregator said before a pool
+   * replaced it, kept so the reader can see how far the two sat apart rather
+   * than take the repair on trust; `priceRepaired` means the gap was large
+   * enough that the longer windows were restated against the pool price too.
+   */
+  priceSource?: 'pool' | 'aggregate'
+  sourcePrice?: number
+  priceRepaired?: boolean
+  /**
+   * The pool's own terms. Every pool is priced through some other asset and
+   * DexScreener states the native price in it — 1 PLSX = 0.826 PLS, LUCKY =
+   * 1.03 HEX — which is the reading the PulseChain community does by hand.
+   * Read, never computed: both come off the same pair object that supplied
+   * current_price, so the unit and the number can never disagree.
+   */
+  poolQuote?: string
+  priceNative?: number
+  /**
    * Real hourly closes for the last seven days, oldest first — CoinGecko's
    * sparkline_in_7d, 168 points.
    *
@@ -790,7 +809,14 @@ const PULSECHAIN_TOKEN_ADDRESSES: Record<string, string> = {
   // has no CoinGecko record to attach to: it is built from scratch out of
   // DexScreener data (see DEX_ONLY_PULSE_TOKENS). Address verified on-chain via
   // rpc.pulsechain.com — name "ProveX", symbol "PRVX", 18 decimals.
-  'provex': '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11',                  // PRVX
+  'provex': '0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11',
+  // Wrapped PLS. Here for its own row AND because it is the only way to check
+  // the native coin: PLS has no contract, so it was the one coin on the tab
+  // whose price was never compared against a pool — while being the asset
+  // most of the tab is priced through. WPLS is PLS one-for-one by construction,
+  // and its deepest pool (PulseX WPLS/DAI, $902k measured 2026-09-06) is the
+  // deepest PLS market there is. CoinGecko sat 13% below it that day.
+  'wrapped-pulse-wpls': '0xA1077a294dDE1B09bB078844df40758a5D0f9a27',                  // PRVX
   // DEV Coin, likewise absent from CoinGecko. Verified on-chain via
   // rpc.pulsechain.com: name "DEV Coin", symbol "DEVC", 18 decimals.
   'devc-pulsechain': '0xA804b9E522A2D1645a19227514CFe856Ad8C2fbC',          // DEVC
@@ -837,7 +863,7 @@ const PULSECHAIN_TOKEN_ADDRESSES: Record<string, string> = {
   'pulse-drip': '0xeB2CEed77147893Ba8B250c796c2d4EF02a72B68',              // PDRIP
 }
 // Deliberately absent (checked, no confident PulseChain match on DexScreener):
-// PLS (native coin, no token contract — CoinPaprika covers it), the bridged DAI/HEX/USDC
+// PLS (native coin, no token contract — CoinPaprika covers its market cap, and its PRICE is now mirrored from the WPLS pool below), the bridged DAI/HEX/USDC
 // wrappers, COLA, PRS, MONAT, MAGIC, SOIL, X, $MAFIA, and PARTY (its only pair priced 23%
 // away from CoinGecko, so the safety gate rejected it rather than risk a wrong token).
 // All of these still get an FDV — CoinGecko ships fully_diluted_valuation for every one
@@ -1107,10 +1133,27 @@ function adoptPoolPrice(token: TokenPrice, pairPrice: number, pair: any): number
   const cgOverPool = token.current_price > 0 ? token.current_price / pairPrice : 1
   const priceGap = Math.max(cgOverPool, 1 / cgOverPool)
 
+  // Kept before the overwrite: the aggregator's figure is the second opinion
+  // the panel shows beside the pool's, and the gap between them is the whole
+  // reason the reader can trust either.
+  // Only on the FIRST adoption of a cycle. The hand-mapped coins are adopted
+  // by the address-map pass and again by the ecosystem pass, and the second
+  // one would otherwise record the pool's own figure as the "aggregator said"
+  // — a second opinion that agrees with itself.
+  if (token.priceSource !== 'pool' && token.current_price > 0) token.sourcePrice = token.current_price
   token.current_price = pairPrice
   token.poolChecked = true
+  token.priceSource = 'pool'
+  // The pool's own terms, off the same pair object as the price.
+  const native = parseFloat(pair?.priceNative)
+  const quote = pair?.quoteToken?.symbol
+  if (Number.isFinite(native) && native > 0 && typeof quote === 'string' && quote) {
+    token.priceNative = native
+    token.poolQuote = quote
+  }
 
   if (Number.isFinite(priceGap) && priceGap > PRICE_SERIES_BROKEN_GAP) {
+    token.priceRepaired = true
     token.price_change_percentage_7d = rescaleChange(token.price_change_percentage_7d, cgOverPool)
     token.price_change_percentage_30d = rescaleChange(token.price_change_percentage_30d, cgOverPool)
     token.price_change_percentage_1y = rescaleChange(token.price_change_percentage_1y, cgOverPool)
@@ -1534,6 +1577,19 @@ export interface EcosystemSection {
   label: string
   start: number
   end: number
+  /**
+   * The tab's ledger for this cycle, so the reader can see the checking rather
+   * than take it on trust: how many coins were compared against their own
+   * pool, how many of those had their source figure replaced because the two
+   * disagreed past PRICE_SERIES_BROKEN_GAP, how many were left off because
+   * they could not be checked and looked broken, and how many the visiting-
+   * token filter removed for not being this chain's own coin. Counts, never
+   * dollars; absent on a tab that does not run the check.
+   */
+  checked?: number
+  repaired?: number
+  withheld?: number
+  filtered?: number
 }
 
 const EXTRA_ECOSYSTEMS = [
@@ -2121,6 +2177,32 @@ async function fetchAllCoins(onPartial?: (partial: MarketData) => void): Promise
       backfillFromEthereumPools(limitedPulseTail),
     ])
 
+    // The native coin, checked through its wrapper. PLS has no contract, so no
+    // pool can be asked about it directly, and it was the one coin on the tab
+    // that was never compared against anything — while being the asset most of
+    // the tab is priced through. WPLS is PLS one-for-one by construction, so
+    // once the pass above has checked WPLS against its own pool, that reading
+    // is the PLS reading, and it goes through the same adoption (second
+    // opinion kept, longer windows restated only past the break threshold) as
+    // every other coin. The pool's terms are carried across so the row can say
+    // which pool it was.
+    {
+      const pls = limitedPulseTail.find(t => t.id === 'pulsechain')
+      const wpls = limitedPulseTail.find(t => t.id === 'wrapped-pulse-wpls')
+      if (pls && wpls?.poolChecked && wpls.current_price > 0) {
+        adoptPoolPrice(pls, wpls.current_price, {
+          priceChange: { h1: wpls.price_change_percentage_1h, h24: wpls.price_change_percentage_24h },
+          priceNative: wpls.priceNative,
+          quoteToken: wpls.poolQuote ? { symbol: wpls.poolQuote } : undefined,
+        })
+        if (typeof wpls.price_change_percentage_24h === 'number') {
+          pls.price_change_percentage_24h = wpls.price_change_percentage_24h
+        }
+        if ((wpls.liquidity ?? 0) > 0) pls.liquidity = wpls.liquidity
+        if (wpls.dexSource) pls.dexSource = wpls.dexSource
+      }
+    }
+
     // The pass above only knows the 35 hand-mapped addresses. This one covers
     // the whole tab from the lookup already done for the visitor filter, and it
     // is where the CoinGecko price breakage actually gets repaired: 32 of 103
@@ -2138,6 +2220,9 @@ async function fetchAllCoins(onPartial?: (partial: MarketData) => void): Promise
 
     // A DEX-only stub is only real once DexScreener has priced it. If the call
     // failed or the pool vanished, drop it rather than render a $0 planet.
+    // Counted around the loop rather than inside each branch, so a new reason
+    // to withhold a coin cannot forget to count itself.
+    const beforeWithholding = limitedPulseTail.length
     for (let i = limitedPulseTail.length - 1; i >= 0; i--) {
       const t = limitedPulseTail[i]
       if (DEX_ONLY_PULSE_IDS.has(t.id) && !(t.current_price > 0)) {
@@ -2195,7 +2280,19 @@ async function fetchAllCoins(onPartial?: (partial: MarketData) => void): Promise
     // First 500 (with HAC/HACD at 498-499) + every Pulse coin the sources returned.
     const result = [...mainSection, ...limitedPulseTail]
     const sections: EcosystemSection[] = [
-      { key: 'pulsechain', label: 'PulseChain', start: mainSection.length, end: result.length },
+      {
+        key: 'pulsechain',
+        label: 'PulseChain',
+        start: mainSection.length,
+        end: result.length,
+        // The tab's ledger: what was checked, corrected, withheld and filtered
+        // this cycle. Counts of coins, so the reader sees the checking happen
+        // instead of taking a clean-looking tab on trust.
+        checked: limitedPulseTail.filter(t => t.poolChecked).length,
+        repaired: limitedPulseTail.filter(t => t.priceRepaired).length,
+        withheld: beforeWithholding - limitedPulseTail.length,
+        filtered: pulseTail.length - ownPulse.length,
+      },
     ]
 
     // Extra galaxy tabs (Base, Solana, ...) — fetched sequentially to stay
@@ -2233,7 +2330,10 @@ async function fetchAllCoins(onPartial?: (partial: MarketData) => void): Promise
       if (fresh.length === 0) continue
       const start = result.length
       result.push(...fresh)
-      sections.push({ key: eco.key, label: eco.label, start, end: result.length })
+      // These tabs do not adopt pool prices, so checked/repaired/withheld stay
+      // absent rather than read as zero-of-many; only the visitor filter is
+      // reported, because it is the one thing this tab does to its list.
+      sections.push({ key: eco.key, label: eco.label, start, end: result.length, filtered: dropped })
 
       // Collected rather than awaited here: three chains awaited in sequence
       // put three serial round trips in front of first paint and they have no
@@ -2305,6 +2405,9 @@ interface FastPulseQuote {
   flow?: TokenFlow
   pairVolume24?: number
   flowSource?: string
+  /** Carried with the price so a 60-second refresh never prints a stale unit under a fresh number. */
+  poolQuote?: string
+  priceNative?: number
 }
 
 async function fetchFastPulseQuotes(): Promise<Map<string, FastPulseQuote>> {
@@ -2338,6 +2441,8 @@ async function fetchFastPulseQuotes(): Promise<Map<string, FastPulseQuote>> {
       flow: readFlow(pair),
       pairVolume24: pair.volume?.h24 ?? 0,
       flowSource: pair.dexId || undefined,
+      poolQuote: typeof pair.quoteToken?.symbol === 'string' && pair.quoteToken.symbol ? pair.quoteToken.symbol : undefined,
+      priceNative: parseFloat(pair.priceNative) > 0 ? parseFloat(pair.priceNative) : undefined,
     })
   }
   return out
@@ -2363,7 +2468,11 @@ function mergeFastLane(
         market_cap: fresh.market_cap || t.market_cap,
       }
     }
-    const dp = pulse.get(t.id)
+    // PLS has no contract for the fast lane to ask about; WPLS's quote is its
+    // quote, one-for-one, exactly as the full build mirrors it. flow is not a
+    // concern here — the `t.flow &&` guard below refreshes flow only where the
+    // build already set it, and it never sets it on PLS.
+    const dp = pulse.get(t.id) ?? (t.id === 'pulsechain' ? pulse.get('wrapped-pulse-wpls') : undefined)
     if (dp) {
       return {
         ...t,
@@ -2373,6 +2482,12 @@ function mergeFastLane(
         // may be CoinGecko's all-venue figure and this one is a single pool.
         price_change_percentage_1h: t.price_change_percentage_1h ?? dp.change1h,
         liquidity: dp.liquidity ?? t.liquidity,
+        // Taken from THIS pair or not at all — never the previous build's. A
+        // fresh USD price under a unit or native figure from five minutes ago
+        // would read as one observation when it is two, and the pool that won
+        // the depth contest can change quote asset between cycles.
+        poolQuote: dp.poolQuote,
+        priceNative: dp.priceNative,
         // The same representativeness test the full backfill applies. Without
         // it the fast lane would quietly reinstate, sixty seconds later, every
         // unrepresentative pool the backfill had just rejected.

@@ -15,6 +15,14 @@ export const config = { runtime: 'edge' }
 // "HEX" in 62pt — indistinguishable from the PulseChain one it sits beside.
 const SYMBOL_OVERRIDES: Record<string, string> = { hex: 'eHEX' }
 
+// Mirrors IMPLAUSIBLE_24H_MOVE in src/lib/prices.ts. The app checks every
+// PulseChain price against the coin's own pool before it shows a move; this
+// endpoint cannot, so it must not repeat the one figure the whole pipeline
+// exists to keep off the screen. A day past this line is the known CoinGecko
+// breakage (+26,000% to +45,000% measured), not a day — the card says the move
+// is unverified rather than printing it under the site's name.
+const IMPLAUSIBLE_24H_MOVE = 1000
+
 // Filters null/undefined/false children — satori chokes on them, and that is
 // exactly what `cond ? h(...) : null` produced in the full tree (the probes all
 // passed because none of them had conditional children).
@@ -118,11 +126,16 @@ export default async function handler(req: Request) {
 
   const change = coin?.price_change_percentage_24h || 0
   const isUp = change >= 0
-  const accent = isUp ? '#4ade80' : '#f87171'
+  const unverified = Math.abs(change) > IMPLAUSIBLE_24H_MOVE
+  const accent = unverified ? '#fbbf24' : isUp ? '#4ade80' : '#f87171'
   const symbol = SYMBOL_OVERRIDES[coin?.id] ?? (coin?.symbol || 'DUST').toUpperCase()
   const name = coin?.name || 'CryptoDUST'
   const price = coin ? fmtPrice(coin.current_price || 0) : ''
-  const pct = coin ? `${isUp ? '+' : '-'}${Math.abs(change).toFixed(2)}%` : 'Market Visualizer'
+  const pct = coin
+    ? unverified
+      ? 'move unverified'
+      : `${isUp ? '+' : '-'}${Math.abs(change).toFixed(2)}%`
+    : 'Market Visualizer'
   const logo = coin?.image || 'https://www.cryptodust.xyz/cryptodust-logo.png'
   const mcap = fmtBig(coin?.market_cap) || fmtBig(coin?.fully_diluted_valuation)
   const mcapLabel = fmtBig(coin?.market_cap) ? 'MARKET CAP' : 'FDV'

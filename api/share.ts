@@ -18,6 +18,12 @@ const esc = (s: string) =>
 const SYMBOL_OVERRIDES: Record<string, string> = { hex: 'eHEX' }
 const ticker = (c: any) => SYMBOL_OVERRIDES[c?.id] ?? (c?.symbol || '').toUpperCase()
 
+// Mirrors IMPLAUSIBLE_24H_MOVE in src/lib/prices.ts. This page cannot check a
+// price against the coin's pool the way the app does, so past this line the
+// headline says the move is unverified instead of repeating the known
+// CoinGecko breakage under the site's name.
+const IMPLAUSIBLE_24H_MOVE = 1000
+
 export default async function handler(req: any, res: any) {
   const coinId = String(req.query.coin || '').slice(0, 100)
   if (!coinId || !/^[a-z0-9-]+$/i.test(coinId)) {
@@ -38,7 +44,10 @@ export default async function handler(req: any, res: any) {
       const [c] = await r.json()
       if (c) {
         const chg = c.price_change_percentage_24h || 0
-        title = `${ticker(c)} ${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% in 24h`
+        title =
+          Math.abs(chg) > IMPLAUSIBLE_24H_MOVE
+            ? `${ticker(c)} · 24h move unverified`
+            : `${ticker(c)} ${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% in 24h`
         description = `${c.name} on CryptoDUST · live prices, honest liquidity data, 800+ coins as planets.`
       }
     }

@@ -46,6 +46,14 @@ interface VisualizationProps {
   topOffset?: number  // desktop collapsible tabs panel height reserve so planets don't overlap it; used for top clamps + push on expand
   performanceMode?: boolean  // desktop manual lite rendering: fewer effects, capped FPS, no physics
   marketTableOpen?: boolean  // desktop: pause canvas while market table overlay is open
+  /**
+   * What to say when there are no planets to draw. The canvas cannot tell WHY
+   * the list is empty — first load, a chain tab still being built, or a search
+   * that matched nothing — and it used to say "Loading coins from CoinGecko…"
+   * for all three. The parent knows, so the parent says. `null` draws nothing,
+   * for when the parent is already showing its own explanation on top.
+   */
+  emptyMessage?: string | null
 }
 
 // Canvas logos must load CORS-clean or they taint the canvas and break the
@@ -202,6 +210,7 @@ export function Visualization({
   overlay = false,
   performanceMode = false,
   marketTableOpen = false,
+  emptyMessage = 'Loading coins from CoinGecko…',
 }: VisualizationProps) {
   const isMobile = explicitIsMobile ?? (planetScale < 0.7)
   const topOffset = topOffsetProp || 0
@@ -2252,12 +2261,12 @@ export function Visualization({
       </div>
       )}
 
-      {tokens.length === 0 && (
+      {tokens.length === 0 && emptyMessage !== null && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-[#6b7280] text-sm z-10">
           <div className="w-28 h-0.5 rounded-full bg-white/10 overflow-hidden">
             <div className="skeleton h-full w-full rounded-full" />
           </div>
-          Loading coins from CoinGecko…
+          {emptyMessage}
         </div>
       )}
 

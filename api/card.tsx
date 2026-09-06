@@ -10,6 +10,11 @@ import { ImageResponse } from '@vercel/og'
 
 export const config = { runtime: 'edge' }
 
+// Mirrors SYMBOL_OVERRIDES in src/lib/prices.ts. The card fetches CoinGecko
+// itself and never sees the client's rename, so the Ethereum HEX's card printed
+// "HEX" in 62pt — indistinguishable from the PulseChain one it sits beside.
+const SYMBOL_OVERRIDES: Record<string, string> = { hex: 'eHEX' }
+
 // Filters null/undefined/false children — satori chokes on them, and that is
 // exactly what `cond ? h(...) : null` produced in the full tree (the probes all
 // passed because none of them had conditional children).
@@ -114,7 +119,7 @@ export default async function handler(req: Request) {
   const change = coin?.price_change_percentage_24h || 0
   const isUp = change >= 0
   const accent = isUp ? '#4ade80' : '#f87171'
-  const symbol = (coin?.symbol || 'DUST').toUpperCase()
+  const symbol = SYMBOL_OVERRIDES[coin?.id] ?? (coin?.symbol || 'DUST').toUpperCase()
   const name = coin?.name || 'CryptoDUST'
   const price = coin ? fmtPrice(coin.current_price || 0) : ''
   const pct = coin ? `${isUp ? '+' : '-'}${Math.abs(change).toFixed(2)}%` : 'Market Visualizer'

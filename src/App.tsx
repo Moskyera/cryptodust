@@ -1361,6 +1361,13 @@ export default function App() {
               topOffset={desktopTopOffset}
             performanceMode={performanceMode}
             marketTableOpen={isMarketOpen}
+            emptyMessage={
+              showTabLoader
+                ? null // the TabLoading below is the explanation
+                : isLoading
+                  ? 'Loading coins from CoinGecko…'
+                  : 'No coins match the current filters'
+            }
           />
         )}
         {/* Sits over the empty galaxy, under the tabs panel at z-45 so the
@@ -1848,7 +1855,7 @@ export default function App() {
                   <div className="mb-4">
                     <div className="flex justify-between text-[9px] text-[#6b7280] tracking-[0.8px] mb-1.5">
                       <span>FROM ATH</span>
-                      <span className="tabular-nums">{(selectedCoin.ath_change_percentage ?? 0).toFixed(0)}%</span>
+                      <span className="tabular-nums">{(selectedCoin.ath_change_percentage ?? 0).toFixed(1)}%</span>
                     </div>
                     <div className="meter-bar track">
                       <div className="meter-fill" style={{ width: `${Math.min(100, Math.max(2, (selectedCoin.current_price / (selectedCoin.ath as number)) * 100))}%` }} />
@@ -2131,7 +2138,7 @@ export default function App() {
                       <div className="pt-1">
                         <div className="flex justify-between text-[9px] text-[#6b7280] tracking-[0.8px] mb-1.5">
                           <span>FROM ATH</span>
-                          <span className="tabular-nums">{(selectedCoin.ath_change_percentage ?? 0).toFixed(0)}%</span>
+                          <span className="tabular-nums">{(selectedCoin.ath_change_percentage ?? 0).toFixed(1)}%</span>
                         </div>
                         <div className="meter-bar track">
                           <div className="meter-fill" style={{ width: `${Math.min(100, Math.max(2, (selectedCoin.current_price / (selectedCoin.ath as number)) * 100))}%` }} />

@@ -10,6 +10,14 @@
 const esc = (s: string) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+// Mirrors SYMBOL_OVERRIDES in src/lib/prices.ts. This function fetches CoinGecko
+// itself and never sees the client's rename, so without this /c/hex and
+// /c/hex-pulsechain both previewed as "HEX +x% in 24h" — the same headline for
+// two coins whose prices differ 2.5x. Keyed by id, since the symbol is exactly
+// the thing that is ambiguous.
+const SYMBOL_OVERRIDES: Record<string, string> = { hex: 'eHEX' }
+const ticker = (c: any) => SYMBOL_OVERRIDES[c?.id] ?? (c?.symbol || '').toUpperCase()
+
 export default async function handler(req: any, res: any) {
   const coinId = String(req.query.coin || '').slice(0, 100)
   if (!coinId || !/^[a-z0-9-]+$/i.test(coinId)) {
@@ -30,7 +38,7 @@ export default async function handler(req: any, res: any) {
       const [c] = await r.json()
       if (c) {
         const chg = c.price_change_percentage_24h || 0
-        title = `${(c.symbol || '').toUpperCase()} ${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% in 24h`
+        title = `${ticker(c)} ${chg >= 0 ? '+' : ''}${chg.toFixed(2)}% in 24h`
         description = `${c.name} on CryptoDUST · live prices, honest liquidity data, 800+ coins as planets.`
       }
     }

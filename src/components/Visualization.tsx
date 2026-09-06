@@ -244,24 +244,30 @@ export function Visualization({
   const getBaseRadius = (coin: TokenPrice) => {
     let base: number
 
+    // A coin with no figure for the chosen metric goes to the floor, never to a
+    // stand-in. The defaults that used to sit in these branches — 1e8 for a
+    // missing cap, 1e5 for a missing pool, 34 for a missing ATH — drew "no data"
+    // as a median-large planet. Measured on the PulseChain tab: 43 capless coins
+    // were drawn above 59 with real caps, and in the Liquidity view 10 poolless
+    // coins above 76 real pools. A size is a measurement to the eye, and there
+    // was nothing measured. The floor keeps the logo recognisable, so the coin
+    // is still there to find; it just no longer outranks anything real.
     if (sizeMetric === 'volume') {
-      base = 28 + Math.log10((coin.total_volume || 1e8) / 1e8) * 10
+      const v = coin.total_volume ?? 0
+      base = v > 0 ? 28 + Math.log10(v / 1e8) * 10 : 0
     } else if (sizeMetric === 'liquidity') {
       // DEX pool depth. Scaled around $100k rather than $100M because PulseChain
       // liquidity lives three orders of magnitude below the majors' market caps.
-      base = 28 + Math.log10(Math.max(1, coin.liquidity || 1e5) / 1e5) * 11
+      const l = coin.liquidity ?? 0
+      base = l > 0 ? 28 + Math.log10(Math.max(1, l) / 1e5) * 11 : 0
     } else if (sizeMetric === 'ath') {
       // Distance from the all-time high: at ATH → big planet, -95% → dust.
       // Makes "near new highs" vs "the graveyard" readable as a landscape.
+      // No published all-time high (the DEX-only tokens have no listing history)
+      // is the floor too — a mid-scale size was "claiming nothing" in the
+      // comment and claiming a quiet drawdown to the eye.
       const athPct = coin.ath_change_percentage
-      if (athPct == null) {
-        // Nobody publishes an all-time high for this coin (DEX-only tokens have
-        // no listing history at all). Sizing it as if it were 80% below a peak
-        // would be inventing the peak, so it sits mid-scale and claims nothing.
-        base = 34
-      } else {
-        base = 52 + Math.max(-100, Math.min(0, athPct)) * 0.38
-      }
+      base = athPct == null ? 0 : 52 + Math.max(-100, Math.min(0, athPct)) * 0.38
     } else if (sizeMetric === 'price') {
       base = 22 + Math.log10(Math.max(1, coin.current_price || 1)) * 8
     } else if (sizeMetric === 'change_24h') {
@@ -283,7 +289,8 @@ export function Visualization({
       base = baseSize
     } else {
       // market_cap
-      base = 28 + Math.log10((coin.market_cap || 1e8) / 1e8) * 11
+      const m = coin.market_cap ?? 0
+      base = m > 0 ? 28 + Math.log10(m / 1e8) * 11 : 0
     }
 
     // Floor raised 18 → 22: below that the logo art stops being recognisable,

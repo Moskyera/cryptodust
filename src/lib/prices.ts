@@ -311,6 +311,75 @@ async function fetchWithTimeout(
   }
 }
 
+/**
+ * A breaker in front of DexScreener, so one bad afternoon there costs a cycle
+ * one probe instead of sixteen timeouts.
+ *
+ * The deadline above bounds each call, but the build makes many of them per
+ * cycle in several serial stages. On 2026-08-24, with DexScreener answering
+ * nothing, every cycle still paid the full six seconds at every stage — the
+ * page opened, then re-paid the outage every five minutes, and the sixty-second
+ * fast lane paid it again in between.
+ *
+ * After STRIKES consecutive failures the breaker opens. While open, each cycle
+ * lets exactly ONE call through as a probe and rejects the rest on the spot;
+ * a probe that answers closes it again. So a healthy source is never throttled
+ * (it never accumulates strikes), an outage is detected within three calls, and
+ * recovery is noticed within one cycle of it happening.
+ *
+ * Callers already treat a rejected call as "no pool data this cycle", and the
+ * page already renders that honestly — this only makes the empty answer arrive
+ * in milliseconds instead of after the deadline.
+ */
+const DEX_BREAKER_STRIKES = 3
+const dexBreaker = { strikes: 0, open: false, probing: false, openedAt: 0, lastProbeAt: 0 }
+
+/** Read-only view of the breaker, for anything that wants to say "pool data paused". */
+export function getDexScreenerHealth(): { open: boolean; since: number | null } {
+  return { open: dexBreaker.open, since: dexBreaker.open ? dexBreaker.openedAt : null }
+}
+
+async function fetchDexScreener(url: string): Promise<Response> {
+  if (dexBreaker.open) {
+    // One probe at a time, and not more often than the fast lane ticks, so a
+    // burst of parallel batches does not all become probes at once.
+    const now = Date.now()
+    if (dexBreaker.probing || now - dexBreaker.lastProbeAt < 45000) {
+      throw new Error('DexScreener breaker open')
+    }
+    dexBreaker.probing = true
+    dexBreaker.lastProbeAt = now
+  }
+
+  try {
+    const res = await fetchWithTimeout(url, ENRICH_FETCH_TIMEOUT_MS)
+    if (res.ok) {
+      if (dexBreaker.open) console.log('[CryptoDUST] DexScreener is answering again; pool data resumes.')
+      dexBreaker.strikes = 0
+      dexBreaker.open = false
+    } else {
+      strike()
+    }
+    return res
+  } catch (error) {
+    strike()
+    throw error
+  } finally {
+    dexBreaker.probing = false
+  }
+
+  function strike() {
+    dexBreaker.strikes++
+    if (!dexBreaker.open && dexBreaker.strikes >= DEX_BREAKER_STRIKES) {
+      dexBreaker.open = true
+      dexBreaker.openedAt = Date.now()
+      console.warn(
+        `[CryptoDUST] DexScreener failed ${dexBreaker.strikes} times in a row; pausing pool lookups and probing once a cycle.`
+      )
+    }
+  }
+}
+
 async function fetchCoinGecko(
   url: string,
   options: { usePulseKey?: boolean } = {}
@@ -884,9 +953,8 @@ const ETHEREUM_POOL_TOKENS: Record<string, string> = {
  */
 async function fetchDexScreenerBatch(addresses: string[]): Promise<any[]> {
   try {
-    const res = await fetchWithTimeout(
-      `https://api.dexscreener.com/tokens/v1/pulsechain/${addresses.join(',')}`,
-      ENRICH_FETCH_TIMEOUT_MS
+    const res = await fetchDexScreener(
+      `https://api.dexscreener.com/tokens/v1/pulsechain/${addresses.join(',')}`
     )
     if (!res.ok) {
       console.warn(`[DexScreener] batch failed: ${res.status}`)
@@ -1281,9 +1349,8 @@ async function backfillFromEthereumPools(tokens: TokenPrice[]): Promise<number> 
   let pairs: any[] = []
   try {
     const addresses = targets.map(t => ETHEREUM_POOL_TOKENS[t.id])
-    const res = await fetchWithTimeout(
-      `https://api.dexscreener.com/tokens/v1/ethereum/${addresses.join(',')}`,
-      ENRICH_FETCH_TIMEOUT_MS
+    const res = await fetchDexScreener(
+      `https://api.dexscreener.com/tokens/v1/ethereum/${addresses.join(',')}`
     )
     if (!res.ok) {
       console.warn(`[DexScreener] ethereum batch failed: ${res.status}`)
@@ -1736,9 +1803,8 @@ async function backfillEcosystemFlow(
   try {
     groups = await Promise.all(
       batches.map(async addrs => {
-        const res = await fetchWithTimeout(
-          `https://api.dexscreener.com/tokens/v1/${chain}/${addrs.join(',')}`,
-          ENRICH_FETCH_TIMEOUT_MS
+        const res = await fetchDexScreener(
+          `https://api.dexscreener.com/tokens/v1/${chain}/${addrs.join(',')}`
         )
         if (!res.ok) return []
         const data = await res.json()

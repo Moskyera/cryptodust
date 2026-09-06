@@ -431,6 +431,10 @@ async function fetchCoinGecko(
 // SWR refresh dropped the PulseChain tab from ~107 coins to ~27 until the next cycle.
 // =====================================================
 const lastGoodResults = new Map<string, TokenPrice[]>()
+/** When each last-good result was actually fetched, so a fallback can say how old it is. */
+const lastGoodAt = new Map<string, number>()
+/** Oldest fetch time among the sources served stale in the current build; null when none were. */
+let staleDataAt: number | null = null
 
 async function withLastGood(
   key: string,
@@ -439,6 +443,7 @@ async function withLastGood(
   const result = await fetcher()
   if (result.length > 0) {
     lastGoodResults.set(key, result)
+    lastGoodAt.set(key, Date.now())
     return result
   }
 
@@ -447,6 +452,11 @@ async function withLastGood(
     console.warn(
       `[CryptoDUST] ${key} returned nothing — reusing ${cached.length} tokens from the previous refresh.`
     )
+    // Reported upward as the age of the oldest stale source, so the header can
+    // say CACHED with a real age instead of LIVE. The caller never sees this
+    // fallback otherwise: the build succeeds, just with older numbers in it.
+    const fetchedAt = lastGoodAt.get(key) ?? Date.now()
+    staleDataAt = staleDataAt === null ? fetchedAt : Math.min(staleDataAt, fetchedAt)
     // Shallow copies, not the stored objects. The originals are already inside
     // the rendered token list, and the enrichment steps downstream mutate what
     // they are given, which would be a write into live state React never hears
@@ -1967,6 +1977,16 @@ async function fetchEcosystemCategory(category: string, label: string): Promise<
 export interface MarketData {
   tokens: TokenPrice[]
   sections: EcosystemSection[]
+  /** When this build completed. The header's age is measured from here, never from render time. */
+  builtAt?: number
+  /**
+   * Set when any primary source came back empty and its previous result was
+   * served in its place: the time that stale data was actually fetched. The
+   * header shows CACHED with this age instead of LIVE. fetchAllCoins never
+   * throws — a failed source is absorbed by the last-good cache — so SWR's own
+   * error flag cannot carry this; it has to be reported from inside the build.
+   */
+  staleAsOf?: number
 }
 
 /**
@@ -1975,6 +1995,8 @@ export interface MarketData {
  * the call site for why it is safe to hand this list over early.
  */
 async function fetchAllCoins(onPartial?: (partial: MarketData) => void): Promise<MarketData> {
+  // Each build starts fresh; withLastGood sets this if any source falls back.
+  staleDataAt = null
   try {
     const [mainPages, coinGeckoSpecial, specialCoins] = await Promise.all([
       Promise.all([
@@ -2355,7 +2377,7 @@ async function fetchAllCoins(onPartial?: (partial: MarketData) => void): Promise
       `[CryptoDUST] ${result.length} coins ready (${mainSection.length} main + ` +
       sections.map(s => `${s.end - s.start} ${s.label}`).join(' + ') + ').'
     )
-    return { tokens: result, sections }
+    return { tokens: result, sections, builtAt: Date.now(), staleAsOf: staleDataAt ?? undefined }
   } catch (error) {
     console.error('Failed to fetch coins', error)
     return { tokens: [], sections: [] }
@@ -2521,7 +2543,82 @@ function mergeFastLane(
     }
     return t
   })
-  return { tokens, sections: current.sections }
+  // A successful tick refreshed the prices most readers look at, so the age
+  // the header may show is measured from now, not from the last full build.
+  // staleAsOf is carried, not cleared: a good tick refreshes the top 500 and
+  // the hand-mapped PulseChain coins, but a stale chain tab stays stale until a
+  // full build succeeds, and the header must not say LIVE over it.
+  return { tokens, sections: current.sections, builtAt: Date.now(), staleAsOf: current.staleAsOf }
+}
+
+// =====================================================
+// THE LAST COMPLETE BUILD, KEPT ON THE DEVICE
+//
+// Until now the only cache was in memory, so a returning visitor saw the boot
+// screen and then nothing until the whole chain of calls finished, and a
+// CoinGecko outage meant an empty page. The last complete build is now written
+// to localStorage after every cycle and read back synchronously on the next
+// visit, before any network — measured at ~470 KB for 830 coins, well inside
+// the 5 MB the browser allows.
+//
+// What makes this honest rather than merely fast: the stored build is never
+// shown as LIVE. It carries the time it was built, the header says STORED with
+// that age beside it, and the moment a fresh build — even the early top-500 —
+// arrives it is replaced. Past a day it is not shown at all: a price that old
+// is not a price. The per-coin 7-day histories are stripped on write; they are
+// fetched on demand and a stale one would be presented as the week.
+// =====================================================
+const STORE_KEY = 'cryptodust-market-v1'
+const STORE_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
+interface StoredBuild {
+  v: 1
+  savedAt: number
+  tokens: TokenPrice[]
+  sections: EcosystemSection[]
+}
+
+function readStoredBuild(): StoredBuild | undefined {
+  try {
+    const raw = localStorage.getItem(STORE_KEY)
+    if (!raw) return undefined
+    const parsed = JSON.parse(raw) as Partial<StoredBuild>
+    if (parsed?.v !== 1 || !Array.isArray(parsed.tokens) || !Array.isArray(parsed.sections)) return undefined
+    if (typeof parsed.savedAt !== 'number' || Date.now() - parsed.savedAt > STORE_MAX_AGE_MS) return undefined
+    if (parsed.tokens.length < 100) return undefined
+    return parsed as StoredBuild
+  } catch {
+    return undefined
+  }
+}
+
+function writeStoredBuild(d: MarketData): void {
+  try {
+    const stored: StoredBuild = {
+      v: 1,
+      // A build that served a stale source is stored with that source's age,
+      // so the next visit's STORED label does not claim freshness it never had.
+      savedAt: d.staleAsOf ?? d.builtAt ?? Date.now(),
+      tokens: d.tokens.map(t => (t.history7d ? { ...t, history7d: undefined } : t)),
+      sections: d.sections,
+    }
+    localStorage.setItem(STORE_KEY, JSON.stringify(stored))
+  } catch {
+    // Quota, private mode, or storage disabled: the site simply behaves as it
+    // did before this existed.
+  }
+}
+
+/** "3m", "2h", "1d" — the age of the numbers on screen, for the header. */
+export function formatAge(asOf: number | null | undefined): string {
+  if (!asOf) return ''
+  const s = Math.max(0, Math.round((Date.now() - asOf) / 1000))
+  if (s < 60) return `${s}s`
+  const m = Math.round(s / 60)
+  if (m < 60) return `${m}m`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h}h`
+  return `${Math.round(h / 24)}d`
 }
 
 // ==================== MAIN HOOK ====================
@@ -2537,8 +2634,19 @@ export function usePrices() {
    * flight and throws that fetch's result away. Its own state cannot collide
    * with the fetch it is racing.
    */
-  const [partial, setPartial] = useState<MarketData | undefined>(undefined)
-  const partialShown = useRef(false)
+  // Seeded from the device store when there is one, so the first render already
+  // has coins in it. `partialKind` remembers what is standing in: a stored build
+  // is replaced by the early top-500 (fresh beats stale), and the early publish
+  // is taken once per session.
+  const partialKind = useRef<'stored' | 'early' | null>(null)
+  const storedAt = useRef<number | null>(null)
+  const [partial, setPartial] = useState<MarketData | undefined>(() => {
+    const stored = readStoredBuild()
+    if (!stored) return undefined
+    partialKind.current = 'stored'
+    storedAt.current = stored.savedAt
+    return { tokens: stored.tokens, sections: stored.sections, builtAt: stored.savedAt }
+  })
 
   const { data, error, isLoading, mutate } = useSWR<MarketData>(
     // Key bumped: the cached shape changed from TokenPrice[] to MarketData
@@ -2547,10 +2655,11 @@ export function usePrices() {
       fetchAllCoins(early => {
         // Only ever for the first paint. Once a complete build exists the
         // partial is ignored below, so setting it again would be a re-render of
-        // the whole page every five minutes for nothing. The second guard is
-        // for StrictMode, which runs this twice in development.
-        if (dataRef.current || partialShown.current) return
-        partialShown.current = true
+        // the whole page every five minutes for nothing. The kind guard is for
+        // StrictMode, which runs this twice in development — and it lets the
+        // fresh top-500 displace a stored build, never the other way round.
+        if (dataRef.current || partialKind.current === 'early') return
+        partialKind.current = 'early'
         setPartial(early)
       }),
     {
@@ -2562,7 +2671,13 @@ export function usePrices() {
 
   // Fast lane: 60s price-only updates between the 5-minute full rebuilds
   const lastFastRun = useRef(0)
-  useEffect(() => { dataRef.current = data }, [data])
+  useEffect(() => {
+    dataRef.current = data
+    // Every complete build goes to the device store, so the next visit opens on
+    // it. Only complete builds: a partial has no chain tabs and a stored one
+    // would just be rewriting itself.
+    if (data) writeStoredBuild(data)
+  }, [data])
 
   useEffect(() => {
     let cancelled = false
@@ -2598,12 +2713,24 @@ export function usePrices() {
     }
   }, [mutate])
 
+  // What is standing in for the feed, and how old it is. `asOf` is the build
+  // time of whatever is on screen — never render time, which is the mistake
+  // `lastUpdated: Date.now()` used to make.
+  const showingStored = !data && !!partial && partialKind.current === 'stored'
+  const freshness: 'live' | 'partial' | 'stored' = data ? 'live' : showingStored ? 'stored' : 'partial'
+  // A build that served a stale source reports that source's age, not its own
+  // completion time: the numbers on screen are as old as their oldest input.
+  const asOf = data ? (data.staleAsOf ?? data.builtAt ?? null) : showingStored ? storedAt.current : null
+  const stale = !!data?.staleAsOf
+
   return {
     // The complete build wins the moment it exists, and on every cycle after.
     tokens: data?.tokens ?? partial?.tokens ?? [],
     sections: data?.sections ?? partial?.sections ?? [],
     isLoading,
     error,
-    lastUpdated: Date.now(),
+    freshness,
+    asOf,
+    stale,
   }
 }

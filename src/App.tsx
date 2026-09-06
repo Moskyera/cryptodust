@@ -5,7 +5,7 @@ import { CoinPriceChart } from './components/CoinPriceChart'
 import { TabLoading } from './components/TabLoading'
 import { Provenance } from './components/Provenance'
 import { TabLedger, type HexBridge } from './components/TabLedger'
-import { usePrices, getCoinHistory, formatCompactPrice, coinSourceLink, ECOSYSTEM_TABS, type TokenPrice } from './lib/prices'
+import { usePrices, getCoinHistory, formatCompactPrice, coinSourceLink, ECOSYSTEM_TABS, formatAge, type TokenPrice } from './lib/prices'
 import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, buildBattlefieldCard, copyBattlefieldCard, downloadBattlefieldCard, shareBattlefieldCard, type CardPeriod } from './lib/shareCard'
 import {
   Zap, Pause, Play, Gauge, Search, RefreshCw, Download, Copy, Heart,
@@ -102,7 +102,50 @@ const VIEWS: Array<{
 ]
 
 export default function App() {
-  const { tokens, sections, isLoading, error } = usePrices()
+  const { tokens, sections, isLoading, error, freshness, asOf, stale } = usePrices()
+
+  // What the header may claim about the numbers on screen. STORED is a build
+  // saved on this device, shown with its age so a two-hour-old price is never
+  // mistaken for a live one; PARTIAL is the top 500 fresh from the feed while
+  // the chain tabs are still being built and checked; CACHED is the previous
+  // cycle after a failed refresh. LIVE is claimed only when a complete build
+  // from this session is on screen and the last refresh succeeded.
+  const feed = (() => {
+    if (freshness === 'stored') {
+      const age = formatAge(asOf)
+      return {
+        label: age ? `STORED · ${age}` : 'STORED',
+        tone: 'amber' as const,
+        title: `Saved on this device ${age || 'earlier'} ago. Refreshing from the feed now.`,
+      }
+    }
+    if (freshness === 'partial') {
+      return {
+        label: 'PARTIAL',
+        tone: 'cyan' as const,
+        title: 'The top 500 are fresh from the feed; the chain tabs are still being built and checked.',
+      }
+    }
+    if (error || stale) {
+      const age = formatAge(asOf)
+      return {
+        label: age ? `CACHED · ${age}` : 'CACHED',
+        tone: 'amber' as const,
+        title: 'The last refresh failed, showing the previous values',
+      }
+    }
+    return { label: 'LIVE', tone: 'emerald' as const, title: 'Refreshed from the feed' }
+  })()
+  const feedPill = {
+    box:
+      feed.tone === 'amber'
+        ? 'bg-amber-500/10 border-amber-500/25'
+        : feed.tone === 'cyan'
+          ? 'bg-cyan-500/10 border-cyan-500/25'
+          : 'bg-emerald-500/10 border-emerald-500/25',
+    dot: feed.tone === 'amber' ? 'bg-amber-400' : feed.tone === 'cyan' ? 'bg-cyan-400' : 'live-dot bg-emerald-400',
+    text: feed.tone === 'amber' ? 'text-amber-400' : feed.tone === 'cyan' ? 'text-[#67f6ff]' : 'text-emerald-400',
+  }
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // View state persists so every visit resumes where the user left off
   const [sizeMetric, setSizeMetric] = useState<SizeMetricOption>(() => {
@@ -815,16 +858,12 @@ export default function App() {
                 JSX, so it went on claiming LIVE while the toast underneath said
                 the app was serving cached values. */}
             <div
-              className={`flex items-center gap-x-1.5 px-2.5 py-1 rounded-full text-[10px] border ${
-                error
-                  ? 'bg-amber-500/10 border-amber-500/25'
-                  : 'bg-emerald-500/10 border-emerald-500/25'
-              }`}
-              title={error ? 'The last refresh failed, showing the previous values' : 'Refreshed from the feed'}
+              className={`flex items-center gap-x-1.5 px-2.5 py-1 rounded-full text-[10px] border ${feedPill.box}`}
+              title={feed.title}
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${error ? 'bg-amber-400' : 'live-dot bg-emerald-400'}`} />
-              <span className={`font-semibold tracking-[1.2px] ${error ? 'text-amber-400' : 'text-emerald-400'}`}>
-                {error ? 'CACHED' : 'LIVE'}
+              <div className={`w-1.5 h-1.5 rounded-full ${feedPill.dot}`} />
+              <span className={`font-semibold tracking-[1.2px] tabular-nums ${feedPill.text}`}>
+                {feed.label}
               </span>
             </div>
           </div>
@@ -1034,13 +1073,12 @@ export default function App() {
               <span className="wordmark-dust font-bold tracking-[-0.8px] text-lg">DUST</span>
             </div>
             <span
-              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border flex-shrink-0 ${
-                error ? 'bg-amber-500/10 border-amber-500/25' : 'bg-emerald-500/10 border-emerald-500/25'
-              }`}
+              className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border flex-shrink-0 ${feedPill.box}`}
+              title={feed.title}
             >
-              <span className={`w-1 h-1 rounded-full ${error ? 'bg-amber-400' : 'live-dot bg-emerald-400'}`} />
-              <span className={`text-[8px] font-semibold tracking-[1px] ${error ? 'text-amber-400' : 'text-emerald-400'}`}>
-                {error ? 'CACHED' : 'LIVE'}
+              <span className={`w-1 h-1 rounded-full ${feedPill.dot}`} />
+              <span className={`text-[8px] font-semibold tracking-[1px] tabular-nums ${feedPill.text}`}>
+                {feed.label}
               </span>
             </span>
           </div>

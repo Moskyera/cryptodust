@@ -61,6 +61,19 @@ export function usableHistory(
   return history.slice(0, end)
 }
 
+/**
+ * How many trailing closes the chart refused to draw, for the caption above it.
+ * A chart that silently trims its tail is telling a cleaner story than the
+ * source did; saying "3 withheld" beside it keeps the trim honest. Zero when
+ * nothing was trimmed, and zero when the whole series was refused — then there
+ * is no chart to caption.
+ */
+export function withheldCloses(history: number[] | undefined, currentPrice?: number): number {
+  const series = usableHistory(history, currentPrice)
+  if (!history || !series) return 0
+  return history.length - series.length
+}
+
 export function PriceChart({
   history,
   width = 288,

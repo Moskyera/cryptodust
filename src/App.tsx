@@ -3,6 +3,8 @@ import { Visualization } from './components/Visualization'
 import { FlowPanel } from './components/FlowPanel'
 import { CoinPriceChart } from './components/CoinPriceChart'
 import { TabLoading } from './components/TabLoading'
+import { Provenance } from './components/Provenance'
+import { TabLedger, type HexBridge } from './components/TabLedger'
 import { usePrices, getCoinHistory, formatCompactPrice, coinSourceLink, ECOSYSTEM_TABS, type TokenPrice } from './lib/prices'
 import { shareCoinCard, downloadCoinCard, copyCoinCard, buildMultiCard, copyMultiCoinCard, downloadMultiCoinCard, shareMultiCoinCard, buildBattlefieldCard, copyBattlefieldCard, downloadBattlefieldCard, shareBattlefieldCard, type CardPeriod } from './lib/shareCard'
 import {
@@ -624,6 +626,23 @@ export default function App() {
    * a loader drawn over real results would be a lie about what is on screen.
    */
   const showTabLoader = !!activePageDef?.pending && currentPageTokens.length === 0
+
+  // The active chain tab's ledger, and — on PulseChain only — the number the
+  // HEX community argues about, with each side's source named: pHEX is a pool
+  // reading, eHEX is CoinGecko's figure (its Uniswap pool is read for depth and
+  // flow, never adopted as its price). Shown only when both rows are present.
+  const activeSection = activePageDef?.key ? sections.find(s => s.key === activePageDef.key) : undefined
+  const hexBridge = React.useMemo<HexBridge | undefined>(() => {
+    if (activePageDef?.key !== 'pulsechain') return undefined
+    const p = tokens.find(t => t.id === 'hex-pulsechain')
+    const e = tokens.find(t => t.id === 'hex')
+    if (!p || !e || !(p.current_price > 0) || !(e.current_price > 0)) return undefined
+    return {
+      ratio: p.current_price / e.current_price,
+      pSource: p.poolChecked ? (p.dexSource || 'pool') : 'CoinGecko',
+      eSource: e.poolChecked ? (e.dexSource || 'pool') : 'CoinGecko',
+    }
+  }, [tokens, activePageDef?.key])
 
   // No planet scale boosts (as requested).
   const baseScale = isMobile ? 0.45 : 1
@@ -1412,6 +1431,9 @@ export default function App() {
                 >
                   <span className="collapse-grip" />
                 </button>
+                {/* The active chain tab's ledger, at the end of the row so it
+                    reads as a footnote to the tabs rather than as another tab. */}
+                <TabLedger section={activeSection} bridge={hexBridge} className="ml-auto pr-8" />
               </div>
             ) : (
               // Minimized: thin bar so planets have maximum surface. Click anywhere to reopen.
@@ -1583,6 +1605,12 @@ export default function App() {
                 </span>
               </div>
             )}
+
+            {/* The active chain tab's ledger — what this cycle checked,
+                corrected, withheld and filtered — above the rows it explains. */}
+            {/* Wraps rather than scrolls: at 375px the bridge figure sat off the
+                right edge with nothing to say it was there. */}
+            <TabLedger section={activeSection} bridge={hexBridge} className="mb-2 px-1 flex-wrap gap-y-1" />
 
             {/* Mobile List */}
             <div className="space-y-1.5">
@@ -1916,6 +1944,7 @@ export default function App() {
                     </span>
                   </div>
                 )}
+                <Provenance coin={selectedCoin} compact />
                 <FlowPanel
                   compact
                   flow={selectedCoin.flow}
@@ -2204,6 +2233,7 @@ export default function App() {
                         </div>
                       )}
 
+                      <Provenance coin={selectedCoin} />
                       <FlowPanel
                         flow={selectedCoin.flow}
                         change24h={selectedCoin.price_change_percentage_24h}

@@ -1,5 +1,5 @@
 import { useCoinHistory, type TokenPrice } from '../lib/prices'
-import { PriceChart, usableHistory } from './PriceChart'
+import { PriceChart, usableHistory, withheldCloses } from './PriceChart'
 
 /**
  * The seven-day chart block, including its own loading state.
@@ -32,13 +32,23 @@ export function CoinPriceChart({
   // Asked of the same function the chart uses, so the heading never survives a
   // series the chart has decided it cannot draw.
   const hasChart = !!usableHistory(history, coin?.current_price)
+  const withheld = withheldCloses(history, coin?.current_price)
   if (!coin || (!hasChart && !pending)) return null
 
   return (
     <div className={wrapperClass}>
       <div className="flex items-center justify-between text-[10px] text-[#6b7280] mb-1">
         <span className="tracking-[1px]">7D PRICE</span>
-        <span className="text-[9px]">hourly closes</span>
+        <span
+          className={`text-[9px] ${withheld > 0 ? 'text-amber-400/80' : ''}`}
+          title={
+            withheld > 0
+              ? `${withheld} of the source's most recent closes sat more than 20× from the live price and were not drawn.`
+              : undefined
+          }
+        >
+          hourly closes{withheld > 0 && ` · ${withheld} withheld`}
+        </span>
       </div>
       <div style={{ height }}>
         <PriceChart
